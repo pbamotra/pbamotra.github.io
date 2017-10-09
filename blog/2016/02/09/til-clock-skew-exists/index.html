@@ -1,0 +1,221 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>TIL: clock skew exists - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="TIL: clock skew exists">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2016/02/09/til-clock-skew-exists/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">TIL: clock skew exists</h1>
+
+<div class="post-tags">
+  
+  •
+  
+    <a class="post-tag" href="/categories/favorite">favorite</a> 	•
+  
+  
+</div>
+<p class="meta">
+<time datetime="2016-02-09T23:56:59" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     
+
+<p>I learned some new things yesterday about distributed systems yesterday! Redis is a key-value store that can be distributed, and apparently it has a proposal for a locking system called <a href="http://redis.io/topics/distlock">Redlock</a>.</p>
+
+<p>Yesterday I read the articles where <a href="http://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html">Martin Kleppman criticizes Redlock</a> and <a href="http://antirez.com/news/101">Redlock&rsquo;s author, antirez, responds</a>.</p>
+
+<p>These are very interesting to read as a distributed systems n00b &ndash; the authors of the articles are making significantly different arguments, and so it&rsquo;s a useful exercise to try to reason through the arguments and figure out who you think is right.</p>
+
+<p>Martin Kleppman, as far as I understand, argues that Redlock isn&rsquo;t safe to use because</p>
+
+<ul>
+<li>processes can pause for arbitrary amount of time (because of garbage collection or CPU scheduling)</li>
+<li>network requests can be arbitrarily delayed at any time</li>
+<li>The clock on a computer can be unreliable (because it goes at the wrong speed, or has jumped back in time)</li>
+</ul>
+
+<p>Probably other reasons too, but those are the ones I understood.</p>
+
+<p>Here&rsquo;s a chart from his post illustrating  how things can go wrong:</p>
+
+<p><img src="/images/unsafe-lock.png"></p>
+
+<h3 id="process-pauses-network-delays-are-totally-real-but-clock-skew">process pauses &amp; network delays are totally real. but, clock skew?</h3>
+
+<p>Part of antirez&rsquo;s response is &ldquo;well, you can assume your clock is mostly correct though!&rdquo;.</p>
+
+<blockquote>
+<p>What they need to do is just, for example, to be able to count 5 seconds with a maximum of 10% error. So one counts actual 4.5 seconds, another 5.5 seconds, and we are fine.</p>
+</blockquote>
+
+<p>Now, I totally believe in garbage collection. I&rsquo;ve seen services become unresponsive because they were garbage collecting. So I definitely believe in process pauses.</p>
+
+<p>I also believe in arbitrary network delays! If you told me that some of my replies saying &ldquo;hey I&rsquo;m finished with the lock&rdquo; would be (very very occasionally) delayed for 1-2 seconds, I&rsquo;d believe you. 1-2 seconds is a lot of computer time!!</p>
+
+<p>As far as I can tell, either of those two things by themselves is enough to make Redlock not safe. (if you account for process pauses, you could <strong>still have another process pause after you account for them</strong>, right?)</p>
+
+<p>But, we were talking about clock skew.</p>
+
+<p>Clock skew is when your clock is going, say, 10% or 2x faster than it should. If uncorrected, this is a disaster for a system that depends on knowing the right time.</p>
+
+<p>Here&rsquo;s the thing &ndash; I haven&rsquo;t seen a lot of systems, but I&rsquo;ve never seen a system with a clock running too fast. My laptop&rsquo;s clock mostly works, as far as I know my servers at work have approximately correct clocks (though maybe they don&rsquo;t and I just don&rsquo;t know!). Why is Martin Kleppman so worried about this?</p>
+
+<p>I asked about this, and <a href="https://twitter.com/handler">@handler</a> and <a href="https://twitter.com/aphyr">@aphyr</a> both helped me out. They were basically both totally &ldquo;julia systems with clocks that go at bogus speeds totally exist. 2x clock skew is real&rdquo;.</p>
+
+<h3 id="a-few-links-about-clock-skew">a few links about clock skew</h3>
+
+<p><a href="http://xenia.media.mit.edu/~nelson/research/ntp-survey99/html/">Check out this 1999 paper</a> by Nelson Minar that surveys NTP (network time protocol) servers and finds that they&rsquo;re often serving incorrect times.</p>
+
+<p><a href="https://aphyr.com/posts/299-the-trouble-with-timestamps">The trouble with timestamps</a> by @aphyr has a great explanation about why you should care about your clock.</p>
+
+<p>Here&rsquo;s <a href="http://sec.cs.ucl.ac.uk/users/smurdoch/papers/ccs06hotornot.pdf">an attack on Tor</a> where if you induce high CPU load on a node, the temperature is likely to cause the clock skew to increase on that node. There&rsquo;s also <a href="https://www.usenix.org/legacy/event/sec08/tech/full_papers/zander/zander_html/">a follow up paper</a></p>
+
+<p>Leap seconds are real. (there was one in 2015!) This post <a href="http://developerblog.redhat.com/2015/06/01/five-different-ways-handle-leap-seconds-ntp/">5 different ways to handle leap seconds</a> has a ton of cool graphs. (thanks <a href="https://twitter.com/ncoghlan_dev">Nick Coghlan</a>!)</p>
+
+<p>Google pretty much knows what time it is &ndash; they invested a ton of time in a system called Spanner. Here are <a href="http://radar.oreilly.com/2012/10/google-spanner-relational-database.html">a couple</a> of <a href="http://www.wired.com/2012/11/google-spanner-time/">articles</a> about that.</p>
+
+<h3 id="distributed-systems-weird-computer-things">distributed systems &amp; weird computer things</h3>
+
+<p>Distributed systems researchers are really really concerned with adverse, sometimes uncommon, things that can happen to your computer (like clock skew).</p>
+
+<p>I think they&rsquo;re concerned for three reasons:</p>
+
+<ol>
+<li>they&rsquo;re trying to prove theorems, and if you&rsquo;re proving a theorem you need to worry about all the edge cases</li>
+<li>they&rsquo;re operating literally 20 million computers. if you have 20 million computers everything that can go wrong with a computer will go wrong.</li>
+<li>some of those seemingly uncommon things are actually quite common (like network partitions)</li>
+</ol>
+
+<p>I don&rsquo;t know at all how many computers Google has, but I bet it&rsquo;s a lot. Like 20 million or something.</p>
+
+<p>Reasons 1 and 2 are related &ndash; if you prove a theorem that your system is safe, then it&rsquo;ll be safe even if you have 20 million computers. Theorems are the best.</p>
+
+<p>So my laptop&rsquo;s clock is probably mostly okay, but at Google scale I&rsquo;d imagine you have computers with broken clocks all the time.</p>
+
+<h3 id="reasoning-about-distributed-systems-is-interesting">reasoning about distributed systems is interesting</h3>
+
+<p>I&rsquo;m not a distributed systems engineer, really. (though I deal with some at work sometimes). I think, if you have plans to interact with distributed systems in the future, it&rsquo;s really useful to try to reason through issues like this for yourself! There&rsquo;s a ton of terminology (the first time I watched one of the <a href="https://www.youtube.com/watch?v=mxdpqr-loyA">Jepsen talks</a> I was like &ldquo;wat.&rdquo;)</p>
+
+<p>So I think it&rsquo;s fun to practice sometimes. Maybe one day you learn what linearizability is! and 6 months later you&rsquo;re like &ldquo;oh I actually didn&rsquo;t get it I was totally wrong.&rdquo;</p>
+
+<h3 id="clock-skew-is-real">clock skew is real</h3>
+
+<p>People I know have experienced it! It is not just a weird theoretical thing to give researchers jobs. Huh.</p>
+
+<p><small>
+thanks for <a href="https://twitter.com/skamille">Camille Fournier</a>, <a href="https://twitter.com/handler">Michael Handler</a>, and <a href="https://twitter.com/aphyr">Kyle Kingsbury</a> for trying to explain distributed systems things to me. I have likely made lots of mistakes in writing this, and those mistakes are all mine :)
+</small></p>
+
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2016/02/09/til-clock-skew-exists/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2016/02/09/til-clock-skew-exists/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2016/02/10/have-high-expectations-for-computers/" title="Previous Post: Have high expectations for your computers">Have high expectations for your computers</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2016/02/07/cpu-load-averages/" title="Next Post: How CPU load averages work (and using them to triage webserver performance!)">How CPU load averages work (and using them to triage webserver performance!)</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

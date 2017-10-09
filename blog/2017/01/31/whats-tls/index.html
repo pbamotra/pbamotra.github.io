@@ -1,0 +1,364 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dissecting an SSL certificate - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="Dissecting an SSL certificate">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2017/01/31/whats-tls/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">Dissecting an SSL certificate</h1>
+
+<div class="post-tags">
+  
+</div>
+<p class="meta">
+<time datetime="2017-01-31T21:31:29" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     
+
+<p>Hello! In my networking zine (which everyone will be able to see soon),
+there is a page about TLS/SSL (basically <a href="https://twitter.com/b0rk/status/809594614147645440">this tweet</a>).
+But as happens when you write 200 words about a thing on a page, there is a lot
+more interesting stuff to say. So in this post we will dissect an SSL
+certificates and try to understand it!</p>
+
+<p>I am not a security person and I am not going to give you security
+advice for your website (want to know what TLS ciphers you should use? I
+have no idea!!!). But! I think it&rsquo;s interesting to know what it means to
+&ldquo;issue a SSL certificate&rdquo; and I can talk about that a little.</p>
+
+<h3 id="tls-newer-version-of-ssl">TLS: newer version of SSL</h3>
+
+<p>I was confused about what this &ldquo;TLS&rdquo; thing was for a long time.
+Basically newer versions of SSL are called TLS (the version after SSL
+3.0 is TLS 1.0). I&rsquo;m going to just call it &ldquo;SSL&rdquo; throughout because that
+is less confusing to me.</p>
+
+<h3 id="what-s-a-certificate">What&rsquo;s a certificate?</h3>
+
+<p>Suppose I&rsquo;m checking my email at <a href="https://mail.google.com">https://mail.google.com</a></p>
+
+<p><code>mail.google.com</code> is running a HTTPS server on port 443. I want to make
+sure that I&rsquo;m <strong>actually</strong> talking to mail.google.com and not some other
+random server on the internet owned by EVIL PEOPLE.</p>
+
+<p>This &ldquo;certificate&rdquo; business was kind of mysterious to me for a very long
+time. One day my cool coworker Ray told me that I could connect to a
+server on the command line and download its certficate!</p>
+
+<p>(If you want to just look at an SSL certificate, you can click on
+the green lock in your browser and reliably get all the information you need. But this is more fun.)</p>
+
+<p>So, let&rsquo;s start by looking at mail.google.com&rsquo;s certificate and
+deconstruct it a bit.</p>
+
+<p>First, we run <code>openssl s_client -connect mail.google.com:443</code></p>
+
+<p>This is going to print a bunch of stuff, but we&rsquo;ll just focus on the
+certificate. Here, it&rsquo;s this thing:</p>
+
+<pre><code>$ openssl s_client -connect mail.google.com:443
+...
+-----BEGIN CERTIFICATE-----
+MIIElDCCA3ygAwIBAgIIMmzfdZnO9pMwDQYJKoZIhvcNAQELBQAwSTELMAkGA1UE
+BhMCVVMxEzARBgNVBAoTCkdvb2dsZSBJbmMxJTAjBgNVBAMTHEdvb2dsZSBJbnRl
+cm5ldCBBdXRob3JpdHkgRzIwHhcNMTcwMTE4MTg1MjExWhcNMTcwNDEyMTg1MDAw
+WjBpMQswCQYDVQQGEwJVUzETMBEGA1UECAwKQ2FsaWZvcm5pYTEWMBQGA1UEBwwN
+TW91bnRhaW4gVmlldzETMBEGA1UECgwKR29vZ2xlIEluYzEYMBYGA1UEAwwPbWFp
+bC5nb29nbGUuY29tMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAiYcr
+C9Rn7g9xjsg7khqfRPxUnvpgGyCHqJMXxZGtdf+G02d07cPlMEeaGG12vHyVfRZD
+tc/F1ZfwenH6gf0uMobtgw7n2NQa7T7qxuqSUDhZsO1sI1LL/Yqy8QHoooOZQWMz
+ytuRA18zti4vQV1dCijADh0+NWI1GDUAKidbaH/fBRrStqBev5Bhq3ZaGj3fDjAO
+7CG0Wk3n4Ov2yg44XOdgkLMzjdnbV8l6cZDC7lCK1VsEU1mEd0O0Dw4OcnHLuBPw
+IkioZayhPOXDXUS+bhpmtEiCkt8kbHG6jNMC4m8t62Jaf/Si3XNcHhDa4wPCTvid
+X//PuuNlRZVg3NjK/wIDAQABo4IBXjCCAVowHQYDVR0lBBYwFAYIKwYBBQUHAwEG
+CCsGAQUFBwMCMCwGA1UdEQQlMCOCD21haWwuZ29vZ2xlLmNvbYIQaW5ib3guZ29v
+Z2xlLmNvbTBoBggrBgEFBQcBAQRcMFowKwYIKwYBBQUHMAKGH2h0dHA6Ly9wa2ku
+Z29vZ2xlLmNvbS9HSUFHMi5jcnQwKwYIKwYBBQUHMAGGH2h0dHA6Ly9jbGllbnRz
+MS5nb29nbGUuY29tL29jc3AwHQYDVR0OBBYEFI69aYCEtb2swbJJR3cMOTdcfvZ4
+MAwGA1UdEwEB/wQCMAAwHwYDVR0jBBgwFoAUSt0GFhu89mi1dvWBtrtiGrpagS8w
+IQYDVR0gBBowGDAMBgorBgEEAdZ5AgUBMAgGBmeBDAECAjAwBgNVHR8EKTAnMCWg
+I6Ahhh9odHRwOi8vcGtpLmdvb2dsZS5jb20vR0lBRzIuY3JsMA0GCSqGSIb3DQEB
+CwUAA4IBAQAhiqQIwkGp1NmlLq89gjoAfpwaapHuRixxl2S54fyu/4WOHJJafqVA
+Tya9J7GTUCyQ6nszCdVizVP26h9TKOs9LJw5jWV9SOnPU2UZKvrNnOUi2FUkCcuD
+lsADdKSXNzye3jB88TENrWC/y3ysPdAgPO/sXzyRvNw8SVKl2+RqMDpSRpBptF9e
+Lp+WLAM3xKS5SPwCNdCiA332o7qiKRKQm/6bbIWnm7hp/ZnLxbyKaIVytRdiwRNp
+O/TTpRv2C708GA3PH6i1pYE86xm3w7lGhN9OiCZpKOJD6ZUH3W20idgPKYPBCO/N
+Op2AF3I4iUGeQjXFVLgS6mjUvdLndL9G
+-----END CERTIFICATE-----
+</code></pre>
+
+<p>So far, this is unintelligible nonsense. &ldquo;MIIElDcca&hellip; WHAT?!&rdquo;</p>
+
+<p>It turns out that this nonsense is a format called &ldquo;X509&rdquo;, and the <code>openssl</code>
+command knows how to decode it.</p>
+
+<p>So I saved this blob of text to a file called <code>cert.pem</code>. You can save it to your computer <a href="https://gist.githubusercontent.com/jvns/2c249b8059c0b183c02bb3a71e12e418/raw/b4afd1877471b72f8900b2396c30bc670a5701c9/mail_google_cert.pem">from this gist</a> if you want to follow along.</p>
+
+<p>Our next mission is to <strong>parse this certificate</strong>. We do that like this:</p>
+
+<pre><code>$ openssl x509 -in cert.pem -text
+
+Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number: 3633524695565792915 (0x326cdf7599cef693)
+    Signature Algorithm: sha256WithRSAEncryption
+        Issuer: C=US, O=Google Inc, CN=Google Internet Authority G2
+        Validity
+            Not Before: Jan 18 18:52:11 2017 GMT
+            Not After : Apr 12 18:50:00 2017 GMT
+        Subject: C=US, ST=California, L=Mountain View, O=Google Inc, CN=mail.google.com
+        Subject Public Key Info:
+            Public Key Algorithm: rsaEncryption
+                Public-Key: (2048 bit)
+                Modulus:
+                    00:89:87:2b:0b:d4:67:ee:0f:71:8e:c8:3b:92:1a:
+                    9f:44:fc:54:9e:fa:60:1b:20:87:a8:93:17:c5:91:
+                    .... blah blah blah ............
+                    c2:4e:f8:9d:5f:ff:cf:ba:e3:65:45:95:60:dc:d8:
+                    ca:ff
+                Exponent: 65537 (0x10001)
+        X509v3 extensions:
+            X509v3 Subject Alternative Name: 
+                DNS:mail.google.com, DNS:inbox.google.com
+
+            X509v3 Subject Key Identifier: 
+                8E:BD:69:80:84:B5:BD:AC:C1:B2:49:47:77:0C:39:37:5C:7E:F6:78
+    Signature Algorithm: sha256WithRSAEncryption
+         21:8a:a4:08:c2:41:a9:d4:d9:a5:2e:af:3d:82:3a:00:7e:9c:
+         1a:6a:91:ee:46:2c:71:97:64:b9:e1:fc:ae:ff:85:8e:1c:92:
+         ......... blah blah blah more goes here ...........
+</code></pre>
+
+<p>This is a lot of stuff. Here are the parts of this that I understand</p>
+
+<ul>
+<li><code>CN=mail.google.com</code> is the &ldquo;common name&rdquo;. Counterintuitively you should ignore this field and look at the &ldquo;subject alternative name&rdquo; field instead</li>
+<li>an <strong>expiry date</strong>: Apr 12 18:50:00 2017 GMT</li>
+<li>The <code>X509v3 Subject Alternative Name:</code> section has the list of  domains that this
+certificate works for. This is mail.google.com and inbox.google.com, which makes sense &ndash; they&rsquo;re both email domains.</li>
+<li>The <code>Public Key Info</code> section tells us the <strong>public key</strong> that we&rsquo;re going to use to communicate with mail.google.com. We do not have time to explain public key cryptography right now, but this is  basically the encryption key we&rsquo;re going to use to talk secretly.</li>
+<li>Lastly, the <strong>signature</strong> is a really important thing. Basically anyone could make a
+certificate for mail.google.com. I could make one right now! But if I gave you that certificate, you would have no reason to believe that it is a real certificate</li>
+</ul>
+
+<p>So let&rsquo;s talk about certificate signing.</p>
+
+<h3 id="certificate-signing">certificate signing</h3>
+
+<p>Every certificate on the internet is basically two parts put together</p>
+
+<ol>
+<li>A certificate (the domain name it&rsquo;s valid for and public key and other stuff)</li>
+<li>A <strong>signature</strong> by someone else. This basically says, &ldquo;hey, this is okay, Visa says so&rdquo;</li>
+</ol>
+
+<p>I have a bunch of certificates on my computer in /etc/ssl/certs. Those are the
+certificates my computer trusts to sign other certificates. For example, I
+have <code>/etc/ssl/certs/Staat_der_Nederlanden_EV_Root_CA.pem</code> on my laptop. Some
+certificate from the Netherlands! Who knows! If they signed a <code>mail.google.com</code>
+certificate, my computer would be like &ldquo;yep, looks great, sounds awesome&rdquo;.</p>
+
+<p>If some random person across the street signed a certificate, my computer would
+be like &ldquo;I have no idea who you are&rdquo;, and reject the certificate.</p>
+
+<p>The mail.google certificate is</p>
+
+<ul>
+<li>s:/C=US/ST=California/L=Mountain View/O=Google Inc/CN=mail.google.com</li>
+<li>which is signed by a &ldquo;Google Internet Authority G2&rdquo; certificate</li>
+<li>which is signed by a &ldquo;GeoTrust Global CA&rdquo; certificate</li>
+<li>which is signed by an &ldquo;Equifax Secure Certificate Authority&rdquo; certifiate</li>
+</ul>
+
+<p>I have an /etc/ssl/certs/GeoTrust_Global_CA.pem file on my computer, which I
+think is why I trust this mail.google.com certificate. (Geotrust signed Google&rsquo;s certificate, and Google signed mail.google.com)</p>
+
+<h3 id="what-does-getting-a-certificate-issued-look-like">what does getting a certificate issued look like?</h3>
+
+<p>So when you get a certificate issued, basically how it works is:</p>
+
+<ol>
+<li>You generate the first half of the certificate (&ldquo;jvns.ca! expires on X date! This is my public key!&rdquo;). This part is public.</li>
+<li>At the same time, you generate a <strong>private key</strong> for you certificate. You keep this very secret and safe and do not show it to anybody. You&rsquo;ll use this key every time you establish an SSL connection.</li>
+<li>You pay a <strong>certificate authority</strong> (CA) that other computers trust to sign
+your certificate for you. Certificate authorities are supposed to have
+integrity, so they are supposed to actually make sure that when they sign certificates, the person they give the cert to actually owns the domain.</li>
+<li>You configure your website with your signed certificate and use it to prove that you are really you! Success!
+<br /></li>
+</ol>
+
+<p>This &ldquo;certificate authorities are supposed to have integrity thing&rdquo; I think is
+why people get so mad when there are <a href="https://www.symantec.com/page.jsp?id=test-certs-update">issues like this with
+Symantec</a> where they
+generated test certificates &ldquo;to unregistered domains and domains for which
+Symantec did not have authorization from the domain owner&rdquo;</p>
+
+<h3 id="certificate-transparency">certificate transparency</h3>
+
+<p>The last thing we are going to talk about is <a href="https://www.certificate-transparency.org/what-is-ct">certificate transparency</a>. This is a super
+interesting thing and has a good website and I am almost certainly going to
+mangle it.</p>
+
+<p>I will try anyway!</p>
+
+<p>So, we said that certificate authorities are &ldquo;supposed to have integrity&rdquo;. But
+there are SO MANY certificate authorities that my computer trusts! And at any
+time one of them could sign a rogue certificate for mail.google.com. That&rsquo;s no
+good.</p>
+
+<p>This isn&rsquo;t a hypothetical issue &ndash; the <a href="https://www.certificate-transparency.org/what-is-ct">certificate transparency</a> website
+talks about more than one instance where a CA has been compromised or
+otherwise has made a mistake.</p>
+
+<p>So, here&rsquo;s the deal. At any given time, Google <strong>knows</strong> all the valid
+certificates that are supposed to exist for <code>mail.google.com</code> (there is
+probably only one or something). So certificate transparency is basically a way
+to make sure that if there is a certificate in circulation for mail.google.com
+that they DON&rsquo;T know about, that they can find out.</p>
+
+<p>Here are the steps, as I understand them</p>
+
+<ol>
+<li>Every time any CA signs a certificate, they are supposed to put into a global public &ldquo;certificate log&rdquo;</li>
+<li>Also the Googlebot puts every certificate it finds on the internet into the certificate log</li>
+<li>If a certificate <strong>isn&rsquo;t</strong> in the log, then my browser will not accept it (or will stop accepting it in the future or something)</li>
+<li>Anyone can look at the log at any time to find out if there are rogue certificates in there</li>
+</ol>
+
+<p>So if that CA in the Netherlands signs an evil mail.google.com certificate,
+they either have to put it in the public log (and Google will find out about their evil ways) or
+leave it out of the public log (and browsers will reject it).</p>
+
+<h3 id="setting-up-ssl-stuff-is-hard">setting up SSL stuff is hard</h3>
+
+<p>Okay! We have downloaded a SSL certificate and dissected it and learned a few
+things about it. Hopefully some of you have learned something!</p>
+
+<p>Picking the right settings for your SSL certificates and SSL configuration on
+your webserver is confusing. As far as I understand it there are about 3 billion settings. <a href="https://www.ssllabs.com/ssltest/analyze.html?d=mail.google.com&amp;s=216.58.194.165&amp;hideResults=on">Here is an example of an SSL Labs result for mail.google.com</a>.
+There is all this stuff like <code>OLD_TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256</code> on that page (for real, that is a real thing.). I&rsquo;m happy there are tools like SSL Labs that help mortals make sense of all of it.</p>
+
+<p>Someone told me <a href="https://cipherli.st/">https://cipherli.st/</a> is a way to pick
+secure SSL configuration if you&rsquo;re not sure what to do. I don&rsquo;t know if it&rsquo;s
+good or not.</p>
+
+<h3 id="let-s-encrypt-is-amazing">let&rsquo;s encrypt is amazing</h3>
+
+<p>Also <a href="https://letsencrypt.org/">let&rsquo;s encrypt</a> is really cool! They let you have a certificate for your
+site and make it secure, and you don&rsquo;t even need to understand all this stuff
+about how certificates work on the inside! And it&rsquo;s FREE.</p>
+
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2017/01/31/whats-tls/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2017/01/31/whats-tls/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2017/02/02/a-magical-machine-learning-tool/" title="Previous Post: A magical machine learning art tool">A magical machine learning art tool</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/networking-zine-launch/" title="Next Post: New zine: &#34;Networking! ACK!&#34;">New zine: &#34;Networking! ACK!&#34;</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

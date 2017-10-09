@@ -1,0 +1,217 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>Learning to like design documents - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="Learning to like design documents">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2016/06/03/learning-to-like-design-documents/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">Learning to like design documents</h1>
+
+<div class="post-tags">
+  
+</div>
+<p class="meta">
+<time datetime="2016-06-03T21:01:44" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     
+
+<p>Hi everyone! Today we&rsquo;re going to talk about software engineering and process!</p>
+
+<p>A design document is where, before starting to implement a system, you write up a thing explaining what the system is supposed to do first and how you&rsquo;re planning to accomplish that. I think there are basically two goals:</p>
+
+<ul>
+<li>tell people what you&rsquo;re doing</li>
+<li>figure out design problems with the system before you&rsquo;ve been coding for 2 months</li>
+</ul>
+
+<p>I understand that it&rsquo;s super important to think ahead a lot before huge projects, but a little bit of thinking can be helpful even for smaller projects. I asked some people recently if they write design docs for small projects and some of them said &ldquo;yeah totally! small ones! it helps! :D&rdquo;.</p>
+
+<p>I used to get kind of grumpy when someone was like &ldquo;hey julia can you write a design document for your system?&rdquo; It would seem like a reasonable idea, though, so I&rsquo;d try to do it! But the first couple of times I tried to write one I felt like it didn&rsquo;t actually really help me! I liked the idea in principle, but I didn&rsquo;t really know how to apply it and I felt like it was hard to get good feedback.</p>
+
+<p>Last week I wrote a design doc and I thought it was sort of helpful. Here are some current thoughts.</p>
+
+<h3 id="it-s-hard-to-get-someone-to-read-it">it&rsquo;s hard to get someone to read it</h3>
+
+<p>One of the first reasons to be grumpy about writing a design document is &ldquo;UGH. NOBODY IS EVEN GOING TO READ THIS. TOO MANY WORDS. WHY?!&rdquo;. And I think it&rsquo;s actually kind of true! Getting a good review of a system design is hard! If it is a big system, the person reviewing your system has to put this whole hypothetical thing into their head, and think about every single thing that could go wrong, and think about the risks of all those things, and what already exists, and how it fits with those things, and how it will scale, and UGH.</p>
+
+<p>So it&rsquo;s not like a simple code review where you&rsquo;re like &ldquo;hey can you take a look after lunch?&rdquo;. I ended up trying to think about it as a personal tool &ndash; I came up with some questions I wanted to answer before I started writing code, wrote down the options, and then for each one picked an answer that seemed reasonable to me.</p>
+
+<p>I realized that instead of trying to get someone to read it, I could just talk to them and explain everything in the document to them and my thinking, and then they could suggest ideas for what that might work better, or things that could go wrong that I hadn&rsquo;t thought of!</p>
+
+<p>So then instead of it being like &ldquo;Here is a LARGE DOCUMENT for you to read please review&rdquo; it was more like &ldquo;I have written extensive notes so that I can make sure to ask you all the most important questions I have and we can have a SUPER PRODUCTIVE MEETING&rdquo;. A+</p>
+
+<h3 id="but-what-color-will-we-paint-the-bikeshed">but what color will we paint the bikeshed</h3>
+
+<p>The second reason to be grumpy is &ldquo;oh no I will write it and I&rsquo;ll get a lot of contradictory feedback that is not that constructive&rdquo;.</p>
+
+<p>A couple years ago at work, I had a small project, and I wrote an email with my thinking &amp; questions about the project to try to think through how I was going to do it. Good idea, julia!</p>
+
+<p>But then a bunch of people replied with a whole bunch of different suggestions and started a long discussion on the email thread that was not that useful to me.</p>
+
+<p>This wasn&rsquo;t a disaster &ndash; everyone was just trying to help! Nobody was being a jerk. It did not ruin my life. I asked my manager to talk it through with me and we came up with a reasonable plan and the project got done and everything was fine.</p>
+
+<p>a couple of things about this:</p>
+
+<ul>
+<li>asking more people for feedback isn&rsquo;t always better. Sometimes asking just one or two people is ok if it&rsquo;s a small thing.</li>
+<li>I like to remember that having a bunch of conflicting opinions is actually a normal (and often good!) thing that won&rsquo;t go away, and you just need to figure out some tactics to deal with it (maybe: &ldquo;have a meeting with exactly one person from each team involved&rdquo;, &ldquo;figure out what hidden assumptions people have that are different&rdquo;)</li>
+</ul>
+
+<h3 id="smoke-tests">smoke tests</h3>
+
+<p>Also, on &ldquo;nobody reads the whole thing&rdquo; &ndash; it&rsquo;s really useful to go in-depth into the design with <em>someone</em>, but every single person doesn&rsquo;t need to spend hours thinking about the thing.</p>
+
+<p>I think it&rsquo;s sometimes useful to ask &ldquo;hey just read this for 10 minutes and see if anything makes you EXTREMELY TERRIFIED AND WORRIED&rdquo;. And often the answer is &ldquo;yeah seems fine&rdquo;, which is good! It doesn&rsquo;t mean there are no problems, but it means that that person has some vague idea of what you&rsquo;re doing and doesn&rsquo;t think it&rsquo;s totally unreasonable.</p>
+
+<h3 id="ask-about-one-thing">ask about one thing</h3>
+
+<p>Also also on &ldquo;nobody reads the whole thing&rdquo; &ndash; in general with any large review it&rsquo;s way easier if you&rsquo;re like &ldquo;hey, i&rsquo;m worried about this specific aspect and I know you know a lot about it &ndash; what do you think?&rdquo; instead of &ldquo;please read all the pages and tell me everything you think about everything&rdquo;.</p>
+
+<h3 id="coding-is-easier-if-you-think-first">coding is easier if you think first</h3>
+
+<p>This is maybe sort of obvious! But &ndash; sometimes I start coding, and then an hour or day in I&rsquo;m like &ldquo;oh no, I didn&rsquo;t think about this whole aspect of this project, hmm, what do I do?&rdquo;</p>
+
+<p>After writing this design doc, when I went to write the code I was like, oh, I made a lot of these decisions already. This is easy to write! Cool! And there were still unexpected difficulties (surprise: unexpected difficulties never actually go away), but I felt like it helped.</p>
+
+<h3 id="you-can-t-predict-everything-and-it-s-okay">you can&rsquo;t predict everything and it&rsquo;s okay</h3>
+
+<p>Another thing that made me grumpy about design docs was that &ndash; this idea that you can predict all the flaws in advance and design the perfect system is actually a total lie. I still ran into things that I&rsquo;d forgotten to consider!</p>
+
+<p>So I think writing a design doc isn&rsquo;t necessarily about predicting <strong>everything</strong> that could ever possibly go wrong. I mean, maybe there are magical wizards who can predict everything. But for me it really helped to let go of this idea that we&rsquo;re going to be able to design the perfect system just because now I have a document with &ldquo;Design&rdquo; written at the top and some people to help me review it.</p>
+
+<p>Instead, we do the best we can, and make changes to adapt as we go along!</p>
+
+<h3 id="watch-your-decisions-change">watch your decisions change</h3>
+
+<p>I asked a bunch of wonderful people about design docs a couple months ago and someone &ndash; I forget who right now &ndash; said &ldquo;the reason you write them is <strong>because</strong> your requirements &amp; ideas of how things should work will change over time, and it&rsquo;s useful to track that&rdquo;. And this is totally true! Often I&rsquo;ll make a design decision, forget about it, and then 8 months later be like &ldquo;ugh who made that decision and why???&rdquo;. And then it was me, and I need to dig up an IM conversation from 8 months ago to try to figure it out.</p>
+
+<p>Things change in software all the time. Maybe:</p>
+
+<ul>
+<li>2 years later, the software you decided to not use is a lot more mature</li>
+<li>the thing you thought was awesome, after doing some more research, had some really serious flaws that might now be a dealbreaker</li>
+<li>you suddenly are handling 20x more data than you thought you would be</li>
+<li>you did user research and the users said a lot of really unexpected things that make you want to reprioritize</li>
+</ul>
+
+<p>So if nothing else, I think design documents are cool as archaeological artifacts so that people from the future can understand you and why you decided what you did.</p>
+
+<h3 id="what-does-design-document-mean-to-you">what does design document mean to you?</h3>
+
+<p>I think the word &ldquo;design document&rdquo; means some really specific things to
+different people. Maybe it means a totally different thing to you! I&rsquo;d be
+interested in reading things that you found helpful when designing systems. As always I&rsquo;m <a href="https://twitter.com/b0rk">on twitter</a>.</p>
+
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2016/06/03/learning-to-like-design-documents/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2016/06/03/learning-to-like-design-documents/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2016/06/06/make-better-conference-talks/" title="Previous Post: Ideas for making better conference talks &amp; conferences">Ideas for making better conference talks &amp; conferences</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2016/05/29/three-ways-to-solve-hard-programming-problems/" title="Next Post: Three ways to solve hard programming problems">Three ways to solve hard programming problems</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

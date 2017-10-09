@@ -1,0 +1,281 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>A few questions about open source - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="A few questions about open source">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2016/10/26/a-few-questions-about-open-source/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">A few questions about open source</h1>
+
+<div class="post-tags">
+  
+</div>
+<p class="meta">
+<time datetime="2016-10-26T23:33:45" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     
+
+<p>I&rsquo;ve been thinking a bit about where open source software comes from and
+how it works and when and how you should use it. I&rsquo;m thinking about this
+in the context of working for a tech company, not a volunteer
+contributor. (I do not contribute to open source in my spare time, I
+write this blog instead.)</p>
+
+<p>some facts:</p>
+
+<ul>
+<li>my company (and most tech companies) depend very heavily on open
+source software (see <a href="https://fordfoundcontent.blob.core.windows.net/media/2976/roads-and-bridges-the-unseen-labor-behind-our-digital-infrastructure.pdf">Roads and Bridges: the unseen labor behind our digital infrastructure [pdf]</a>) for a great overview</li>
+<li>a lot of open source software (even the important software) is
+maintained by a very small number of people</li>
+<li>some companies spend a large amount of money developing open source
+software (for instance people are paid to work on kubernetes)</li>
+<li>some open source software is really high quality and some isn&rsquo;t</li>
+<li>also a lot of open source software is really really valuable (for example:
+postgresql, sqlite, openssl, nginx, hadoop just to name a few)</li>
+</ul>
+
+<p>and some questions:</p>
+
+<h2 id="how-can-you-tell-when-you-should-use-an-open-source-tool-vs-writing-it-yourself">how can you tell when you should use an open source tool vs writing it yourself?</h2>
+
+<p>Sometimes this is really obvious: I should almost certainly not write a
+web server. Instead I should almost always use nginx or something!</p>
+
+<p>But sometimes the task I&rsquo;m trying to do is kind of weird and not that
+common, and the open source tools available are.. kind of bad?</p>
+
+<p>some things that might help here:</p>
+
+<ul>
+<li>how many hours have been spent on the open source tool? is it a
+weekend side project? have there been 2 person-years spent developing
+it?</li>
+<li>does it have the same architecture as the thing I think I need, or has
+it made architecture choices that I think are bad?</li>
+<li>is it actually solving the problem that I have or does it do a bunch
+of extra stuff that isn&rsquo;t my concern?</li>
+</ul>
+
+<p>using nginx instead of writing a web server myself probably saves me
+like 2 years of developer time or something. But using open source I
+think doesn&rsquo;t always save you time! Sometimes it takes extra time and
+it&rsquo;s not better.</p>
+
+<h2 id="why-do-companies-pay-to-create-open-source-software">why do companies pay to create open source software?</h2>
+
+<p>Here are some reasons I know right now! This reads as a bit cynical and
+i really do believe in the RAINBOWS PEOPLE WORKING TOGETHER TOWARDS THE IMPROVEMENT OF HUMANKIND version of open source but I am trying to understand some of
+the more practical reasons right now.</p>
+
+<p>Paying people to develop open source software is super expensive
+(because paying people is expensive) so I want to work out some of the
+reasons why it happens. Mostly I want to work this out because a good
+chunk of the software I use someone <em>was</em> paid to write so I want to
+understand why.</p>
+
+<p>(also I would like to understand how it works when nobody is paid to
+work on the software, but that is a whole other question)</p>
+
+<ul>
+<li>because you think investing in community-maintained open source software will be valuable for the business in the long term. there&rsquo;s an
+excellent <a href="https://blog.jessfraz.com/post/blurred-lines/">post by jessie frazelle</a> that talks about the relationship between individual passion for open source and a business investment</li>
+<li>because you need software (like the Linux kernel) to have new features and a bunch of
+companies have enough of the same needs from that software that it&rsquo;s
+worth it for a bunch of people to get paid to build software that
+everyone gets to use</li>
+<li>you have to write the software anyway so you might as well open source
+it while you&rsquo;re at it so that other people get to use it</li>
+<li>social pressure: a lot of people won&rsquo;t use software that <em>isn&rsquo;t</em> open
+source so maybe if you&rsquo;re releasing software for your customers to use
+you have to release your software as open source to get anyone to use
+it at all.</li>
+<li>developers often like writing open source software so maybe it helps
+with keeping people happy</li>
+<li><a href="https://twitter.com/mcpherrinm">@mcpherrinm</a>: &ldquo;I will eventually quit
+my job and want to keep using tools I wrote for this one. Open Source
+lets me do that&rdquo;</li>
+</ul>
+
+<p>I think I&rsquo;m missing a bunch of important reasons here.</p>
+
+<h2 id="when-you-use-open-source-who-wrote-the-software-what-are-their-priorities">when you use open source, who wrote the software? what are their priorities?</h2>
+
+<p>Right now I&rsquo;m using some software called rkt at work. When I use rkt,
+it&rsquo;s incredibly useful to me to know who runs the project (CoreOS), what
+their company priorities are right now (getting OCI working), how much
+they&rsquo;re likely to make improvements to the appc standard (not very) and
+how willing they are to accept contributions (pretty likely!).</p>
+
+<p>I kinda feel like working on open source is like being
+part of a really big company and you have to know what the other people
+who are paying to develop the software care about and what kind of
+contributions they&rsquo;re likely to accept / be enthusiastic about.</p>
+
+<h2 id="how-do-you-decide-when-to-build-software-as-open-source">how do you decide when to build software as open source?</h2>
+
+<p>If you build something and make it open source, does the discipline of
+making it general help you build better software? Or does having to
+support other use cases get in the way of building something that will
+work well for you? Probably it depends! But what does it depend on
+exactly?</p>
+
+<h2 id="is-it-harmful-to-open-source-and-promote-software-that-doesn-t-actually-work-well">is it harmful to open source and promote software that doesn&rsquo;t actually work well?</h2>
+
+<p>Someone told me a story the other day of an open source thing they used
+for a while. Eventually they figured out after a few months of pain that
+this software actually just doesn&rsquo;t really work that well and nobody
+really uses it. Oops.</p>
+
+<p>On one hand this seems kind of irresponsible on the hand of the project
+maintainers. On the other hand I&rsquo;ve definitely released software where I
+have <em>no idea</em> if anybody other than me has ever used it successfully,
+and I have no real intentions of finding out. Is that bad? I feel like
+my current default assumption about software I find in the wild is that
+it is unmaintained and possibly nobody has ever used it except the
+people who wrote it. Ideally people would write on the tin &ldquo;we have no
+idea if anyone other than us has ever used this software successfully&rdquo; though.</p>
+
+<h2 id="how-do-you-even-evaluate-software">how do you even evaluate software?</h2>
+
+<p>Evaluating unknown software to decide if you should use it is really
+hard! I think the only thing that really makes it worth it is that, if
+you genuinely cannot use known software to do the thing you want to do,
+you need to either</p>
+
+<ol>
+<li>evaluate some unknown software, or</li>
+<li>write a thing yourself from scratch</li>
+</ol>
+
+<p>So maybe the saving grace of unknown software is that it is maybe
+sometimes faster than writing it all yourself? And spending the time to
+understand how a new thing works can save you a lot of time. Evaluating
+software is hard and I still don&rsquo;t really know how to do this well.</p>
+
+<p>A lot of the discussions I see on the internet comparing software are
+not great.</p>
+
+<h2 id="open-source-is-very-important-and-pretty-confusing">open source is very important and pretty confusing</h2>
+
+<p>Anyway hopefully some of these questions are interesting. I don&rsquo;t
+actually know a lot about how open source really works and I don&rsquo;t work
+on open source today &ndash; i think there are a lot of subtleties and
+feelings and human things here around &ldquo;community&rdquo; and &ldquo;passion&rdquo; and
+&ldquo;making money&rdquo;.</p>
+
+<p><small> thanks to Tavish for encouraging me to post this </small></p>
+
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2016/10/26/a-few-questions-about-open-source/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2016/10/26/a-few-questions-about-open-source/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2016/10/31/service-discovery-at-stripe/" title="Previous Post: Service discovery at Stripe">Service discovery at Stripe</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2016/10/26/running-container-without-docker/" title="Next Post: Running containers without Docker">Running containers without Docker</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

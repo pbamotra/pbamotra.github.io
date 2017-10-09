@@ -1,0 +1,283 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>Machine learning isn&#39;t Kaggle competitions - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="Machine learning isn&#39;t Kaggle competitions">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2014/06/19/machine-learning-isnt-kaggle-competitions/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">Machine learning isn&#39;t Kaggle competitions</h1>
+
+<div class="post-tags">
+  
+  •
+  
+    <a class="post-tag" href="/categories/machinelearning">machinelearning</a> 	•
+  
+  
+</div>
+<p class="meta">
+<time datetime="2014-06-19T08:50:55" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     <p>I write about strace and kernel programming on this blog, but at work
+I actually mostly work on machine learning, and it&rsquo;s about time I
+started writing about it! Disclaimer: I work on a data analysis /
+engineering team at a tech company, so that&rsquo;s where I&rsquo;m coming from.</p>
+
+<p>When I started trying to get better at machine learning, I went to
+<a href="http://www.kaggle.com/">Kaggle</a> (a site where you compete to solve
+machine learning problems) and tried out one of the classification
+problems. I used an
+out-of-the-box algorithm, messed around a bit, and definitely did not
+make the leaderboard. I felt sad and demoralized &ndash; what if I
+was really bad at this and never got to do math at work?! I still
+don&rsquo;t think I could win a Kaggle competition. But I have a job where I do
+(among other things) machine learning! What gives?</p>
+
+<p>To back up from Kaggle for a second, let&rsquo;s imagine that you have an
+awesome startup idea. You&rsquo;re going to predict flight arrival times for
+people! There are a ton of decisions you&rsquo;ll need to make before you even
+start thinking about support vector machines:</p>
+
+<p></p>
+
+<h3 id="understand-the-business-problem">Understand the business problem</h3>
+
+<p>If you want to predict flight arrival times, what are you really
+trying to do? Some possible options:</p>
+
+<ul>
+<li>Help the airline understand which flights are likely to be delayed, so
+they can fix it.</li>
+<li>Help people buy flights that are less likely to be delayed.</li>
+<li>Warn people if their flight tomorrow is going to be delayed</li>
+</ul>
+
+<p>I&rsquo;ve spent time on projects where I didn&rsquo;t understand at all how the
+model was going to fit into business plans. If this is you, it <em>doesn&rsquo;t
+matter</em> how good your model is. At all.</p>
+
+<p>Understanding the business problem will also help you decide:</p>
+
+<ul>
+<li>How accurate does my model really need to be? What kind of false
+positive rate is acceptable?</li>
+<li>What data can I use? If you&rsquo;re predicting flight days tomorrow, you
+can look at weather data, but if someone is buying a flight a month
+from now then you&rsquo;ll have no clue.</li>
+</ul>
+
+<h3 id="choose-a-metric-to-optimize">Choose a metric to optimize</h3>
+
+<p>Let&rsquo;s take our flight delays example. We first have to decide whether to
+do classification (&ldquo;will this flight be delayed for at least an hour&rdquo;)
+or regression (&ldquo;how long will this flight be delayed for?&rdquo;). Let&rsquo;s say
+we pick regression.</p>
+
+<p>People often optimize the sum of squares because it has nice statistical
+properties. But mispredicting a flight arrival time by 10 hours and by
+20 hours are pretty much equally bad. Is the sum of squares really
+appropriate here?</p>
+
+<h3 id="decide-what-data-to-use">Decide what data to use</h3>
+
+<p>Let&rsquo;s say I already have the airline, the flight number, departure
+airport, plane model, and the departure and arrival times.</p>
+
+<p>Should I try to buy more specific information about the different plane
+models (age, what parts are in them..)? Really accurate weather data?
+The amount of information available to you isn&rsquo;t fixed! You can get
+more!</p>
+
+<h3 id="clean-up-your-data">Clean up your data</h3>
+
+<p>Once you have data, your data will be a mess. In this flight search
+example, there will likely be</p>
+
+<ul>
+<li>airports that are inconsistently named</li>
+<li>missing delay information all over the place</li>
+<li>weird date formats</li>
+<li>trouble reconciling weather data and airport location</li>
+</ul>
+
+<p>Cleaning up data to the point where you can work with it is a
+huge amount of work. If you&rsquo;re trying to reconcile a lot of sources of
+data that you don&rsquo;t control like in this flight search example, it can
+take 80% of your time.</p>
+
+<h3 id="build-a-model">Build a model!</h3>
+
+<p>This is the fun Kaggle part. Training! Cross-validation! Yay!</p>
+
+<p>Now that we&rsquo;ve built what we think is a great model, we actually have to
+use it:</p>
+
+<h3 id="put-your-model-into-production">Put your model into production</h3>
+
+<p>Netflix didn&rsquo;t actually implement the model that
+won the Netflix competition because
+<a href="http://www.forbes.com/sites/ryanholiday/2012/04/16/what-the-failed-1m-netflix-prize-tells-us-about-business-advice/">it was too complicated</a>.</p>
+
+<p>If you trained your model in Python, can you run it in production in
+Python? How fast does it need to be able to return results? Are you
+running a model that bids on advertising spots / does high frequency
+trading?</p>
+
+<p>If we&rsquo;re predicting flight delays, it&rsquo;s probably okay for our model to
+run somewhat slowly.</p>
+
+<p>Another surprisingly difficult thing is gathering the data to evaluate
+your model &ndash; getting historical weather data is one thing, but getting
+that same data in real time to predict flight delays <em>right now</em> is
+totally different.</p>
+
+<h3 id="measure-your-model-s-performance">Measure your model&rsquo;s performance</h3>
+
+<p>Now that we&rsquo;re running the model on live data, how do I measure its
+real-life performance? Where do I log the scores it&rsquo;s producing? If
+there&rsquo;s a huge change in the inputs my model is getting after 6 months,
+how will I find out?</p>
+
+<h3 id="kaggle-solves-all-of-this-for-you">Kaggle solves all of this for you.</h3>
+
+<p>With Kaggle, almost all of these problems are already solved for you:
+you don&rsquo;t need to worry about the engineering aspects of running a
+model on live data, the underlying business problem, choosing a metric,
+or collecting and cleaning up data.</p>
+
+<p>You won&rsquo;t go through all these steps just once &ndash; maybe you&rsquo;ll build a
+model and it won&rsquo;t perform well so you&rsquo;ll try to add some additional
+features and see if you can build a better model. Or maybe how useful
+the model is to your business depends on how good the results are.</p>
+
+<p>Doing Kaggle problems is fun! It means you can focus on machine
+learning algorithm nerdery and get better at that. But it&rsquo;s pretty far
+removed from my job, where I work on a
+<a href="https://stripe.com/jobs#data_engineer">team (hiring!)</a> that thinks
+about all of these problems. Right now I&rsquo;m looking at measuring
+models&rsquo; performance once they&rsquo;re in production, for instance!</p>
+
+<p>So if you look at Kaggle leaderboards and think that you&rsquo;re bad at
+machine learning because you&rsquo;re not doing well, don&rsquo;t. It&rsquo;s a fun but
+artificial problem that doesn&rsquo;t reflect real machine learning work.</p>
+
+<p>(to be clear: I don&rsquo;t think that Kaggle misrepresents itself, or does
+a bad job &ndash; it specializes in a particular thing and that&rsquo;s fine. But
+when I was starting out, I thought that machine learning work would be
+like Kaggle competitions, and it&rsquo;s not.)</p>
+
+<p>(thanks to the fantastic <a href="http://alyssafrazee.com/">Alyssa Frazee</a> for
+helping with drafts of this!)</p>
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2014/06/19/machine-learning-isnt-kaggle-competitions/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2014/06/19/machine-learning-isnt-kaggle-competitions/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2014/06/22/con-talks-are-up/" title="Previous Post: !!Con talks are up">!!Con talks are up</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2014/06/13/asking-questions-is-a-superpower/" title="Next Post: Asking questions is a superpower">Asking questions is a superpower</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

@@ -1,0 +1,250 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>Three steps to learning GDB - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="Three steps to learning GDB">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2014/02/10/three-steps-to-learning-gdb/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">Three steps to learning GDB</h1>
+
+<div class="post-tags">
+  
+  •
+  
+    <a class="post-tag" href="/categories/spytools">spytools</a> 	•
+  
+  
+</div>
+<p class="meta">
+<time datetime="2014-02-10T00:00:00" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     <p>Debugging C programs used to scare me a lot. Then I was writing my
+<a href="http://jvns.ca/blog/categories/kernel">operating system</a> and I had so
+many bugs to debug! I was extremely fortunate to be using the emulator
+qemu, which lets me attach a debugger to my operating system. The
+debugger is called <code>gdb</code>.</p>
+
+<p>I&rsquo;m going to explain a couple of small things you can do with <code>gdb</code>,
+because I found it really confusing to get started. We&rsquo;re going to set
+a breakpoint and examine some memory in a tiny program.</p>
+
+<p></p>
+
+<h3 id="1-set-breakpoints">1. Set breakpoints</h3>
+
+<p>If you&rsquo;ve ever used a debugger before, you&rsquo;ve probably set a
+breakpoint.</p>
+
+<p>Here&rsquo;s the program that we&rsquo;re going to be &ldquo;debugging&rdquo; (though there
+aren&rsquo;t any bugs):</p>
+
+<pre><code>#include &lt;stdio.h&gt;
+void do_thing() {
+    printf(&quot;Hi!\n&quot;);
+}
+int main() {
+    do_thing();
+}
+</code></pre>
+
+<p>Save this as <code>hello.c</code>. We can debug it with gdb like this:</p>
+
+<pre>
+bork@kiwi ~> gcc -g hello.c -o hello
+bork@kiwi ~> cat
+bork@kiwi ~> gdb ./hello
+</pre>
+
+<p>This compiles <code>hello.c</code> with debugging symbols (so that gdb can do
+better work), and gives us kind of scary prompt that just says</p>
+
+<p><code>(gdb)</code></p>
+
+<p>We can then set a breakpoint using the <code>break</code> command, and then <code>run</code>
+the program.</p>
+
+<pre>
+(gdb) break do_thing 
+Breakpoint 1 at 0x4004f8
+(gdb) run
+Starting program: /home/bork/hello 
+
+Breakpoint 1, 0x00000000004004f8 in do_thing ()
+</pre>
+
+<p>This stops the program at the beginning of <code>do_thing</code>.</p>
+
+<p>We can find out where we are in the call stack with <code>where</code>: (thanks
+to <a href="https://twitter.com/mgedmin">@mgedmin</a> for the tip)</p>
+
+<pre>
+(gdb) where
+#0  do_thing () at hello.c:3
+#1  0x08050cdb in main () at hello.c:6
+(gdb) 
+</pre>
+
+<h3 id="2-look-at-some-assembly-code">2. Look at some assembly code</h3>
+
+<p>We can look at the assembly code for our function using the
+<code>disassemble</code> command! This is cool. This is x86 assembly. I don&rsquo;t
+understand it very well, but the line that says <code>callq</code> is what does
+the <code>printf</code> function call.</p>
+
+<pre>
+(gdb) disassemble do_thing
+Dump of assembler code for function do_thing:
+   0x00000000004004f4 <+0>:     push   %rbp
+   0x00000000004004f5 <+1>:     mov    %rsp,%rbp
+=> 0x00000000004004f8 <+4>:     mov    $0x40060c,%edi
+   0x00000000004004fd <+9>:     callq  0x4003f0 <puts@plt>
+   0x0000000000400502 <+14>:    pop    %rbp
+   0x0000000000400503 <+15>:    retq 
+</pre>
+
+<p>You can also shorten <code>disassemble</code> to <code>disas</code></p>
+
+<h3 id="3-examine-some-memory">3. Examine some memory!</h3>
+
+<p>The main thing I used <code>gdb</code> for when I was debugging my kernel was to
+examine regions of memory to make sure they were what I thought they
+were. The command for examining memory is <code>examine</code>, or <code>x</code> for short.
+We&rsquo;re going to use <code>x</code>.</p>
+
+<p>From looking at that assembly above, it seems like <code>0x40060c</code> might be
+the address of the string we&rsquo;re printing. Let&rsquo;s check!</p>
+
+<pre>
+(gdb) x/s 0x40060c
+0x40060c:        "Hi!"
+</pre>
+
+<p>It is! Neat! Look at that. The <code>/s</code> part of <code>x/s</code> means &ldquo;show it to me
+like it&rsquo;s a string&rdquo;. I could also have said &ldquo;show me 10 characters&rdquo;
+like this:</p>
+
+<pre>
+(gdb) x/10c 0x40060c
+0x40060c:       72 'H'  105 'i' 33 '!'  0 '\000'        1 '\001'        27 '\033'       3 '\003'        59 ';'
+0x400614:       52 '4'  0 '\000'
+</pre>
+
+<p>You can see that the first four characters are &lsquo;H&rsquo;, &lsquo;i&rsquo;, and &lsquo;!&rsquo;, and
+&lsquo;\0&rsquo; and then after that there&rsquo;s more unrelated stuff.</p>
+
+<p>I know that gdb does lots of other stuff, but I still don&rsquo;t know it
+very well and <code>x</code> and <code>break</code> got me pretty far. You can read the
+<a href="http://ftp.gnu.org/old-gnu/Manuals/gdb-5.1.1/html_chapter/gdb_9.html#SEC56">documentation for examining memory</a>.</p>
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2014/02/10/three-steps-to-learning-gdb/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2014/02/10/three-steps-to-learning-gdb/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2014/02/13/a-few-blogs-i-really-like/" title="Previous Post: A few blogs I really like">A few blogs I really like</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2014/02/03/sounding-confident-in-interviews/" title="Next Post: Sounding confident in interviews">Sounding confident in interviews</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

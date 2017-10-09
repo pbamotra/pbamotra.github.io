@@ -1,0 +1,647 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title><![CDATA[Julia Evans]]></title>
+  <link href="http://jvns.ca/atom.xml" rel="self"/>
+  <link href="http://jvns.ca"/>
+  <updated>2015-01-24T10:15:27+00:00</updated>
+  <id>http://jvns.ca</id>
+  <author>
+    <name><![CDATA[Julia Evans]]></name>
+  </author>
+  <generator uri="http://gohugo.io/">Hugo</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[Why a C&#43;&#43; programmer might say &#34;I could never write Python&#34;]]></title>
+    <link href="https://jvns.ca/blog/2015/01/24/why-a-c-plus-plus-programmer-might-say-i-could-never-write-python/"/>
+    <updated>2015-01-24T10:15:27+00:00</updated>
+    <id>https://jvns.ca/blog/2015/01/24/why-a-c-plus-plus-programmer-might-say-i-could-never-write-python/</id>
+    <content type="html"><![CDATA[<p>I once heard a C++ programmer say &ldquo;oh no, Python, that&rsquo;s so hard, I could never
+write that. I&rsquo;m so used to having a compiler!&ldquo;. And at the time I thought they
+were just being silly &ndash; Python isn&rsquo;t that hard! We&rsquo;re humans, we can learn and
+grow! Of course they could!</p>
+
+<p>But I&rsquo;ve been writing both Scala and Ruby lately, and I&rsquo;ve had some new
+thoughts. There&rsquo;s not much to them, and maybe they&rsquo;re obvious, but:</p>
+
+<p>If you work with a compiled typed language like Scala, you develop a lot of
+skills around working with the type system to get better correctness.</p>
+
+<p>If you spend all your time working in Python, by default you can&rsquo;t even detect
+basic typos in your code like</p>
+
+<pre><code class="language-python">def foo(elephant):
+    return elephant + 2
+</code></pre>
+
+<p>So you need to spend all your time learning how to write correct code without a
+static type checker, partly by writing a much better test suite, by using a
+linter, etc. Tests that wouldn&rsquo;t tell you very much at all in Scala (that just
+run the code and don&rsquo;t check the result) suddenly become incredibly useful! And
+it&rsquo;s extra important to write testable code.</p>
+
+<p>So maybe the C++ programmer who says she can&rsquo;t write Python is really saying
+&ldquo;Writing safer code in a dynamic language is a skill that takes time to learn!
+I have not yet learned it! I would be too scared to commit to writing a
+reliable Python program right now!&rdquo;</p>
+
+<p>And maybe this is part of why Haskell programmers get so attached to Haskell &ndash;
+because they&rsquo;ve invested so much in learning the type system, and those skills
+don&rsquo;t transfer well to other languages like Python.</p>
+
+<p>I&rsquo;d be interested to know what you think. (though: I do not want to talk about
+whether {Python, Ruby, Javascript} are <em>better or worse</em> than {Scala, C++,
+Haskell}. There are already too many flamewars discussing that so we&rsquo;re not
+going to talk about it. I just want to talk about skills attached to specific
+kinds of programming languages and how transferable they are.)</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[What happens if you write a TCP stack in Python?]]></title>
+    <link href="https://jvns.ca/blog/2014/08/12/what-happens-if-you-write-a-tcp-stack-in-python/"/>
+    <updated>2014-08-12T08:52:30+00:00</updated>
+    <id>https://jvns.ca/blog/2014/08/12/what-happens-if-you-write-a-tcp-stack-in-python/</id>
+    <content type="html"><![CDATA[<p>During Hacker School, I wanted to understand networking better, and I
+decided to write a miniature TCP stack as part of that. I was much
+more comfortable with Python than C and I&rsquo;d recently discovered the
+<a href="http://www.secdev.org/projects/scapy/">scapy</a> networking library
+which made sending packets
+<a href="http://jvns.ca/blog/2013/10/31/day-20-scapy-and-traceroute/">really easy</a>.</p>
+
+<p>So I started writing <a href="https://github.com/jvns/teeceepee">teeceepee</a>!</p>
+
+<p>The basic idea was</p>
+
+<ol>
+<li>open a raw network socket that lets me send TCP packets</li>
+<li>send a HTTP request to <code>GET</code> google.com</li>
+<li>get and parse a response</li>
+<li>celebrate!</li>
+</ol>
+
+<p>I didn&rsquo;t care much about proper error handling or anything; I just
+wanted to get one webpage and declare victory :)</p>
+
+<p></p>
+
+<h2 id="step-1-the-tcp-handshake">Step 1: the TCP handshake</h2>
+
+<p>I started out by doing a TCP handshake with Google! (this won&rsquo;t
+necessarily run correctly, but illustrates the principles). I&rsquo;ve
+commented each line.</p>
+
+<p>The way a TCP handshake works is:</p>
+
+<ul>
+<li>me: SYN</li>
+<li>google: SYNACK!</li>
+<li>me: ACK!!!</li>
+</ul>
+
+<p>Pretty simple, right? Let&rsquo;s put it in code.</p>
+
+<pre><code class="language-python"># My local network IP
+src_ip = &quot;192.168.0.11&quot;
+# Google's IP
+dest_ip = &quot;96.127.250.29&quot;
+# IP header: this is coming from me, and going to Google
+ip_header = IP(dst=dest_ip, src=src_ip)
+# Specify a large random port number for myself (59333),
+# and port 80 for Google The &quot;S&quot; flag means this is
+# a SYN packet
+syn = TCP(dport=80, sport=59333, 
+          ack=0, flags=&quot;S&quot;)
+# Send the SYN packet to Google
+# scapy uses '/' to combine packets with headers
+response = srp(ip_header / syn)
+# Add the sequence number 
+ack = TCP(dport=80, sport=self.src_port, 
+          ack=response.seq, flags=&quot;A&quot;) 
+# Reply with the ACK
+srp(ip_header / ack)
+</code></pre>
+
+<h3 id="wait-sequence-numbers">Wait, sequence numbers?</h3>
+
+<p>What&rsquo;s all this about sequence numbers? The whole point of TCP is to
+make sure you can resend packets if some of them go missing. Sequence
+numbers are a way to check if you&rsquo;ve missed packets. So let&rsquo;s say that
+Google sends me 4 packets, size 110, 120, 200, and 500 bytes. Let&rsquo;s
+pretend the initial sequence number is 0. Then those packets will have
+sequence numbers 0, 110, 230, and 430.</p>
+
+<p>So if I suddenly got a 100-byte packet with a sequence number of 2000,
+that would mean I missed a packet! The next sequence number should be
+930!</p>
+
+<p>How can Google know that I missed the packet? Every time I receive a
+packet from Google, I need to send an ACK (&ldquo;I got the packet with
+sequence number 230, thanks!&ldquo;). If the Google server notices I haven&rsquo;t
+ACKed a packet, then it can resend it!</p>
+
+<p>The TCP protocol is extremely complicated and has all kinds of rate
+limiting logic in it, but we&rsquo;re not going to talk about any of that.
+This is all you&rsquo;ll need to know about TCP for this post!</p>
+
+<p>For a more in-depth explanation, including how SYN
+packets affect sequence numbers, I found
+<a href="http://packetlife.net/blog/2010/jun/7/understanding-tcp-sequence-acknowledgment-numbers/">Understanding TCP sequence numbers</a>
+very clear.</p>
+
+<h2 id="step-2-oh-no-i-already-have-a-tcp-stack">Step 2: OH NO I already have a TCP stack</h2>
+
+<p>So I ran the code above, and I had a problem. IT DIDN&rsquo;T WORK.</p>
+
+<p>But in a kind of funny way! I just didn&rsquo;t get any responses. I looked
+in Wireshark (a wonderful tool for spying on your packets) and it
+looked like this:</p>
+
+<pre><code>me: SYN
+google: SYNACK
+me: RST
+</code></pre>
+
+<p>Wait, what? I never sent a <code>RST</code> packet?! <code>RST</code> means STOP THE
+CONNECTION IT&rsquo;S OVER. That is not in my code at all!</p>
+
+<p>This is when I remembered that I <em>already</em> have a TCP stack on my
+computer, in my kernel. So what was actually happening was:</p>
+
+<pre><code>my Python program: SYN
+google: SYNACK
+my kernel: lol wtf I never asked for this! RST!
+my Python program: ... :(
+</code></pre>
+
+<p>So how do we bypass the kernel? I talked to the delightful
+<a href="https://github.com/jtakkala">Jari Takkala</a> about this, and he
+suggested using
+<a href="http://jvns.ca/blog/2013/10/29/day-18-in-ur-connection/">ARP spoofing</a>
+to pretend I had a different IP address (like <code>192.168.0.129</code>).</p>
+
+<p>The new exchange was like this:</p>
+
+<pre><code>me: hey router! send packets for 192.168.0.129 to my MAC address
+router: (does it silently)
+my Python program: SYN (from 192.168.0.129)
+google: SYNACK
+kernel: this isn't my IP address! &lt;ignore&gt;
+my Python program: ACK YAY
+</code></pre>
+
+<p>And it worked! Okay, awesome, we can now send packets AND GET
+RESPONSES without my kernel interfering! AWESOME.</p>
+
+<h2 id="step-3-get-a-webpage">Step 3: get a webpage!</h2>
+
+<p>There is an intervening step here where I fix tons of irritating bugs
+preventing Google from sending me the HTML for <a href="http://google.com">http://google.com</a>. I
+eventually fixed all of these, and emerge victorious!</p>
+
+<p>I needed to</p>
+
+<ul>
+<li>put together a packet containing a HTTP GET request</li>
+<li>make sure I can listen for <em>lots</em> of packets in response, not just
+one</li>
+<li>spend a lot of time fixing bugs with sequence numbers</li>
+<li>try to close the connection properly</li>
+</ul>
+
+<h2 id="step-4-realize-python-is-slow">Step 4: realize Python is slow</h2>
+
+<p>Once I had everything working, I used Wireshark again to look at what
+packets were being sent back and forth. It looked something like this:</p>
+
+<pre><code>me/google: &lt;tcp handshake&gt;
+me: GET google.com
+google: 100 packets
+me: 3 ACKs
+google: &lt;starts resending packets&gt;
+me: a few more ACKs
+google: &lt;reset connection&gt;
+</code></pre>
+
+<p>The sequences of packets from Google and ACKs from me looked something
+like: P P P A P P P P P A P P A P P P P A. Google was sending me
+packets <em>way</em> faster than my program could keep up and send ACKs.
+Then, hilariously, Google&rsquo;s server would assume that there were
+network problems causing me to not ACK its packets.</p>
+
+<p>And it would eventually reset the connection because it would decide
+there were connection problems.</p>
+
+<p>But the connection was fine! My program was totally responding! It was
+just that my Python program was way too slow to respond to packets in
+the millisecond times it expected.</p>
+
+<p>(edit: this diagnosis seems to be incorrect :) you can
+<a href="https://news.ycombinator.com/item?id=8167546">read some discussion</a>
+about what may be actually going on here)</p>
+
+<h2 id="life-lessons">life lessons</h2>
+
+<p>If you&rsquo;re actually writing a production TCP stack, don&rsquo;t use Python.
+(surprise!) Also, the TCP spec is really complicated, but you can get
+servers to reply to you even if your implementation is extremely sketchy.</p>
+
+<p>I was really happy that it actually worked, though! The ARP spoofing
+was extremely finicky, but I wrote a version of <code>curl</code> using it which
+worked about 25% of the time. You can see all the absurd code at
+<a href="https://github.com/jvns/teeceepee/">https://github.com/jvns/teeceepee/</a>.</p>
+
+<p>I think this was actually way more fun and instructive than trying to
+write a TCP stack in an appropriate language like C :)</p>]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[♥ PyCon]]></title>
+    <link href="https://jvns.ca/blog/2014/04/13/pycon/"/>
+    <updated>2014-04-13T21:37:45+00:00</updated>
+    <id>https://jvns.ca/blog/2014/04/13/pycon/</id>
+    <content type="html"><![CDATA[<p>PyCon 2014 happened! It was my first time at PyCon, I expected to have
+a good time, and it was better than I expected. I spoke! People came
+up to me and said they enjoyed my talk! There were so many amazing
+talks! I met so many people whose work I&rsquo;d been following! <sup>1</sup>&frasl;<sub>3</sub> of the
+talks were by women! It was <em>wonderful</em>.</p>
+
+<p>A few talks that especially stood out to me, or that I missed and
+<em>really</em> want to see. I didn&rsquo;t see anything like all the talks, but I
+liked these. In no particular order:</p>
+
+<p></p>
+
+<p><small>
+Not all of the videos are up yet, but I&rsquo;ll come back to this later and
+put in video links when they are.
+</small></p>
+
+<ul>
+<li><a href="https://twitter.com/ctitusbrown">Titus Brown</a> gave a wonderful talk
+about his work in computationally intensive biology. I found this
+particularly interesting because he offered roughly &ldquo;I have harder
+data problems that your tech job does! Come do a PhD with me and
+I&rsquo;ll pay you a fraction as much.&rdquo; This was oddly compelling. Very
+much worth watching.
+<a href="http://ivory.idyll.org/blog/2014-pycon.html">Notes from his talk</a>,
+<a href="http://pyvideo.org/video/2697/data-intensive-biology-in-the-cloud-instrumentin">[Video]</a></li>
+<li><a href="https://twitter.com/juliepagano">Julie Pagano</a> gave
+<a href="https://us.pycon.org/2014/schedule/presentation/164/">advice about battling imposter syndrome</a>.
+I liked that her advice was practical! We need better advice than
+&ldquo;you shouldn&rsquo;t have imposter syndrome!&rdquo;, and this did well at that.
+<a href="http://pyvideo.org/video/2659/its-dangerous-to-go-alone-battling-the-invisibl">[Video]</a></li>
+<li><a href="https://twitter.com/jessicamckellar">Jessica McKellar</a>&rsquo;s keynote on how we can help advance computer
+science education was amazing. It was amazing because she gave so
+many concrete suggestions and specific calls to action: there were
+easy things (for example: call your legislators and tell them CS
+should count for AP math/science credit!) and larger commitments.
+She challenged everyone to do just one thing in the upcoming year to
+try to make CS education in high school better.
+<a href="http://pyvideo.org/video/2684/keynote-jessica-mckellar">[Video]</a></li>
+<li><a href="https://twitter.com/fperez_org">Fernando Perez</a> spoke about the
+state of Python for scientific and how scientists are using IPython
+to easily make their work reproducible. I&rsquo;m so impressed with the
+community he&rsquo;s building around this software. The tools are so good
+and getting better so quickly.
+<a href="http://pyvideo.org/video/2683/keynote-fernando-perez">[Video]</a></li>
+<li><a href="https://twitter.com/NaomiCeder">Naomi Ceder</a> spoke about
+<a href="https://us.pycon.org/2014/schedule/presentation/182/">being a trans woman in the Python community</a>.
+I saw so many positive comments about her talk on Twitter
+afterwards. I&rsquo;m really interested to see what she has to say, and
+delighted that I work in a community where her perspective is
+valued.
+<a href="http://pyvideo.org/video/2671/farewell-and-welcome-home-python-in-two-genders">[Video]</a></li>
+<li><a href="https://twitter.com/paultag">Paul Tagliamonte</a>&rsquo;s talk about
+<a href="https://us.pycon.org/2014/schedule/presentation/192/">compiling Lisp to Python bytecode</a>
+was the kind of excited &ldquo;let&rsquo;s see how far we can take this crazy
+idea!&rdquo; talk that I really enjoy. Super enjoyable speaker.
+<a href="http://pyvideo.org/video/2616/getting-hy-on-python-how-to-implement-a-lisp-fro">[Video]</a></li>
+<li><a href="https://twitter.com/hsjuju2">Julie Lavoie</a> talked about
+<a href="https://us.pycon.org/2014/schedule/presentation/179/">Analyzing Rap Lyrics with Python</a>.
+I liked this because she clearly loves rap, and she gave some
+background on rap as an art form, including samples from different
+styles. Also it was a super fun introduction to natural language
+processing.
+<a href="http://pyvideo.org/video/2658/analyzing-rap-lyrics-with-python">[Video]</a></li>
+<li><a href="https://twitter.com/tavarm">Tavish Armstrong</a> talked about one of
+his favorite topics: how programmers can learn from software
+engineering research. His call to action: Try to measure something
+about your software engineering practice! Show it to your friends!
+Reproduce it! Give a talk at PyCon next year about it!
+<a href="http://pyvideo.org/video/2696/software-engineering-research-for-hackers-bridgi">[Video]</a></li>
+<li><a href="https://twitter.com/akaptur">Allison Kaptur</a> explained how
+<a href="https://us.pycon.org/2014/schedule/presentation/229/">import works in Python, from the ground up</a>.
+I loved that she started with a naive version of import and kept
+incrementally improving it until we got to a version that resembles
+how <code>import</code> actually works.
+<a href="http://pyvideo.org/video/2567/import-ant-decisions">[Video]</a></li>
+<li>I talked about why IPython Notebook and Pandas are my favorite tools
+for exploratory data analysis, and people said they enjoyed how
+enthusiastic I was afterwards. Yay!
+<a href="http://pyvideo.org/video/2657/diving-into-open-data-with-ipython-notebook-pan-0">[Video]</a>,
+<a href="http://bit.ly/pycon-pandas">[Slides]</a>, <a href="https://github.com/jvns/pandas-cookbook">[pandas cookbook]</a></li>
+</ul>
+
+<p>A few more talks that I want to watch the videos for, but can&rsquo;t
+comment on because, well, I haven&rsquo;t yet.</p>
+
+<ul>
+<li><a href="http://pyvideo.org/video/2600/for-lack-of-a-better-nameserver-dns-explained">For Lack of a Better Name(server): DNS Explained</a>,
+by Lynn Root</li>
+<li><a href="http://pyvideo.org/video/2578/cache-me-if-you-can-memcached-caching-patterns">Cache me if you can: memcached, caching patterns and best practices</a>
+by Guillaume Ardaud</li>
+<li><a href="http://pyvideo.org/video/2568/kneel-and-disconnect-getting-the-fastest-connect">Kneel And Disconnect: Getting The Fastest Connection Out Of A Hostname</a>
+by Ashwini Oruganti</li>
+<li><a href="http://pyvideo.org/video/2622/an-introduction-to-twisted">An Introduction to Twisted</a> by Stacey Sern</li>
+<li><a href="http://pyvideo.org/video/2694/the-python-pipeline-why-you-should-reach-out-to">The Python Pipeline: Why you should reach out to local teachers and how to do it</a> by Selena Deckelmann</li>
+<li><a href="http://pyvideo.org/video/2606/realtime-predictive-analytics-using-scikit-learn">Realtime predictive analytics using scikit-learn &amp; RabbitMQ</a> by
+Michael Becker</li>
+<li><a href="http://pyvideo.org/video/2598/distributed-computing-is-hard-lets-go-shopping">Distributed Computing Is Hard, Lets Go Shopping</a> by Lewis Franklin</li>
+<li><a href="http://pyvideo.org/video/2572/fan-in-and-fan-out-the-crucial-components-of-con">Fan-in and Fan-out: The crucial components of concurrency</a> by Brett
+Slatkin</li>
+<li><a href="http://pyvideo.org/video/2585/building-and-breaking-a-python-sandbox">Building and breaking a Python sandbox</a> by Jessica McKellar (I saw a
+version of this at Hacker School and it was amazing)</li>
+<li><a href="http://pyvideo.org/video/2695/python-in-the-browser-intro-to-brython">Python in the Browser: Intro to Brython</a> by Susan Tan</li>
+<li><a href="http://pyvideo.org/video/2633/garbage-collection-in-python">Garbage Collection in Python</a> by Benjamin Peterson</li>
+<li><a href="http://pyvideo.org/video/2640/subprocess-to-ffi-memory-performance-and-why-y">Subprocess to FFI: Memory, Performance, and Why You Shouldn&rsquo;t Shell Out</a> by Christine Spang</li>
+</ul>
+
+<p>I never stop being impressed with people I meet at PyCon. Conferences
+are so hard! I want to meet all the people and do all the things and
+be in 3 places at things. And the sprints haven&rsquo;t even happened yet!</p>
+
+<p>I&rsquo;m so thankful to all the organizers for doing so much work to make
+this possible. The conference chair
+<a href="https://twitter.com/diana_clarke">Diana Clarke</a> got a standing
+ovation at the closing session, and more than deserved it.</p>
+
+<p>♥ PyCon.</p>]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[A pandas cookbook]]></title>
+    <link href="https://jvns.ca/blog/2013/12/22/cooking-with-pandas/"/>
+    <updated>2013-12-22T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/12/22/cooking-with-pandas/</id>
+    <content type="html"><![CDATA[<p>A few people have told me recently that they find the slides for my
+talks really helpful for getting started with
+<a href="http://pandas.pydata.org">pandas</a>, a Python library for manipulating
+data. But then they get out of date, and it&rsquo;s tough to support slides
+for a talk that I gave a year ago.</p>
+
+<p>So I was procrastinating packing to leave New York yesterday, and I
+started writing up some examples, with explanations! A lot of them are
+taken from talks I&rsquo;ve given, but I also want to give some new
+examples, like</p>
+
+<ul>
+<li>how to deal with timestamps</li>
+<li>what is a pivot table and why would you ever want one?</li>
+<li>how to deal with &ldquo;big&rdquo; data</li>
+</ul>
+
+<p>I&rsquo;ve put it in a GitHub repository called
+<a href="https://github.com/jvns/pandas-cookbook">pandas-cookbook</a>. It&rsquo;s along
+the same lines as the pandas talks I&rsquo;ve given &ndash; take a real dataset
+or three, play around with it, and learn how to use pandas along the
+way.</p>
+
+<p>Here&rsquo;s the current table of contents, as of right now. These links
+will probably break as I update it.</p>
+
+<ul>
+<li><a href="http://nbviewer.ipython.org/github/jvns/pandas-cookbook/blob/master/cookbook/Chapter%201%20-%20Reading%20from%20a%20CSV.ipynb">Chapter 1: Reading from a CSV</a></li>
+<li><a href="http://nbviewer.ipython.org/github/jvns/pandas-cookbook/blob/master/cookbook/Chapter%202%20-%20Selecting%20data%20&amp;%20finding%20the%20most%20common%20complaint%20type.ipynb">Chapter 2: Selecting data &amp; finding the most common complaint type</a></li>
+<li><a href="http://nbviewer.ipython.org/github/jvns/pandas-cookbook/blob/master/cookbook/Chapter%203%20-%20Which%20borough%20has%20the%20most%20noise%20complaints%3F%20%28or%2C%20more%20selecting%20data%29.ipynb">Chapter 3: Which borough has the most noise complaints? (or, more selecting data)</a></li>
+<li><a href="http://nbviewer.ipython.org/github/jvns/pandas-cookbook/blob/master/cookbook/Chapter%204%20-%20Find%20out%20on%20which%20weekday%20people%20bike%20the%20most%20with%20groupby%20and%20aggregate.ipynb">Chapter 4: Find out on which weekday people bike the most with groupby and aggregate</a></li>
+<li><a href="http://nbviewer.ipython.org/github/jvns/pandas-cookbook/blob/master/cookbook/Chapter%205%20-%20Combining%20dataframes%20and%20scraping%20Canadian%20weather%20data.ipynb">Chapter 5: Combining dataframes and scraping Canadian weather data</a></li>
+<li><a href="http://nbviewer.ipython.org/github/jvns/pandas-cookbook/blob/master/cookbook/Chapter%206%20-%20String%20operations%21%20Which%20month%20was%20the%20snowiest%3F.ipynb">Chapter 6: String operations! Which month was the snowiest?</a></li>
+<li><a href="http://nbviewer.ipython.org/github/jvns/pandas-cookbook/blob/master/cookbook/Chapter%207%20-%20Cleaning%20up%20messy%20data.ipynb">Chapter 7: Cleaning up messy data</a></li>
+<li><a href="http://nbviewer.ipython.org/github/jvns/pandas-cookbook/blob/master/cookbook/Chapter%208%20-%20How%20to%20deal%20with%20timestamps.ipynb">Chapter 8: Parsing Unix timestamps</a></li>
+</ul>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[NYC Python talk]]></title>
+    <link href="https://jvns.ca/blog/2013/11/06/nyc-python-talk-slides/"/>
+    <updated>2013-11-06T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/11/06/nyc-python-talk-slides/</id>
+    <content type="html"><![CDATA[<p>I gave a talk at NYC Python today on how to use IPython Notebook, with
+the 311 calls dataset from NYC Open Data as an example. We talked about
+which borough complains the most about rats (the Bronx) and which days
+of the week have the most noise complaints (Saturday, Sunday).</p>
+
+<p>It was a fun time! Here is the notebook, if you want to try it out
+yourself: <a href="http://bit.ly/nyc-python-pandas">bit.ly/nyc-python-pandas</a></p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 18: ARP cache poisoning (or: In ur connection, sniffing ur packets)]]></title>
+    <link href="https://jvns.ca/blog/2013/10/29/day-18-in-ur-connection/"/>
+    <updated>2013-10-29T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/10/29/day-18-in-ur-connection/</id>
+    <content type="html"><![CDATA[<p>Today I learned how to steal packets on a wireless network! If you want to try
+this one at home, you&rsquo;ll need</p>
+
+<ul>
+<li><code>dsniff</code> (in the Ubuntu repositories)</li>
+<li><a href="http://wireshark.org">Wireshark</a></li>
+<li>At least 2 devices on a network (like a smartphone and a computer)</li>
+</ul>
+
+<p>This finally pretty much only involved one line of code. Here it is:</p>
+
+<pre> <code> $ sudo arpspoof -i wlan0 -t 192.168.0.13 192.168.0.1 </code></pre>
+
+<p>Okay, so what does this even mean, right?</p>
+
+<p><code>192.168.0.13</code> is my phone&rsquo;s IP address on the local network.
+<code>192.168.0.1</code> is the address of the router.</p>
+
+<p>What this line basically does is &ldquo;Hey phone! You want to send a packet to the
+router? Send that to me instead. Thanks!&rdquo;</p>
+
+<p>This exploitation technique is called &ldquo;ARP cache poisoning&rdquo;. Apparently when
+my computer needs to communicate with an IP address (like 192.168.1.68), it
+<em>actually</em> needs to look up the MAC address for that IP address and send
+packets to the MAC address. If it needs to send packets to the outside world
+it sends them to its router first, so it needs the router&rsquo;s MAC address.</p>
+
+<p>Here&rsquo;s what a normal asking-for-MAC-address exchange looks like, in Wireshark:</p>
+
+<p><a href="/images/normal-arp-interaction.png"><img src="/images/normal-arp-interaction.png"></a></p>
+
+<p>That image is a bit small, but you can click on it to enlarge it.</p>
+
+<p>So the conversation goes:</p>
+
+<ol>
+<li><strong>Computer</strong> (to everyone on the network) &ldquo;Who is 192.168.0.13&rdquo;</li>
+<li><strong>Phone</strong> (to computer) &ldquo;I am! My MAC address is <code>38:e7:d8:64:42:b7</code>&ldquo;</li>
+<li><strong>Phone</strong> (to computer) What is your MAC address?</li>
+<li><strong>Computer</strong> (to phone) My MAC address is <code>60:67:20:eb:7b:bc</code></li>
+</ol>
+
+<p>And then the phone and the computer remember which MAC address to use and
+communicate with each other that way.</p>
+
+<p><small>(aside: My ethernet card and wireless card actually have different MAC
+addresses, so it&rsquo;s not exactly a <em>machine</em> that has a MAC address, it&rsquo;s the
+NIC. I think.)</small></p>
+
+<p>So the deal with MAC address spoofing is: it turns out ANYONE can go ahead and tell my phone</p>
+
+<p>&ldquo;I am! My MAC address is <code>aa:bb::cc::dd::ee::ff</code>&ldquo;</p>
+
+<p>and my phone will just go ahead and believe them. But it gets better! It&rsquo;s not
+<em>just</em> that anyone can reply, they can reply <em>even if the phone didn&rsquo;t ask for
+a MAC address</em>. So if my phone has the <em>right</em> MAC address for my computer,
+someone else can go ahead and tell them &ldquo;The MAC address for <code>192.168.0.15</code> is
+<code>aa:bb:cc:dd:ee:ff</code>&rdquo;.</p>
+
+<p>And my phone will just think &ldquo;Sweet. Thanks for the update!&rdquo;. It&rsquo;ll eventually
+fix itself up, so you have to keep sending it these messages over and over
+again to keep the cache poisoned.</p>
+
+<p>So let&rsquo;s look at what that <code>arpspoof</code> command from before is doing in
+Wireshark:</p>
+
+<p><a href="/images/arp-cache-poisoning.png"><img src="/images/arp-cache-poisoning.png"></a></p>
+
+<p>You can see that every 2 seconds or so my computer (<code>IntelCor_eb:7b:bc</code>) is
+telling my phone (<code>Htc_64:42:b7</code>) the wrong MAC address for the router
+(<code>10.0.0.1</code>)</p>
+
+<p>And that&rsquo;s what <code>arpspoof</code> does! It actually tries to do it both ways (so the
+router and the phone will both communicate with me instead of each other), but
+I think the router doesn&rsquo;t take as much bullshit so it doesn&rsquo;t work.</p>
+
+<p>It also doesn&rsquo;t appear to work on my Linux computer, but it seemed to work on
+Kate&rsquo;s Macbook Pro. If you try to poison your cache on a Unixy machine, you
+can find out if it worked by running <code>arp -na</code> and seeing if the MAC addresses
+are right.</p>
+
+<p>I learned all this stuff from <a href="http://nostarch.com/hacking2.htm">Hacking: The Art of Exploitation</a>.
+It is fantastic. You can also download the LiveCD from the website for free
+and it has all the tools I mentioned here.</p>
+
+<p>I paired on this with <a href="https://kate.io/">Kate</a> a lot.</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 9: Bytecode is made of bytes! CPython isn&#39;t scary!]]></title>
+    <link href="https://jvns.ca/blog/2013/10/14/day-9-bytecode-is-made-of-bytes/"/>
+    <updated>2013-10-14T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/10/14/day-9-bytecode-is-made-of-bytes/</id>
+    <content type="html"><![CDATA[<p>Today I paired with one of the fantastic Hacker School facilitators,
+<a href="http://akaptur.github.io/">Allison</a>  on fixing some bugs in a bytecode
+interpreter. <a href="https://github.com/nedbat/byterun">byterun</a> is a pure python interpreter for the bytecode that
+CPython generates, written for learning &amp; fun times.</p>
+
+<p>Allison has a
+<a href="http://akaptur.github.io/blog/2013/08/14/python-bytecode-fun-with-dis/">great blog post</a>
+about how to use the <code>dis</code> module to look at
+the bytecode for a function which you should totally read.
+</p>
+
+<h2 id="a-few-things-i-learned">A few things I learned</h2>
+
+<p>The CPython interpreter is mostly in one 3,500 file called <code>ceval.c</code> (<a href="https://github.com/python/cpython/blob/master/Python/ceval.c">see it on github!</a>). The main part of this file is a 2,000-line switch statement &ndash; <code>switch(opcode) {...</code>. Ack.</p>
+
+<p>But! This file is surprisingly not-scary. Or Allison is just amazing at making
+things seem not scary. So for example there&rsquo;s a <code>BINARY_SUBTRACT</code> opcode
+which, well, subtracts things.</p>
+
+<p>Here&rsquo;s the actual for serious C code that handles this:</p>
+
+<pre><code>TARGET(BINARY_SUBTRACT) {
+    PyObject *right = POP();
+    PyObject *left = TOP();
+    PyObject *diff = PyNumber_Subtract(left, right);
+    Py_DECREF(right);
+    Py_DECREF(left);
+    SET_TOP(diff);
+    if (diff == NULL)
+        goto error;
+    DISPATCH();
+}
+</code></pre>
+
+<p>{:lang=&lsquo;c&rsquo;}</p>
+
+<p>So, what does this do?</p>
+
+<ol>
+<li>Get the arguments off the stack</li>
+<li>Subtract them by looking up <code>left.__sub__(right)</code></li>
+<li>Decrease the number of references to <code>left</code> and <code>right</code> for garbage collection reasons</li>
+<li>Put the result on the stack</li>
+<li>If <code>__add__</code> doesn&rsquo;t return anything, throw an exception</li>
+<li><code>DISPATCH()</code>, which basically just means &ldquo;go to the next instruction&rdquo;</li>
+</ol>
+
+<p>I could TOTALLY WRITE THAT.</p>
+
+<p>We spent some time reading the C code that deals with exception handling in
+Python. It was pretty confusing, but I learned that you can do <code>raise
+ValueError from Exception</code> to set the cause of an exception.</p>
+
+<p>Basically the lesson here is</p>
+
+<ol>
+<li>Allison is the best. Pairing with her on <a href="https://github.com/nedbat/byterun">byterun</a> is the most fun thing</li>
+<li>It&rsquo;s actually possible to read the C code that runs Python!</li>
+<li>Bytecode is made of bytes. Like, there are less than 256 instructions and each one is a byte. I did not realize this until today. Laugh all you want =D</li>
+</ol>]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[PyData Boston 2013]]></title>
+    <link href="https://jvns.ca/blog/2013/09/12/pydata-boston-2013/"/>
+    <updated>2013-09-12T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/09/12/pydata-boston-2013/</id>
+    <content type="html"><![CDATA[<p>I went to PyData Boston in July. The videos are just coming out now, so here are
+a couple of things that I enjoyed.</p>
+
+<p><a href="http://technicaldiscovery.blogspot.ca/">Travis Oliphant</a>, the CEO of
+Continuum Analytics &amp; author of NumPy gave the opening keynote. It was a great
+overview of what Continuum Analytics is up to (basically making wonderful
+software like <a href="https://store.continuum.io/">Anaconda</a> and
+<a href="http://wakari.io">Wakari</a> and a million other amazing-looking things.).</p>
+
+<p>When talking about <a href="http://numba.pydata.org/">Numba</a>, he said &ldquo;In my
+mind, there&rsquo;s no reason to write C++ anymore&rdquo; for scientific computing &ndash;
+you can just use Numba and decorate your Python functions with <code>@autojit</code>.</p>
+
+<p>Goodness.</p>
+
+<p><a href="http://www.ghostweather.com/bio.html">Lynn Cherny</a> gave a great talk about
+detecting sex scenes in Fifty Shades of Grey. She talks about using Mechanical
+Turk to build a classifier. It&rsquo;s super interesting and hilarious. I&rsquo;m really
+happy that I know that she exists now. I also found out that she maintains a
+mailing list for data visualization jobs. <a href="http://vimeo.com/74075845">Here&rsquo;s the video</a>.
+</p>
+
+<p>She said that she does all her data analysis in Python, and then writes
+frontends in Javascript (using D3).</p>
+
+<p><a href="Jeff Bezanson">Jeff Bezanson</a> from the <a href="http://julialang.org/">Julia</a> project
+gave a short intro to Julia. What stood out to me the most was not how cool
+Julia looks (though it does!) but he just seemed like such a lovely guy. He
+said there&rsquo;s lots of work to be done on Julia, and now I really want to
+contribute. Apparently most of the standard library for Julia is written in
+Julia!  Also <a href="http://karpinski.org/">Stefan Karpinski</a> is a Hacker School
+resident and &lt;3 Hacker School. <a href="http://vimeo.com/73317363">Here&rsquo;s the video of his talk</a>.</p>
+
+<p>In the lightning talks, <a href="http://web.media.mit.edu/~rspeer/">Robert Speer</a>
+demoed a neat library for fixing Unicode called
+<a href="https://github.com/LuminosoInsight/python-ftfy">ftfy</a>.</p>
+
+<p>I also met <a href="http://katychuang.github.io/">Kat Chuang</a> who runs <a href="http://www.meetup.com/NYC-PyLadies/">PyLadies NYC</a> and is great.</p>]]></content>
+  </entry>
+  
+</feed>

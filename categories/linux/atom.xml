@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title><![CDATA[Julia Evans]]></title>
+  <link href="http://jvns.ca/atom.xml" rel="self"/>
+  <link href="http://jvns.ca"/>
+  <updated>2016-03-12T11:09:40+00:00</updated>
+  <id>http://jvns.ca</id>
+  <author>
+    <name><![CDATA[Julia Evans]]></name>
+  </author>
+  <generator uri="http://gohugo.io/">Hugo</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[How does perf work? (in which we read the Linux kernel source)]]></title>
+    <link href="https://jvns.ca/blog/2016/03/12/how-does-perf-work-and-some-questions/"/>
+    <updated>2016-03-12T11:09:40+00:00</updated>
+    <id>https://jvns.ca/blog/2016/03/12/how-does-perf-work-and-some-questions/</id>
+    <content type="html"><![CDATA[
+
+<p>perf is a profiling tool for Linux, that I&rsquo;ve written about <a href="/blog/categories/perf">a few times</a> on this blog before. I was interviewed on <a href="http://embedded.fm/episodes/141">a podcast</a> recently where the host asked me &ldquo;so, julia, tell me how perf works!&rdquo; and I gave a sort of unsatisfying answer &ldquo;you know, sampling?&rdquo;.</p>
+
+<p>So it turns out I don&rsquo;t really know how perf works. And I like knowing how stuff works. Last week I read some of the <a href="http://man7.org/linux/man-pages/man2/perf_event_open.2.html">man page for <code>perf_event_open</code></a>, the system call that perf uses. It&rsquo;s 10,000 words but pretty helpful! I&rsquo;m still quite confused about perf, so I&rsquo;m going to tell you, fair reader, what I know, and then maybe you can help me out with my questions.</p>
+
+<p>There is not a lot of documentation for perf. The best resource I know is on <a href="http://www.brendangregg.com/perf.html">Brendan Gregg&rsquo;s site</a>, but it does not answer all the questions I have! To answer some of these questions, we&rsquo;re going to read the Linux kernel source code. Because it&rsquo;s Saturday night.</p>
+
+<h3 id="hardware-counters">Hardware counters</h3>
+
+<p>So, let&rsquo;s imagine you want to know exactly how many CPU instructions happen when you run <code>ls</code>. It turns out that your CPU stores information about this kind of thing! And perf can tell you. Here&rsquo;s what the answer looks like, from <code>perf stat</code>.</p>
+
+<pre><code>$ sudo perf stat ls
+         1,482,453 instructions              #    0.48  insns per cycle        
+
+</code></pre>
+
+<p>But how does that <em>work</em>? Well, the <a href="https://en.wikipedia.org/wiki/Hardware_performance_counter">Wikipedia page on hardware performance counters</a> mentions</p>
+
+<blockquote>
+<p>One of the first processors to implement such counter and an associated
+instruction <code>RDPMC</code> to access it was the Intel Pentium, but they were not
+documented until Terje Mathisen wrote an article about reverse engineering
+them in Byte July 1994: [1]</p>
+</blockquote>
+
+<p>We can use <a href="https://livegrep.com/search/linux">http://livegrep.com</a> to search the Linux kernel for the <code>rdpmc</code> instruction. Here&rsquo;s it being used in a cryptic <a href="https://github.com/torvalds/linux/blob/v4.3/arch/x86/include/asm/msr.h#L158-L164">header file called msr.h</a></p>
+
+<pre><code>static inline unsigned long long native_read_pmc(int counter)
+{
+    DECLARE_ARGS(val, low, high);
+
+    asm volatile(&quot;rdpmc&quot; : EAX_EDX_RET(val, low, high) : &quot;c&quot; (counter));
+    return EAX_EDX_VAL(val, low, high);
+}
+</code></pre>
+
+<p>This is AWESOME. Maybe this is how Linux reads hardware counters and gives them back to us in <code>perf stat</code>!! Further grepping for uses of <code>native_read_pmc</code> reveals that we read hardware counters via <code>rdpmcl</code> in <a href="https://github.com/torvalds/linux/blob/v4.3/arch/x86/kernel/cpu/perf_event.c#L84">x86/kernel/cpu/perf_event.c</a>.</p>
+
+<p>This code is a little impenetrable to me, but here&rsquo;s a hypothesis for how this could work. Let&rsquo;s say we&rsquo;re running <code>ls</code>. This code might get scheduled on and off the CPU a few times.</p>
+
+<p>So! Here&rsquo;s what I think this looks like.</p>
+
+<pre><code>kernel: ok let's run ls for a while
+kernel: CPU! Start counting CPU instructions!
+CPU: &lt;complies silently&gt;
+kernel: &lt;runs ls&gt;
+ls: yayyyyyyyyyy
+kernel: &lt;stops running ls&gt;
+kernel: CPU! How many instructions was that! (`rdpmc`)
+CPU: 10,200!
+kernel: &lt;increments counter by 10,200&gt;
+</code></pre>
+
+<p>One important outcome of this, if I understand correctly is &ndash; hardware counters are exact counters, and they&rsquo;re low enough overhead that the kernel can just always run <code>rdpmc</code> every time it&rsquo;s done running a piece of code. There&rsquo;s no sampling or approximations involved.</p>
+
+<h3 id="sampling-software-events">Sampling software events</h3>
+
+<p>The core of perf events looks like it&rsquo;s in <a href="https://github.com/torvalds/linux/blob/v4.3/kernel/events/core.c">kernel/events/core.c</a>. This file includes the definition of the <a href="https://github.com/torvalds/linux/blob/v4.3/kernel/events/core.c#L8107"><code>perf_event_open</code></a> system call, on line 8107. Files with 10,000 lines of C code are not my specialty, but I&rsquo;m going to try to make something of this.</p>
+
+<p>My goal: understand how perf does sampling of CPU events. For the sake of argument, let&rsquo;s pretend we only wanted to save the state of the CPU&rsquo;s registers every time we sample.</p>
+
+<p>We know from the <a href="http://man7.org/linux/man-pages/man2/perf_event_open.2.html"><code>perf_event_open</code> man page</a> that perf writes out events to userspace (&ldquo;hi! I am in julia&rsquo;s awesome function right now!&rdquo;). It writes events to a mmap&rsquo;d <em>ring buffer</em>. Which is some data structure in memory. Okay.</p>
+
+<p>Further inspection of this 10,000 line <code>core.c</code> file reveals that the code outputs data to userspace in the <code>perf_event_update_userpage</code> function.</p>
+
+<p>So, let&rsquo;s find the code that copies all the x86 registers into userspace! It turns out it&rsquo;s not too hard to find &ndash; it&rsquo;s in this file called <a href="https://github.com/torvalds/linux/blob/v4.3/arch/x86/kernel/perf_regs.c#L114-L118">perf_regs.c</a>. There are like 15 registers to copy! Neat.</p>
+
+<p>In this case it makes sense that we sample &ndash; we definitely couldn&rsquo;t save all the registers every instruction. That would be way too much work!</p>
+
+<p>So now I can see a little tiny bit of the code that perf uses to do sampling. This isn&rsquo;t terribly enlightening, but it does make me feel better.</p>
+
+<h3 id="questions">Questions</h3>
+
+<ul>
+<li>when does perf do its sampling? is it when the process gets scheduled onto the CPU? how is the sampling triggered? I am completely confused about this.</li>
+<li>what is the relationship between perf and kprobes? if I just want to sample the registers / address of the instruction pointer from <code>ls</code>&rsquo;s execution, does that have anything to do with kprobes? with ftrace? I think it doesn&rsquo;t, and that I only need kprobes if I want to instrument a kernel function (like a system call), but I&rsquo;m not sure.</li>
+<li>are kprobes and ftrace the same kernel system? I feel like they are but I am confused.</li>
+</ul>
+
+<h3 id="reading-kernel-code-not-totally-impossible">reading kernel code: not totally impossible</h3>
+
+<p>I probably skimmed like 4000 lines of Linux kernel code (the perf parts!) to write this post, in 3 hours. There are definitely at least 20,000 lines of code related to perf. Maybe 100,000? I do not have the Linux source on my computer &ndash; I used livegrep and github to look at it.</p>
+
+<p>I only understood probably 10% of what I looked at, but I still learned some things about how perf works internally! This is neat.</p>
+]]></content>
+  </entry>
+  
+</feed>

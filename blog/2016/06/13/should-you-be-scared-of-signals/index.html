@@ -1,0 +1,242 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>Should you be scared of Unix signals? - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="Should you be scared of Unix signals?">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2016/06/13/should-you-be-scared-of-signals/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">Should you be scared of Unix signals?</h1>
+
+<div class="post-tags">
+  
+</div>
+<p class="meta">
+<time datetime="2016-06-13T22:34:23" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     
+
+<p>Yesterday I said I was scared of Unix signals, and some experienced people who I respect said &ldquo;no, you should not be! unix signals are a very well known thing!&rdquo;. I was sort of surprised because I think of signals as being a little scary! Here are some facts I have collected to try to think through this.</p>
+
+<h3 id="what-s-a-unix-signal">what&rsquo;s a unix signal?</h3>
+
+<p>Signals are a way for Unix processes to communicate! Except for SIGKILL. When you get sent SIGKILL nobody communicates with you, you just die immediately.</p>
+
+<p>But the rest of the signals you&rsquo;re allowed to install signal handlers for. So! Let&rsquo;s say you want to handle SIGALRM with <code>my_awesome_function</code></p>
+
+<p>You tell the Linux kernel <code>signal(SIGALRM, my_awesome_function)</code>. It remembers. When you get sent SIGALRM:</p>
+
+<ol>
+<li>the linux kernel is like &ldquo;hey, a signal!&rdquo;</li>
+<li>It stops your process.</li>
+<li>It saves all the registers in your process, and runs <code>my_awesome_function</code></li>
+<li>once <code>my_awesome_function</code> is done, it puts everything back and sends you on your way.</li>
+</ol>
+
+<p>on its face, this seems fine. the kernel will put your program back on its feet when it&rsquo;s done with the signal! no problem!</p>
+
+<h3 id="what-can-go-wrong-if-you-use-signals">what can go wrong if you use signals?</h3>
+
+<p>here are a few things. I think I am missing some.</p>
+
+<ul>
+<li>you need to be careful and make sure that other signals do not arrive while you are handling a signal</li>
+<li>if you&rsquo;re doing a <code>read</code> or <code>write</code> system call, and there&rsquo;s a signal, your read might be interrupted! You will get a return value <code>EINTR</code>. This is generally a normal thing that can happen but this weekend I saw a Rust program crash because it did not know how to handle EINTR.</li>
+<li>surprise! now you have a concurrent program! you need to be very careful if you modify anything in your signal handler code because WHO KNOWS what state that thing was in before you changed it.</li>
+</ul>
+
+<p>This paragraph from <a href="https://ldpreload.com/blog/signalfd-is-useless">this article</a> explains really wonderfully what is difficult about signal handlers:</p>
+
+<blockquote>
+<p>If you register a signal handler, it’s called in the middle of whatever code
+you happen to be running. This sets up some very onerous restrictions on what
+a signal handler can do: it can’t assume that any locks are unlocked, any
+complex data structures are in a reliable state, etc. The restrictions are
+stronger than the restrictions on thread-safe code, since the signal handler
+interrupts and stops the original code from running. So, for instance, it
+can’t even wait on a lock, because the code that’s holding the lock is paused
+until the signal handler completes. This means that a lot of convenient
+functions, including the stdio functions, malloc, etc., are unusable from a
+signal handler, because they take locks internally.</p>
+</blockquote>
+
+<p>Jesse Luehrs pointed out to be that <code>man 7 signal</code> has a list of functions that it&rsquo;s safe to call from signal handlers. (it is perhaps telling that functions are by default unsafe to call from signal handlers :) )</p>
+
+<h3 id="what-important-programs-use-signals">what important programs use signals?</h3>
+
+<p>I wanted to feel better about using signals, so I asked on Twitter what important programs that I trust use signals really extensively.</p>
+
+<p>First, <strong>init</strong>. That&rsquo;s PID 1 on older Linux systems! It turns out when I press ctrl+alt+delete on my computer, that sends a SIGINT to the init process, which then restarts the machine. I didn&rsquo;t know that! Cool! Init also responds to a few other signals in various ways.</p>
+
+<p>Next, my <strong>terminal</strong>. You know when you resize your terminal and it reflows all the text? That&rsquo;s it receiving a whole bunch of SIGWINCH (window change) signals, and updating its size and then redrawing everything accordingly. This one made me feel better because a terminal is a Complicated Program, but it is totally handling lots of signals okay all the time!</p>
+
+<p>When a child process of yours exits, you get a SIGCHLD signal. I think this is how my shell knows to report to me that a process has exited.</p>
+
+<p><a href="https://twitter.com/geofft">@geofft</a> also said that &ldquo;<strong>the JVM</strong> uses signal handlers to implement cross-thread stop-the-world GC&rdquo;</p>
+
+<p>A lot of programs (like <a href="http://unicorn.bogomips.org/SIGNALS.html">unicorn</a>) handle signals like SIGHUP to <strong>gracefully restart</strong>. Apparently it uses <code>SIGTTIN</code> and <code>SIGTTOU</code> to increment and decrement the number of worker processes? Apparently <code>TTIN</code> stands for &ldquo;teletype input&rdquo;. POSIX is weird! We will never escape teletypes?</p>
+
+<p><strong>SIGSEGV</strong> is a very important signal. It happens when your program tries to access memory that it does not have. A normal reaction to this signal is to die. But you can also do weird stuff! The <a href="https://www.gnu.org/software/libsigsegv/">libsigsegv library</a> gives a few examples of what you can use it to do:</p>
+
+<ul>
+<li>allocate more memory</li>
+<li>read some data from disk into that memory</li>
+<li>do something with garbage collection (but what? I&rsquo;m confused about this still.)</li>
+</ul>
+
+<p>my friend dave pointed me to <a href="https://github.com/cebix/macemu/blob/b58a9260bd1422a28e4c0b7b6bb71d26603bc3e1/BasiliskII/src/CrossPlatform/video_vosf.h">this code in an emulator that uses SEGV to notice when a video buffer is updated</a>.</p>
+
+<p>Another really common reason to catch SIGSEGV is to not actually recover (doing this properly is tricky!), but to catch crashes to provide a better error message or get a backtrace. Here&rsquo;s <a href="https://github.com/crawl/crawl/blob/master/crawl-ref/source/crash.cc">example code</a> and <a href="http://crawl.berotato.org/crawl/morgue/grandjackal/crash-grandjackal-20160608-001606.txt">the debug output it produces</a>. Thanks to <a href="https://tozt.net/">Jesse</a> for this example!</p>
+
+<p>Phew. Okay, I think we believe that signals are important now.</p>
+
+<h3 id="hundreds-of-signals-per-second">hundreds of signals per second</h3>
+
+<p>The whole reason I started thinking about signals in the first place is &ndash; I looked at the source code for <a href="https://github.com/tmm1/stackprof">stackprof</a>, a Ruby profiling tool. Basically what it does is it uses the <code>setitimer</code> Linux system call to say &ldquo;Hi! Please send me a signal every 2 milliseconds!&rdquo; and then it records a stack trace every time it gets a signal.</p>
+
+<p>I thought this was cool because the C code for this program is actually pretty easy to read.</p>
+
+<p>But! Getting hundreds of signals a second is really quite different from just one signal every now and then. This makes me feel worried because your program is being constantly interrupted all the time. This has some overhead, and maybe it causes problems with IO because your reads get interrupted all the time?</p>
+
+<h3 id="signalfd">signalfd</h3>
+
+<p>Are you scared of your program being arbitrarily interrupted at any point? In Linux, there is a thing called <code>signalfd</code> for you!.Here&rsquo;s what the man page says:</p>
+
+<blockquote>
+<p>signalfd()  creates  a  file descriptor that can be used to accept
+signals targeted at the caller.  This provides an alternative to the use
+of a signal handler or sigwaitinfo(2), and has the advantage that the
+file  descriptor  may  be  monitored  by  select(2), poll(2), and
+epoll(7).</p>
+</blockquote>
+
+<p>I&rsquo;ve still never used this but I find the idea appealing! The idea is that you can have a thread that is constantly waiting for signals to handle.</p>
+
+<p>I like this because it means you have a concurrent program (the thread is waiting for a signal), but it&rsquo;s much more explicit that you&rsquo;re running a concurrent program instead of having a weird signal handler that exists outside of space and time.</p>
+
+<p>However apparently there are problems with signalfd and it is not a land of rainbow goodness. When I googled it I came across an article by the aforementioned @geofft called <a href="https://ldpreload.com/blog/signalfd-is-useless">signalfd is useless</a> which talks about some annoying / nonobvious things about using it. The <a href="https://news.ycombinator.com/item?id=9564975">hacker news discussion on that article</a> is also mostly civil &amp; interesting.</p>
+
+<h3 id="signals-are-not-trivial-but-it-looks-like-they-re-possible">signals are not trivial, but it looks like they&rsquo;re possible!</h3>
+
+<p>So after seeing how all these important programs use signals, I think I believe it&rsquo;s possible to use signals for Very Important Things and still stay safe, as long as you&rsquo;re careful. I still don&rsquo;t feel like I know the complete list of things you need to be careful of when using signals though. If you know a good List Of What Can Go Wrong With Signals I would like to know about it!</p>
+
+<p>I&rsquo;m also still not sure if it&rsquo;s a reasonable idea to receive hundreds of signals a second. Though stackprof does mostly work, so I guess it can&rsquo;t be that unreasonable!</p>
+
+<h3 id="don-t-be-afraid-be-careful">don&rsquo;t be afraid! be careful!</h3>
+
+<p>I find topics like this interesting because &ndash; I don&rsquo;t like having Fears and Uncertainties about things that I can&rsquo;t base in fact. Like &ndash; it&rsquo;s unreasonable to say &ldquo;threads are hard! never use threads! it is scary&rdquo;. Threads are important! Sometimes you need to use them! It is possible to write correct threaded programs! Instead it is better to say &ldquo;this code is not thread safe because of SPECIFIC REASON! it will not work!&rdquo;.</p>
+
+<p>I feel like getting one bajillion replies on twitter helped a bit with creating facts out of my fears about signals :)</p>
+
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2016/06/13/should-you-be-scared-of-signals/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2016/06/13/should-you-be-scared-of-signals/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2016/06/15/using-ltrace-to-debug-a-memory-leak/" title="Previous Post: Using ltrace to debug a memory leak">Using ltrace to debug a memory leak</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2016/06/12/a-weird-system-call-process-vm-readv/" title="Next Post: How to spy on a Ruby program">How to spy on a Ruby program</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

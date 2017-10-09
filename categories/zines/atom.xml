@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title><![CDATA[Julia Evans]]></title>
+  <link href="http://jvns.ca/atom.xml" rel="self"/>
+  <link href="http://jvns.ca"/>
+  <updated>2017-05-14T10:22:23+00:00</updated>
+  <id>http://jvns.ca</id>
+  <author>
+    <name><![CDATA[Julia Evans]]></name>
+  </author>
+  <generator uri="http://gohugo.io/">Hugo</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[&#34;Let&#39;s learn tcpdump&#34; zine: now available for everyone]]></title>
+    <link href="https://jvns.ca/blog/2017/05/14/learn-tcpdump-zine/"/>
+    <updated>2017-05-14T10:22:23+00:00</updated>
+    <id>https://jvns.ca/blog/2017/05/14/learn-tcpdump-zine/</id>
+    <content type="html"><![CDATA[
+
+<p><script src="https://gumroad.com/js/gumroad.js"></script>
+<link href="https://jvns.ca/stylesheets/buttons.css" media="screen, projection" rel="stylesheet" type="text/css"></p>
+
+<p>Hello! A couple weeks back, I wrote a zine called &ldquo;let&rsquo;s learn tcpdump!&rdquo;
+and released the early access version for $10 as an experiment.</p>
+
+<p>Today, I&rsquo;m releasing it for everyone!</p>
+
+<h3 id="the-zine">the zine</h3>
+
+<p>If you want to read the zine now, here it is:
+<div align="center">
+<a class="button" href="https://jvns.ca/tcpdump-zine.pdf">Read the zine online!</a>
+<a class="button" href="https://gum.co/LcKLx?wanted=true"
+target="_blank" data-gumroad-single-product="true">Get the print version!</a></p>
+
+<p></div></p>
+
+<p>The print version is pay-what-you-can. It includes a version with an adorable
+colour cover, if you want to print it in scintillating colour!</p>
+
+<p>Here&rsquo;s the cover:</p>
+
+<div align="center">                                                                                                                       
+ <img src="https://jvns.ca/images/tcpdump-cover.jpg">
+</div>
+
+<h3 id="the-experiment">the experiment</h3>
+
+<p>I did an experiment where I charged people $10 for early access to the zine!
+Here are the results:</p>
+
+<ul>
+<li>People seemed pretty excited to give me money for a thing (&ldquo;yay! this is
+awesome! this helped me use tcpdump! thank you!&ldquo;)
+(<a href="https://twitter.com/b0rk/status/858077003244855298">people said a bunch of nice things on twitter!</a>)</li>
+<li>190 people bought it in all, for a total of $1970. Thank you, everyone! It
+feels really cool that people actually think the stuff I make is worth money,
+and it makes me feel motivated to make more zines like this. And it makes it
+easier for me to do things like pay illustrators to make awesome illustrations!</li>
+<li>1 person bought an &ldquo;enterprise license&rdquo; ($100) so that they could print it out and
+give it out to a lot of people at their conference.</li>
+</ul>
+
+<h3 id="thanks">thanks</h3>
+
+<p>Special thanks to my friend Maya who did the lettering for the title! you are
+the best. And to my awesome partner Kamal who always helps review my zines.</p>
+
+<p>And to the amazing illustrator Vladimir who made the cover! Paying artists is
+really cool.</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[New zine: let&#39;s learn tcpdump!]]></title>
+    <link href="https://jvns.ca/blog/2017/04/29/new-zine--let-s-learn-tcpdump/"/>
+    <updated>2017-04-29T09:50:37+00:00</updated>
+    <id>https://jvns.ca/blog/2017/04/29/new-zine--let-s-learn-tcpdump/</id>
+    <content type="html"><![CDATA[<p><script src="https://gumroad.com/js/gumroad.js"></script>
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css"></p>
+
+<p>tcpdump is a useful tool for seeing what network packets are being
+sent/received on a computer. I used to be really confused about tcpdump!
+I&rsquo;d run tcpdump, it would print a bunch of incomprehensible output, I&rsquo;d
+look at the man page, and I&rsquo;d run away.</p>
+
+<p>I&rsquo;ve learned a lot more about it and these days, I feel really
+comfortable with tcpdump! I&rsquo;ll see a networking problem, think
+&ldquo;oh, no big deal, I&rsquo;ll just fire up tcpdump!&rdquo;, and be one step closer to
+figuring it out.</p>
+
+<p>So I decided to write a short 12-page zine to explain tcpdump basics so that
+you too can realize &ldquo;hey, this isn&rsquo;t so bad!!&rdquo;.</p>
+
+<p>I&rsquo;m doing an experiment with this one where &ndash; you can buy it today for $10
+(early access!), and then I&rsquo;ll release it for free on this blog a little later
+on. If you&rsquo;re excited about tcpdump and want to buy it and help support julia&rsquo;s
+zine-making enterprises, here it is. As usual it includes both a version you
+can read online and a version you can print out and give to your friends.</p>
+
+<div align="center">
+<a class="button" href="https://gum.co/LcKLx?wanted=true" target="_blank" data-gumroad-single-product="true">Get the zine! ($10 USD)</a>
+</div>
+
+<p><br>
+Also, if you&rsquo;re thinking &ldquo;this is cool, but I feel like I&rsquo;m missing some computer networking basics&rdquo;, I wrote a computer networking zine called <a href="http://jvns.ca/zines/#networking-ack">Networking! ACK!</a> for you! (<a href="http://jvns.ca/networking-zine.pdf">here&rsquo;s the pdf</a>)</p>
+
+<p>Here&rsquo;s what the cover looks like (I hired an awesome illustrator!):</p>
+
+<div align="center">
+<img src="https://jvns.ca/images/tcpdump-cover.jpg">
+</div>
+
+<p>and the inside pages on tcpdump command line arguments, as a preview &ndash; it
+turns out there are only a few that you really need to know about!</p>
+
+<div align="center">
+<img src="https://jvns.ca/images/tcpdump_command_line_arguments.png">
+<img src="https://jvns.ca/images/tcpdump_command_line_arguments2.png">
+</div>
+
+<p>I&rsquo;m still figuring out what the best way is to sell stuff online is. Gumroad
+seems reasonable so far but let me know if there are problems with it!</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[A tiny zine about machine learning]]></title>
+    <link href="https://jvns.ca/blog/2017/01/20/a-tiny-zine-about-machine-learning/"/>
+    <updated>2017-01-20T22:19:25+00:00</updated>
+    <id>https://jvns.ca/blog/2017/01/20/a-tiny-zine-about-machine-learning/</id>
+    <content type="html"><![CDATA[<p>The other day I gave a talk on doing machine learning in production. It was a
+short talk at a local meetup, and I felt like trying something new. Instead
+of making slides, I wrote a short 8-page zine illustrating some concepts about
+machine learning, printed 70 copies on my home printer (who has an awesome
+long-arm swingline stapler? I DO!!!), and gave them out to everyone who came!</p>
+
+<p>There are 2 versions of it, as usual:</p>
+
+<ul>
+<li><a href="/production-machine-learning.pdf">a version you can read on your computer</a></li>
+<li><a href="/production-machine-learning-print.pdf">a version you can print and staple and fold</a></li>
+</ul>
+
+<p>If you like it, you should read the PDF that it&rsquo;s based on: <a href="http://martin.zinkevich.org/rules_of_ml/rules_of_ml.pdf">Rules of Machine Learning:
+Best Practices for ML Engineering</a>, which I found out about thanks to <a href="https://twitter.com/avibryant">Avi Bryant</a>.</p>
+
+<p>I learned that:</p>
+
+<ul>
+<li>giving a talk without using slides <em>at all</em> is possible. It was a little weird, but I will probably experiment with it again in the future. I still like using slides though!</li>
+<li>I can write a short, sketchy zine in 2 hours (which is the same amount of time it takes me to write similar-quality slides!)</li>
+<li>I can print, staple, and fold 70 zines in 40 minutes (with some folding help from my amazing partner Kamal :))</li>
+<li>giving away zines at a meetup is really fun, way more fun than being like &ldquo;uh, the slides are on my website&rdquo;</li>
+</ul>
+
+<p>Here&rsquo;s the cover:</p>
+
+<p><img src="/images/prod-ml-cover.png"></p>
+]]></content>
+  </entry>
+  
+</feed>

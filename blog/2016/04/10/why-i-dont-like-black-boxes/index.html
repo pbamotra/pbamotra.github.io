@@ -1,0 +1,248 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>Looking inside machine learning black boxes - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="Looking inside machine learning black boxes">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2016/04/10/why-i-dont-like-black-boxes/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">Looking inside machine learning black boxes</h1>
+
+<div class="post-tags">
+  
+</div>
+<p class="meta">
+<time datetime="2016-04-10T16:24:44" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     
+
+<p>I do machine learning at work. For a long time (the whole time I&rsquo;ve had this job, 2 years), I&rsquo;ve struggled with a bunch of questions about complicated machine learning models. Are black box models good? Should we be using them? What are the consequences? What can I do about it?</p>
+
+<p>I&rsquo;ve learned a few things now thanks to my coworkers who are amazing, which I&rsquo;m going to try to write down here.</p>
+
+<p>First, what do I mean when I say &ldquo;black box model&rdquo;?</p>
+
+<p>The main two kinds of models I use at work are logistic regression (which I&rsquo;ve written about <a href="/blog/2014/11/17/fun-with-machine-learning-logistic-regression/">previously</a>) and random forests.</p>
+
+<h3 id="simple-models-complicated-models">simple models &amp; complicated models</h3>
+
+<p>Logistic regression models have a fancy name, but they&rsquo;re really <strong>simple</strong>. Let&rsquo;s say you&rsquo;re trying to model whether or not a flight will be late, and you have two inputs: number of passengers and hour of day.</p>
+
+<p>Your model is then going to use <code>coefficient1 * # passengers + coefficient2 * hour_of_day</code>, and then apply the logistic function. There are just 2 coefficients! It&rsquo;s so simple.</p>
+
+<p>I worked for a long time with this kind of model and it was amazing in a lot of ways. You can pretty easily read off how important each input is (it got a coefficient of 0.000001? guess it wasn&rsquo;t important!!). If you have a small number of inputs, like 20, then your model is 20 numbers which you can look at by hand. Easy to debug!</p>
+
+<p>I&rsquo;m not going to explain in depth what a random forest is here (it&rsquo;s basically a collection of decision trees which you let vote on your outcome), but they&rsquo;re more <strong>complicated</strong>. It&rsquo;s not unusual for me to work with models that are tens of megabytes. You can&rsquo;t read off the numbers there by hand! In fact, people often refer to a large multi-megabyte model as a &ldquo;black box&rdquo;, basically to say that it works well but you have no idea what it&rsquo;s doing.</p>
+
+<p>The same thing can happen with logistic regressions &ndash; some people use logistic regressions with millions of inputs, and then it becomes very difficult to understand what they&rsquo;re doing.</p>
+
+<p>Not understanding what my models are doing made me very uncomfortable.</p>
+
+<p>People told me a lot &ldquo;well, you have a tradeoff between interpretability and how well the model performs!&rdquo;. But I didn&rsquo;t feel satisfied with that. I wanted interpretability <em>and</em> a model that performs well.</p>
+
+<h3 id="why-it-feels-scary-to-have-a-black-box">why it feels scary to have a black box</h3>
+
+<p>So, I had these large random forest models, and I didn&rsquo;t understand what they were doing. I want to explain a few super-concrete reasons why this was bad.</p>
+
+<ul>
+<li>people would come to me and say &ldquo;why did the model make this choice?&rdquo;. Sometimes I&rsquo;d be able to tell them exactly (&ldquo;it picked up this super obvious signal!&rdquo;), but often I would say &ldquo;we don&rsquo;t know exactly, it&rsquo;s complicated, you know, machine learning&rdquo;. They said &ldquo;okay&rdquo;, but I didn&rsquo;t feel good about that answer.</li>
+<li>It was super hard to do quality assurance on the models. If you have a model making important decisions, and you don&rsquo;t clearly understand what it&rsquo;s doing, how do you know it&rsquo;s not going to blow up in your face tomorrow? We did lots of validation in advance of putting a model into production, but what happens if the input data distribution changes? Will it blow up? Will it be fine? In general our validation held up pretty well.</li>
+<li>when you train a model and it doesn&rsquo;t perform well, how do you know how to fix it? Is it missing features? Did you use the wrong hyperparameters? You have to sort of magically intuit why it&rsquo;s not performing well. Magical intuition is Very Hard.</li>
+</ul>
+
+<h3 id="looking-inside-a-random-forest-it-s-easy-and-it-helps">looking inside a random forest (it&rsquo;s easy, and it helps)</h3>
+
+<p>So we&rsquo;ve established that I felt bad about not understanding random forest models. What do you do about it?</p>
+
+<p>This is probably obvious to many people who know about random forests, but &ndash; random forests are actually a REALLY SIMPLE THING. They&rsquo;re large, but they&rsquo;re conceptually very simple and the algorithms you use to train them are not actually that complicated.</p>
+
+<p>Let&rsquo;s talk about what a random forest does. Say I have the following information about a flight:</p>
+
+<ul>
+<li># passengers: 20</li>
+<li>time of day: 3:49pm</li>
+<li>% late flights in departing airport: 5%</li>
+<li>% late flights to arriving airport: 10%</li>
+<li>departing airport: Chicago</li>
+</ul>
+
+<p>Suppose I have 10 trees in my random forest. They might classify my flight as follows. If the decision tree goes through 2 decisions: time of day &gt; 2pm and passengers # 40, I&rsquo;ll represent that as <code># time of day &gt; 2pm AND passengers &lt; 40</code>.</p>
+
+<pre><code>         condition                              |    probability of lateness
+Tree 1 | time of day &gt; 2pm AND passengers &lt; 40  |    10%
+Tree 2 | % late flights dep airport &lt; 70%       |    30%
+Tree 3 | departing airport = chicago            |    15%
+Tree 4 | passengers &lt; 30                        |    2%
+... and so on
+</code></pre>
+
+<p>I haven&rsquo;t tried very hard to be realistic here &ndash; it&rsquo;s likely that you&rsquo;ll see conditions (or &ldquo;predicates&rdquo;) that are quite complicated like <code>passengers &lt; 30 AND time of day &lt; 5:20pm AND departing airport != LAX AND [ten more things]</code></p>
+
+<p>But what the random forest chose to assign a given probability of lateness to my flight is actually totally explainable by</p>
+
+<ul>
+<li>10 conditions (one for each tree, like <code>time of day &gt; 2pm AND passengers &lt; 40</code>)</li>
+<li>and 10 probabilities (what the tree associated to that condition)</li>
+</ul>
+
+<p>I knew this for a long time, but I honestly didn&rsquo;t think it would be useful. Then one week, over a couple of days, my awesome product manager <a href="https://twitter.com/isaach">Isaac</a> implemented (in javascript!!) a tool to explain to you why a random forest model made a given choice.</p>
+
+<p>It was AMAZING. Right away I started putting into it choices I hadn&rsquo;t understood, and I could often tell &ldquo;oh, that&rsquo;s why it did that! That makes sense!&rdquo; or &ldquo;hmm, I think its training data might have been a little off, that doesn&rsquo;t seem right&rdquo;. For example! Suppose it said</p>
+
+<pre><code>condition                                |    probability of lateness
+  passengers &lt; 30 AND time of day &gt; 7am  |    98%
+</code></pre>
+
+<p>I&hellip; really don&rsquo;t believe that flights with less than 30 passengers have a probability of lateness of 98%. <code>time of day &gt; 7am</code> is like all flights! That&rsquo;s not right at all! There must have been something wrong with the training data!</p>
+
+<p>Or I might have seen this:</p>
+
+<pre><code>condition                                |    probability of lateness
+ departing airport IN ('ORD', 'YUL', 'SFO',
+                       'LHR', 'LGA')     |    10%
+</code></pre>
+
+<p>Now, maybe <code>ORD</code> (chicago) famously is extremely bad at getting flights out on time. It&rsquo;s okay if one of my trees groups Chicago flights from flights with other airports, but if it&rsquo;s consistently doing it? Not good! That will mean that it&rsquo;ll overestimate the probability of a late flight coming out of Montreal (and underestimate it for Chicago). This is an easy thing to end up doing in scikit-learn, because even if you encode your airports as numbers (YUL=1, ORD=2, LHR=3, LGA=4, SFO=5), it&rsquo;ll make its splits like <code>airport &lt; 6</code>. You need to use a thing called &ldquo;one-hot encoding&rdquo; to avoid this.</p>
+
+<p>So it turns out that if you just do the simplest possible thing (get the random forest to report exactly why it made the choice that it did), it&rsquo;s actually surprisingly helpful in helping debug! My coworkers also report that it&rsquo;s useful in helping them build their models, even if it only tells you about one instance at a time.</p>
+
+<p>And it&rsquo;s something that you can basically build from scratch in a few days! You can see a kind of messy example of how to print out what a scikit-learn random forest is doing in <a href="https://github.com/jvns/forestspy/blob/afea31e545d8a8818ef502f68a5fe8bc48c1c43c/inspecting%20random%20forest%20models.ipynb">this IPython notebook</a>.</p>
+
+<h3 id="using-machine-learning-as-way-to-guide-experts">using machine learning as way to guide experts</h3>
+
+<p>I talked to someone at a conference a while ago who worked on automated trading systems, and we were talking about how machine learning approaches can be really scary because you fundamentally don&rsquo;t know whether the ML is doing a thing because it&rsquo;s smart and correct and better than you, or because there&rsquo;s a bug in the data.</p>
+
+<p>He said that they don&rsquo;t use machine learning in their production systems (they don&rsquo;t trust it). But they DO use machine learning! Their approach was to</p>
+
+<ul>
+<li>have experts hand-build a model</li>
+<li>have the machine learning team train a model, and show it to the experts</li>
+<li>the expert says &ldquo;oh, yes, I see the model is doing something smart there! I will build that in to my hand-built system&rdquo;</li>
+</ul>
+
+<p>I don&rsquo;t know if the this is the best thing to do, but I thought it was very interesting.</p>
+
+<h3 id="how-do-you-debug-your-machine-learning-models">how do you debug your machine learning models?</h3>
+
+<p>I was really inspired after I did this exploration of <a href="https://codewords.recurse.com/issues/five/why-do-neural-networks-think-a-panda-is-a-vulture">looking inside what a neural network is doing</a> &ndash; it seems like you can get at least a little bit of interpretability out of almost any model!</p>
+
+<p>There are more posts about this on the internet! Airbnb has one called <a href="http://nerds.airbnb.com/unboxing-the-random-forest-classifier/">Unboxing the random forest classifier</a>, Sift Science has <a href="http://blog.siftscience.com/blog/2015/large-scale-decision-forests-lessons-learned">Large Scale Decision Forests: Lessons Learned</a>, and this short paper called <a href="http://www.blackboxworkshop.org/pdf/Turner2015_MES.pdf">A Model Explanation System</a> discusses a general system for explaining black box models (I&rsquo;m actually, unusually, <em>very</em> excited about that paper)</p>
+
+<p>The more I learn about machine learning, the more I think that debugging tools &amp; a clear understanding of how the algorithms you&rsquo;re using work are totally essential for making your models better (actually, I don&rsquo;t understand how they <em>wouldn&rsquo;t</em> be &ndash; how can you make your models better if you have no idea what they&rsquo;re doing? it makes no sense to me.) I imagine the people who build amazing neural nets and things like AlphaGo have an extremely strong understanding of the foundations of how neural networks work, and some sense for how the algorithms are translating the data into choices.</p>
+
+<p>As far as I can tell, scikit-learn ships with very few model debugging tools. For an example of what I mean by model debugging tools, check out <a href="https://github.com/jvns/forestspy/blob/afea31e545d8a8818ef502f68a5fe8bc48c1c43c/inspecting%20random%20forest%20models.ipynb">this toy notebook</a> where I train an overfit model, investigate a specific instance of something it predicted poorly, and find out why.</p>
+
+<p>I&rsquo;d love to hear about what work you&rsquo;re doing in explaining / debugging / untangling complex machine learning models, and especially if you&rsquo;ve written anything about it.</p>
+
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2016/04/10/why-i-dont-like-black-boxes/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2016/04/10/why-i-dont-like-black-boxes/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2016/04/22/java-garbage-collection-can-be-really-slow/" title="Previous Post: Java garbage collection can be really slow">Java garbage collection can be really slow</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2016/04/09/some-of-my-favorite-blogs/" title="Next Post: Some of my favorite blogs">Some of my favorite blogs</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

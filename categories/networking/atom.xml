@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title><![CDATA[Julia Evans]]></title>
+  <link href="http://jvns.ca/atom.xml" rel="self"/>
+  <link href="http://jvns.ca"/>
+  <updated>2016-08-24T18:53:10+00:00</updated>
+  <id>http://jvns.ca</id>
+  <author>
+    <name><![CDATA[Julia Evans]]></name>
+  </author>
+  <generator uri="http://gohugo.io/">Hugo</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[Why do UDP packets get dropped?]]></title>
+    <link href="https://jvns.ca/blog/2016/08/24/find-out-where-youre-dropping-packets/"/>
+    <updated>2016-08-24T18:53:10+00:00</updated>
+    <id>https://jvns.ca/blog/2016/08/24/find-out-where-youre-dropping-packets/</id>
+    <content type="html"><![CDATA[
+
+<p>There&rsquo;s a joke about UDP. it goes like this: &ldquo;Never mind, you probably
+wouldn&rsquo;t get it.&rdquo;</p>
+
+<p>The first time I heard this joke I did not understand it because I didn&rsquo;t
+really understand what UDP was. UDP is a network protocol. The deal is: I send
+you a network packet. Maybe you get it, maybe you don&rsquo;t. I have no idea
+whether it arrived or not. UDP doesn&rsquo;t care.</p>
+
+<p>When you&rsquo;re losing UDP packets, it&rsquo;s sort of tempting to say &ldquo;well, whatever,
+that&rsquo;s what happens when you use UDP!&rdquo; But UDP packets don&rsquo;t get lost by
+magic.</p>
+
+<p>I was pretty confused about some the details of dropping UDP packets (how do
+you know how many packets got dropped? what causes a packet to be dropped
+<strong>exactly</strong>?) Maggie Zhou (who is the best) explained some new things to me
+today! All the parts of this that are right are thanks to her and all the
+parts that are wrong are thanks to me.</p>
+
+<p>This is all on Linux, as usual. There are going to be sysctls! It will be the
+best.</p>
+
+<h3 id="lost-on-the-way-out">lost on the way out</h3>
+
+<p>Imagine you&rsquo;re sending a lot of UDP packets. Really a lot. On every UDP
+socket, there&rsquo;s a <strong>&ldquo;socket send buffer&rdquo;</strong> that you put packets into. The Linux
+kernel deals with those packets and sends them out as quickly as possible. So
+if you have a network card that&rsquo;s too slow or something, it&rsquo;s possible that it
+will not be able to send the packets as fast as you put them in! So you will
+drop packets.</p>
+
+<p>I have no idea how common this is.</p>
+
+<h3 id="lost-in-transit">lost in transit</h3>
+
+<p>It&rsquo;s possible that you send a UDP packet in the internet, and it gets lost
+along the way for some reason. I am not an expert on what happens on the seas
+of the internet, and I am not going to go into this.</p>
+
+<h3 id="lost-on-the-way-in">lost on the way in</h3>
+
+<p>Okay, so a UDP packet comes into your computer. You have an application that
+is listening and waiting for a packet. Awesome! This packet goes into &ndash; maybe
+you guessed it &ndash; a <strong>socket receive buffer</strong>. How big is that buffer? Everything you might want to know about socket send and receive buffer sizes is helpfully explained in <a href="http://man7.org/linux/man-pages/man7/socket.7.html">the man page for <code>socket</code></a>. Here&rsquo;s the maximum receive buffer size on my computer:</p>
+
+<pre><code># This prints the max OS socket receive buffer size for all types of connections.
+$ sudo sysctl net.core.rmem_max
+net.core.rmem_max = 212992
+$ sudo sysctl net.ipv4.udp_mem 
+net.ipv4.udp_mem = 181110	241480	362220
+</code></pre>
+
+<p><code>man udp</code> says that that last number from <code>net.ipv4.udp_mem</code> (362220) means
+&ldquo;Number of pages allowed for queueing by all UDP sockets.&rdquo; 362220 pages is
+1.7GB? That&rsquo;s a lot of pages! Weird. Not sure what&rsquo;s up with that.</p>
+
+<p>Then your application reads packets out of that buffer and handles them. If
+the buffer gets full, the packets get dropped. Simple!</p>
+
+<p>You can see how many packets have been dropped on your machine with <code>netstat
+-suna</code>. Mine has dropped 918 packets so far apparently (&ldquo;918 packet receive
+errors&rdquo;)</p>
+
+<pre><code>$ netstat -suna
+IcmpMsg:
+    InType3: 1072
+    OutType3: 522
+Udp:
+    1828608 packets received
+    568 packets to unknown port received.
+    918 packet receive errors
+    662721 packets sent
+    RcvbufErrors: 918
+    SndbufErrors: 1031
+    IgnoredMulti: 659
+</code></pre>
+
+<p>This is cool! This means that if you have a machine which is trying to drop as
+few UDP packets as possible (for instance if you&rsquo;re running statsd), then you
+can monitor the rate at which that machine is dropping packets!</p>
+
+<h3 id="buffers-everywhere">buffers everywhere</h3>
+
+<p>After I published this blog post initially, @gphat and @nelhage very astutely
+pointed out that the OS socket send/receive buffers are not the only buffers.</p>
+
+<p>EVERYTHING IS BUFFERS. Your network card has a buffer that can get full! There
+are a bunch of intermediate routers between your computer and my computer. All
+of those have buffers! Those buffers can get full! My current understanding is
+that most packet loss is because of full buffers one way or another.</p>
+
+<p>If you&rsquo;re interested in learning more details about the Linux networking stack, there is this huge post called <a href="http://blog.packagecloud.io/eng/2016/06/22/monitoring-tuning-linux-networking-stack-receiving-data/">Monitoring and Tuning the Linux Networking Stack: Receiving Data</a>. I have not read it yet but it looks <strong>amazing</strong>.</p>
+
+<p>Also everything here I said about UDP packets applies just as well to any kind
+of IP packet &ndash; TCP packets can get dropped just as easily, but they&rsquo;ll get
+retried, so you&rsquo;re not as likely to notice.</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 20: Traceroute in 15 lines of code using Scapy]]></title>
+    <link href="https://jvns.ca/blog/2013/10/31/day-20-scapy-and-traceroute/"/>
+    <updated>2013-10-31T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/10/31/day-20-scapy-and-traceroute/</id>
+    <content type="html"><![CDATA[<p>Today Jari and Brian explained a whole bunch of things to me about networks!
+It was fantastic. It&rsquo;s amazing to have people with so much experience to ask
+questions.</p>
+
+<p>At the end they mentioned that I should look up how <code>traceroute</code> works and
+that it&rsquo;s a pretty popular networking-job-interview question. And I&rsquo;d just
+discovered this super cool Python networking library called
+<a href="http://www.secdev.org/projects/scapy/">Scapy</a> which lets you construct
+packets really easily. So I thought I&rsquo;d implement traceroute using scapy!</p>
+
+<p>I thought it would take a long time, but turns out that (a basic version) is
+really easy.</p>
+
+<p>So using scapy, you can create IP and UDP packets like this:</p>
+
+<pre><code>from scapy.all import *
+ip_packet = IP(dst=&quot;hackerschool.com&quot;, ttl=10)
+udp_packet = UDP(dport=40000)
+full_packet = IP(dst=&quot;hackerschool.com&quot;, ttl=10) / UDP(dport=40000)
+</code></pre>
+
+<p>Then you can send a packet like this:</p>
+
+<p><code>
+send(full_packet)
+</code></p>
+
+<p>So IP packets have a <code>ttl</code> attribute, which stands for &ldquo;Time-To-Live&rdquo;. Every
+time a machine receives an IP packet, it decreases the <code>ttl</code> by 1 and passes
+it on. Basically this is a super smart way to make sure that packets don&rsquo;t get
+into infinite loops.</p>
+
+<p>If a packet&rsquo;s <code>ttl</code> runs out before it replies, the last machine sends back an
+ICMP packet saying &ldquo;sorry, failed!&rdquo;.</p>
+
+<p>To implement traceroute, we send out a UDP packet with <code>ttl=i</code> for <code>i =
+1,2,3,...</code>. Then we look at the reply packet and see if it&rsquo;s a &ldquo;Time ran out&rdquo;
+or &ldquo;That port doesn&rsquo;t exist&rdquo; error message. In the first case, we keep going,
+and in the second case we&rsquo;re done.</p>
+
+<p>Here&rsquo;s the code! It&rsquo;s 16 lines including comments and everything.</p>
+
+<pre><code>from scapy.all import *
+hostname = &quot;google.com&quot;
+for i in range(1, 28):
+    pkt = IP(dst=hostname, ttl=i) / UDP(dport=33434)
+    # Send the packet and get a reply
+    reply = sr1(pkt, verbose=0)
+    if reply is None:
+        # No reply =(
+        break
+    elif reply.type == 3:
+        # We've reached our destination
+        print &quot;Done!&quot;, reply.src
+        break
+    else:
+        # We're in the middle somewhere
+        print &quot;%d hops away: &quot; % i , reply.src
+</code></pre>
+
+<p>The output looks like:</p>
+
+<pre>
+<code>
+1 hops away:  192.168.1.1
+2 hops away:  24.103.20.129
+3 hops away:  184.152.112.73
+4 hops away:  184.152.112.73
+5 hops away:  107.14.19.22
+...
+</code>
+</pre>
+
+<p>So it turns out traceroute is kind of easy! Apparently the difference between
+traceroute on Windows and Unix is that Unix generally sends UDP packets and
+Windows sends ICMP packets.</p>
+
+<p>There&rsquo;s also <code>tcptraceroute</code> which, well, sends TCP packets.</p>
+]]></content>
+  </entry>
+  
+</feed>

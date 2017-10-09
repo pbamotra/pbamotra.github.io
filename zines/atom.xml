@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title><![CDATA[Julia Evans]]></title>
+  <link href="http://jvns.ca/atom.xml" rel="self"/>
+  <link href="http://jvns.ca"/>
+  <updated>0001-01-01T00:00:00+00:00</updated>
+  <id>http://jvns.ca</id>
+  <author>
+    <name><![CDATA[Julia Evans]]></name>
+  </author>
+  <generator uri="http://gohugo.io/">Hugo</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[Zines]]></title>
+    <link href="https://jvns.ca/zines/"/>
+    <updated>0001-01-01T00:00:00+00:00</updated>
+    <id>https://jvns.ca/zines/</id>
+    <content type="html"><![CDATA[
+
+<p><script src="https://gumroad.com/js/gumroad.js"></script>
+<link href="https://jvns.ca/stylesheets/buttons.css" media="screen, projection" rel="stylesheet" type="text/css"></p>
+
+<p>The zines:</p>
+
+<ul>
+<li><a href="#tcpdump"> <strong>Let&rsquo;s learn tcpdump!</strong></a></li>
+<li><a href="#networking-ack"> <strong>Networking! ACK!</strong></a></li>
+<li><a href="#strace-zine"> <strong>Spying on your programs with strace</strong></a></li>
+<li><a href="#linux-debugging-tools"> <strong>Linux debugging tools you&rsquo;ll love</strong></a></li>
+</ul>
+
+<p>Information:</p>
+
+<ul>
+<li><a href="#whats-a-zine"> <strong>What&rsquo;s a zine?</strong></a></li>
+<li><a href="#print-directions"> <strong>Printing directions</strong></a></li>
+</ul>
+
+<div align="center">
+<a href="#tcpdump" style="color: black">
+<h3 id="tcpdump"> ★★★ Let's learn tcpdump! ★★★</h3>
+</a>
+</div>
+
+<div align="center">                                                                                                                       
+ <img src="https://jvns.ca/images/tcpdump-cover.jpg" width=300px>
+</div>
+
+<p>Ever wanted to know how to use tcpdump, but were intimidated by all the command line options? I was too! But then I learned it, and it wasn&rsquo;t as bad as I thought. In this zine we&rsquo;ll explain:</p>
+
+<ul>
+<li>what kinds of questions you can answer with tcpdump</li>
+<li>how to interpret tcpdump output</li>
+<li>which command line arguments are the really important ones</li>
+<li>how to write a BPF filter to filter tcpdump output</li>
+</ul>
+
+<div align="center">
+<a class="button" href="https://jvns.ca/tcpdump-zine.pdf">Read the zine online!</a>
+<a class="button" href="https://gum.co/LcKLx?wanted=true"
+target="_blank" data-gumroad-single-product="true">Get the print version!</a>   
+</div>
+
+<p>There&rsquo;s also a <a href="https://m.habrahabr.ru/company/first/blog/335428/%5Bperevod%5D-podborka-slaydov-ot-dzhulii-eva/">Russian translation</a>.</p>
+
+<div align="center">
+<a href="#networking-ack" style="color: black">
+<h3 id="networking-ack"> ★★★ Networking! ACK! ★★★</h3>
+</a>
+</div>
+
+<p>This is a zine about COMPUTER NETWORKING! I spent a very long time
+learning how networking works (what happens when you download a picture
+from the internet? It turns out, a lot!) So I wrote a zine about it!</p>
+
+<p>Cover art by the amazing <a href="https://twitter.com/_lbaillie">Liz Baillie</a>.</p>
+
+<div align="center">
+<img src="/images/networkingcover.png" width=300px>
+</div>
+
+<div align="center">
+<a class="button" href="https://jvns.ca/networking-zine.pdf">Read the zine online!</a>
+<a class="button" href="https://gum.co/sMfg?wanted=true"
+target="_blank" data-gumroad-single-product="true">Get the print version!</a>   
+</div>
+
+<p>Also there&rsquo;s a delightful coloured in version by Nikoline Bohr: <a href="/networking-zine-print-coloured.pdf">to print</a> and <a href="/networking-zine-coloured.pdf">to read online</a></a></p>
+
+<div align="center">
+<a href="#strace-zine" style="color: black">
+<h3 id="strace-zine"> ★★★ strace zine ★★★</h3>
+</a>
+</div>
+
+<p>strace is my favorite program. I think that it doesn&rsquo;t get enough attention
+from programmers, so I wrote a zine about it to teach more people about how to
+use it.</p>
+
+<ul>
+<li>version to read on your <a href="/strace-zine-v2.pdf">computer</a></li>
+<li>print version: <a href="/strace-zine-v2-print.pdf">letter</a></li>
+<li>you can buy <a href="https://www.stickermule.com/marketplace/15188-strace?utm_swu=8122">strace stickers</a></li>
+</ul>
+
+<div align="center">
+<a href="/strace-zine-v2.pdf">
+<img src="/images/strace-zine-cover.svg" width="300px">
+</a>
+</div>
+
+<div align="center">
+<a href="#linux-debugging-tools" style="color: black">
+<h3 id="linux-debugging-tools">★★★  Linux debugging tools you'll love ★★★ </h3>
+</a>
+</div>
+
+<p>This is a zine about some of my favorite Linux debugging tools, especially tools that I don&rsquo;t think are as well-known as they should be. It covers <code>strace</code>, <code>opensnoop</code>/<code>eBPF</code>, and <code>dstat</code>! <code>netcat</code>, <code>netstat</code>, <code>tcpdump</code>, <code>wireshark</code>, and <code>ngrep</code>! And there&rsquo;s a whole section on <code>perf</code> because perf is the best.</p>
+
+<p>If you don&rsquo;t know what any of those tools I just mentioned are &ndash; PERFECT. You
+are who this zine is for!!! Read it and find out why I love them! Also, a lot
+of these tools happen to work on OS X :)</p>
+
+<div align="center">
+<a href="http://jvns.ca/debugging-zine.pdf"><img src="/images/debugging-tools-cover.png"></a>
+</div>
+
+<div align="center">
+<a class="button" href="https://jvns.ca/debugging-zine.pdf">Read the zine online!</a>
+<a class="button" href="https://gum.co/eXGFE?wanted=true"
+target="_blank" data-gumroad-single-product="true">Get the print version!</a>   
+</div>
+
+<p>The cover art is by <a href="https://twitter.com/notwaldorf">Monica</a>, who is the best.
+There&rsquo;s also a <a href="https://m.habrahabr.ru/company/first/blog/310164/">Russian translation</a>.</p>
+
+<h3 id="prod-ml">Production machine learning </h3>
+
+<p>This is a tiny zine, not as fancy as the others.</p>
+
+<div align="center">
+<a href="/production-machine-learning.pdf"><img src="/images/prod-ml-cover.png" width="300px"></a>
+</div>
+
+<ul>
+<li><a href="/production-machine-learning.pdf">version you can read on your computer</a></li>
+<li><a href="/production-machine-learning-print.pdf">version you can print and staple and fold</a></li>
+</ul>
+
+<p>If you like it, you should read the PDF that it&rsquo;s based on: <a href="http://martin.zinkevich.org/rules_of_ml/rules_of_ml.pdf">Rules of Machine Learning:
+Best Practices for ML Engineering</a>, which I found out about thanks to <a href="https://twitter.com/avibryant">Avi Bryant</a>.</p>
+
+<h3 id="whats-a-zine">What's a zine?</h3>
+
+<p>According to <a href="https://en.wikipedia.org/wiki/Fanzine">Wikipedia</a>:</p>
+
+<blockquote>
+<p>A fanzine (blend of fan and magazine or -zine) is a nonprofessional and
+nonofficial publication produced by fans of a particular cultural phenomenon
+(such as a literary or musical genre) for the pleasure of others who share
+their interest.</p>
+</blockquote>
+
+<p>I love programming and debugging tools (is that a &ldquo;cultural phenomenon? I
+don&rsquo;t know!&ldquo;), so I make sometimes make fanzines about how much I love them and give them away.
+When I have time (and the printing budget) I like to give them out as handouts
+in my talks.</p>
+
+<p>The easiest way to read any of these is on your computer.</p>
+
+<p>But the <strong>best</strong> way to read them is to print it out, staple it, fold it,
+read it, and then give it to a friend. It turns out it&rsquo;s way easier to
+convince your friends to read a physical thing that is in front of them.</p>
+
+<p>Printers are kind of annoying, but people do successfully print them and
+send me <a href="https://twitter.com/pinkhairedcyn/status/589149587333591041">pictures</a>.</p>
+
+<p>They&rsquo;re all available under a creative commons license
+(<a href="https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA</a>), so you can print as
+many as you want to give away.</p>
+
+<h3 id="print-directions">Printing directions</h3>
+
+<p>To print any of these:</p>
+
+<ul>
+<li>open the print version</li>
+<li>print double sided, choose to flip on the &ldquo;long edge&rdquo;</li>
+</ul>
+
+<h3 id="other-drawings">other drawings</h3>
+
+<p>I have a lot of other drawings about programming. You can find them at
+<a href="http://drawings.jvns.ca/">https://drawings.jvns.ca</a>.</p>
+
+<div align="center">
+<a href="/images/drawings/better-debugging.png">
+<img src="/images/drawings/better-debugging.png" height="400px">
+</a>
+<a href="/images/drawings/wizard-programmer.svg">
+<img src="/images/drawings/wizard-programmer.png" height="400px">
+</a>
+<a href="/images/drawings/the-senior-engineer.svg">
+<img src="/images/drawings/the-senior-engineer.png" height="400px">
+</a>
+<a href="/images/drawings/team.svg">
+<img src="/images/drawings/team.png" height="400px">
+</a>
+<a href="/images/drawings/better_data_analysis.svg">
+<img src="/images/drawings/better_data_analysis.png" height="200px">
+</a>
+</div>
+]]></content>
+  </entry>
+  
+</feed>

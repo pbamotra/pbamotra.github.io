@@ -1,0 +1,339 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>How does SQLite work? Part 1: pages! - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="How does SQLite work? Part 1: pages!">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2014/09/27/how-does-sqlite-work-part-1-pages/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">How does SQLite work? Part 1: pages!</h1>
+
+<div class="post-tags">
+  
+  •
+  
+    <a class="post-tag" href="/categories/how-things-work">how-things-work</a> 	•
+  
+    <a class="post-tag" href="/categories/favorite">favorite</a> 	•
+  
+  
+</div>
+<p class="meta">
+<time datetime="2014-09-27T23:53:50" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     <p>This evening the fantastic <a href="https://twitter.com/kamalmarhubi">Kamal</a>
+and I sat down to learn a little more about databases than we did
+before.</p>
+
+<p>I wanted to hack on <a href="https://www.sqlite.org/">SQLite</a>, because I&rsquo;ve
+used it before, it requires no configuration or separate server
+process, I&rsquo;d been told that its source code is well-written and
+approachable, and all the data is stored in one file. Perfect!</p>
+
+<p>
+To start out, I created a new database like this:</p>
+
+<pre><code class="language-sql">drop table if exists fun;
+create table fun (
+    id int PRIMARY KEY,
+    word string
+);
+</code></pre>
+
+<p>Just a primary key and a string! What could be simpler? I then wrote a
+little Python script to put the contents of <code>/usr/share/dict/words</code> in
+the database:</p>
+
+<pre><code class="language-python">import sqlite3
+c = sqlite3.connect(&quot;./fun.sqlite&quot;)
+with open('/usr/share/dict/words') as f:
+    for i, word in enumerate(f):
+        word = word.strip()
+        word = unicode(word, 'latin1')
+        c.execute(&quot;INSERT INTO fun VALUES (?, ?);&quot;, (i, word))
+c.commit()
+c.close()
+</code></pre>
+
+<p>Great! Now we have a 4MB database called <code>fun.sqlite</code> for
+experimentation. My favorite first thing to do with binary files is to
+<code>cat</code> them. That worked pretty well, but Kamal pointed out that of
+course <code>hexdump</code> is a better way to look at binary files. The output
+of <code>hexdump -C fun.sqlite</code> looks something like this:</p>
+
+<pre><code>|.............{.n|
+|.a.R.D.4.%......|
+|................|
+|...y.n._.N.&gt;.,.$|
+|................|
+|..............F.|
+|..EAcevedo.E...D|
+|Accra's.D...CAcc|
+|ra.C..#BAccentur|
+|e's.B...AAccentu|
+|re.A..!@Acapulco|
+|'s.@...?Acapulco|
+|.?...&gt;Acadia's.&gt;|
+|...=Aradia.=...&lt;|
+|Ac's.&lt;...;Ac.;..|
+|%:Abyssinian's.:|
+|..!9Abyssinian.9|
+|..#8Abyssinia's.|
+|8...7Abyssinia.7|
+</code></pre>
+
+<p>I&rsquo;ve pasted the first few thousand lines of the hexdump in
+<a href="https://gist.github.com/jvns/d21876d1388343c3a4a3">this gist</a>, so you
+can look more closely. You&rsquo;ll see that the file is alternately split
+into words and gibberish &ndash; there will be a sequence of mostly words,
+and then unreadable nonsense.</p>
+
+<p>Of course there&rsquo;s a rhyme to this reason! The wonderfully written
+<a href="https://www.sqlite.org/fileformat2.html">File Format for SQLite Databases</a>
+tells us that a SQLite database is split into <strong>pages</strong>, and that
+bytes 16 and 17 of our file are the <strong>page size</strong>.</p>
+
+<p>My <code>fun.sqlite</code> starts like this:</p>
+
+<pre><code>00000000  53 51 4c 69 74 65 20 66  6f 72 6d 61 74 20 33 00  |SQLite format 3.|
+00000010  04 00 01 01 00 40 20 20  00 00 00 27 00 00 0c be  |.....@  ...'....|
+          ^^ ^^
+        page size :)
+</code></pre>
+
+<p>so our page size is <code>0x0400</code> bytes, or 1024 bytes, or 1k. So this
+database is split into a bunch of 1k chunks called pages.</p>
+
+<p>There&rsquo;s an index on the <code>id</code> column of our <code>fun</code> table, which lets us
+run queries like <code>select * from fun where id = 100</code> quickly. To be a
+bit more precise: to find row 100, we don&rsquo;t need to read every page,
+we can just read a few pages. I&rsquo;ve always understood indexes in a
+pretty vague way &ndash; I know that they&rsquo;re &ldquo;some kind of tree&rdquo;, which
+lets you access data in O(log n), and in particular that databases use
+something called a <strong>btree</strong>. I still do not really know what a btree
+is. Let&rsquo;s see if we can do any better!</p>
+
+<p>Here&rsquo;s where it starts to get really fun! I downloaded the sqlite
+source code, and Kamal and I figured out how to get it to compile.
+(using nix, which is a totally other story)</p>
+
+<p>Then I put in a print statement so that it would tell me every time it
+accesses a page. There&rsquo;s about 140,000 lines of SQLite source code,
+which is a bit intimidating!</p>
+
+<p>It&rsquo;s also incredibly well commented, though, and includes adorable
+notes like this:</p>
+
+<pre><code class="language-c">/************** End of btree.c ***********************************************/
+/************** Begin file backup.c ******************************************/
+/*
+** 2009 January 28
+**
+** The author disclaims copyright to this source code.  In place of
+** a legal notice, here is a blessing:                                                                                                                                                   
+**
+**    May you do good and not evil.
+**    May you find forgiveness for yourself and forgive others.
+**    May you share freely, never taking more than you give.
+**
+*************************************************************************
+** This file contains the implementation of the sqlite3_backup_XXX()
+** API functions and the related features.
+</code></pre>
+
+<p>My next goal was to get SQLite to tell me how it was traversing the
+pages. Some careful grepping of the 140,000 lines led us to this
+function <code>btreePageFromDbPage</code>. All page reads need to go through this
+function, so we can just add some logging to it :)</p>
+
+<pre><code class="language-c">/*
+** Convert a DbPage obtained from the pager into a MemPage used by
+** the btree layer.
+*/
+static MemPage *btreePageFromDbPage(DbPage *pDbPage, Pgno pgno, BtShared *pBt){
+  MemPage *pPage = (MemPage*)sqlite3PagerGetExtra(pDbPage);
+  pPage-&gt;aData = sqlite3PagerGetData(pDbPage);
+  pPage-&gt;pDbPage = pDbPage;
+  pPage-&gt;pBt = pBt;
+  pPage-&gt;pgno = pgno;
+  printf(&quot;Read a btree page, page number %d\n&quot;, pgno); // added by me!
+  pPage-&gt;hdrOffset = pPage-&gt;pgno==1 ? 100 : 0;
+  return pPage;
+}
+</code></pre>
+
+<p>Now it&rsquo;ll notify us every time it reads a page! NEAT! Let&rsquo;s experiment
+a little bit.</p>
+
+<pre><code>sqlite&gt; select * from fun where id = 1;
+Read a btree page, page number 1
+Read a btree page, page number 5
+Read a btree page, page number 828
+Read a btree page, page number 10
+Read a btree page, page number 2
+Read a btree page, page number 76
+Read a btree page, page number 6
+1|A's
+
+sqlite&gt; select * from fun where id = 20;
+Read a btree page, page number 1
+Read a btree page, page number 5
+Read a btree page, page number 828
+Read a btree page, page number 10
+Read a btree page, page number 2
+Read a btree page, page number 76
+Read a btree page, page number 6
+20|Aaliyah
+</code></pre>
+
+<p>Those two rows (1 and 20) are in the same page, so it traverses the
+same path to get to both of them!</p>
+
+<pre><code>sqlite&gt; select * from fun where id = 200;
+Read a btree page, page number 1
+Read a btree page, page number 5
+Read a btree page, page number 828
+Read a btree page, page number 11
+Read a btree page, page number 2
+Read a btree page, page number 76
+Read a btree page, page number 2818
+200|Aggie
+</code></pre>
+
+<p>Apparently <code>200</code> is pretty close in the tree, but it needs to go to
+page <code>2818</code> instead at the end. And <code>80000</code> is much further away:</p>
+
+<pre><code>sqlite&gt; select * from fun where id = 80000;
+Read a btree page, page number 1
+Read a btree page, page number 5
+Read a btree page, page number 1198
+Read a btree page, page number 992
+Read a btree page, page number 2
+Read a btree page, page number 1813
+Read a btree page, page number 449
+80000|scarfs
+</code></pre>
+
+<p>If we go back and inspect the file, we can see that pages 1, 5, 1198,
+992, 2, and 1813 are <em>interior nodes</em> &ndash; they have no data in them,
+just pointers to other pages. Pages 6, 2818, and 449 are <em>leaf nodes</em>,
+and they&rsquo;re where the data is.</p>
+
+<p>I&rsquo;m still not super clear on how exactly the interior pages are
+structured and how the pointers to their child pages work. It&rsquo;s time
+to sleep now, but perhaps that will happen another day!</p>
+
+<p>Modifying open source programs to print out debug information to
+understand their internals better: SO FUN.</p>
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2014/09/27/how-does-sqlite-work-part-1-pages/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2014/09/27/how-does-sqlite-work-part-1-pages/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2014/10/02/how-does-sqlite-work-part-2-btrees/" title="Previous Post: How does SQLite work? Part 2: btrees! (or: disk seeks are slow don&#39;t do them!)">How does SQLite work? Part 2: btrees! (or: disk seeks are slow don&#39;t do them!)</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2014/09/20/strange-loop-2014/" title="Next Post: Strange Loop 2014">Strange Loop 2014</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

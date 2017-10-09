@@ -1,0 +1,344 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>Using the Strict-Transport-Security header - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="Using the Strict-Transport-Security header">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2017/04/30/using-strict-transport-security/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">Using the Strict-Transport-Security header</h1>
+
+<div class="post-tags">
+  
+</div>
+<p class="meta">
+<time datetime="2017-04-30T13:27:17" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     
+
+<p>I just updated my site today to use the <code>Strict-Transport-Security</code> (or
+&ldquo;HSTS&rdquo; as it&rsquo;s often called) header, and I think it&rsquo;s an interesting
+thing to know about so I thought I&rsquo;d tell you all about it.</p>
+
+<p>Extra disclaimer for web security posts: I&rsquo;m not a security
+person, you should not take security advice from me, security is
+complicated. This is just what I understand so far! I think most of this
+is right but if it&rsquo;s wrong let me know!</p>
+
+<h3 id="https-is-good">HTTPS is good</h3>
+
+<p>The idea behind the Strict-Transport-Security header is that if you
+have a HTTPS site (like github.com), you might want your users to <em>always</em> use the HTTPS
+version of your site.</p>
+
+<p>Until yesterday, my site had a HTTP version and an HTTPS version. So you
+could go to <a href="http://jvns.ca">http://jvns.ca</a> or <a href="https://jvns.ca">https://jvns.ca</a>, depending on what you
+wanted! This was fine, because my site is a static HTML site and there&rsquo;s
+no private content on it at all.</p>
+
+<p>But a lot of sites <em>do</em> have private content, and should always use
+encryption! The standard practice if you always want your site to be
+served with HTTPS is:</p>
+
+<ol>
+<li>Don&rsquo;t serve a HTTP version of your site at all. Always redirect HTTP
+to HTTPS (run <code>curl -I http://github.com</code> to see that they do a
+redirect to HTTPS!)</li>
+<li>Force browsers to <em>never</em> visit the HTTP version (not even once!), using the HSTS
+header and the &ldquo;preload list&rdquo;, which I&rsquo;ll explain!</li>
+</ol>
+
+<p>As I understand it, there are 2 reasons it isn&rsquo;t enough to <em>just</em> redirect HTTP -&gt; HTTPS is:</p>
+
+<p><strong>reason 1</strong>: If I go to <a href="http://github.com">http://github.com</a>, by default my browser will send my GitHub
+cookies unencrypted, which is bad! Somebody could steal them! So it&rsquo;s
+better if I never visit <a href="http://github.com">http://github.com</a> at all, even if I type it in
+by accident or I click on a malicious link. You can also fix this by
+setting the <code>secure</code> flag on a cookie, though, which means it&rsquo;ll never
+be sent over HTTP.</p>
+
+<p><strong>reason 2</strong>: If a sketchy free wifi portal starts serving a fake
+&ldquo;github.com&rdquo; site, then I don&rsquo;t want my browser to be tricked. If my
+browser refuses to visit any HTTP version of github.com, ever, then I&rsquo;m
+safer. An evil ISP can&rsquo;t inject ads / malware into my website!</p>
+
+<h3 id="the-strict-transport-security-header">The Strict-Transport-Security header</h3>
+
+<p>Strict-Transport-Security is also knows as &ldquo;HTTP Strict Transport
+Security&rdquo; or &ldquo;HSTS&rdquo;. I&rsquo;ll use &ldquo;HSTS&rdquo; and &ldquo;Strict-Transport-Security&rdquo;
+interchangeably.</p>
+
+<p>Let&rsquo;s start with an example of how GitHub uses the
+Strict-Transport-Security header and then we&rsquo;ll talk about what it
+does!</p>
+
+<p>First, if I try to go to <a href="http://github.com">http://github.com</a>, I just get a redirect to the
+HTTPs version of the site. Here&rsquo;s what that looks like</p>
+
+<pre><code>bork@kiwi~&gt; curl -I http://github.com
+HTTP/1.1 301 Moved Permanently
+Content-length: 0
+Location: https://github.com/
+Connection: close
+</code></pre>
+
+<p>Next, when I visit <a href="https://github.com">https://github.com</a>, you can see that they return this
+header called <code>Strict-Transport-Security</code></p>
+
+<pre><code>bork@kiwi~&gt; curl -I https://github.com
+HTTP/1.1 200 OK
+Server: GitHub.com
+Date: Sun, 30 Apr 2017 17:36:21 GMT
+Content-Type: text/html; charset=utf-8
+Status: 200 OK
+Strict-Transport-Security: max-age=31536000; includeSubdomains; preload
+(a bunch more stuff removed)
+</code></pre>
+
+<p>So, what does this <code>Strict-Transport-Security</code> header mean?
+&ldquo;Strict-Transport-Security&rdquo; is a way to to tell browsers &ldquo;hey, never
+visit the HTTP version of this site ever&rdquo;.</p>
+
+<p>So after I visit <strong>https</strong>://github.com one time in my browser, it will
+never visit <strong>http</strong>://github.com again. If I write <a href="http://github.com">http://github.com</a>
+it&rsquo;ll just pretend I wrote <code>https</code>.</p>
+
+<h3 id="the-preload-list">The preload list</h3>
+
+<p>Okay, so you set the Strict-Transport-Security header! That&rsquo;s awesome,
+but the first time someone tries to go to <a href="http://github.com">http://github.com</a> they&rsquo;ll still
+visit the insecure version one time.</p>
+
+<p>So browsers do <strong>another</strong> thing called the &ldquo;preload list&rdquo;. The idea
+here is that Chrome &amp; Firefox will download a list of sites which should
+all use HTTPS. If a site is on the list.</p>
+
+<p>If you want to apply to have your site added to the list, you can do it
+at <a href="https://hstspreload.org/">https://hstspreload.org/</a>. You can see GitHub&rsquo;s status at <a href="https://hstspreload.org/?domain=github.com">https://hstspreload.org/?domain=github.com</a>. (they&rsquo;re on the list!)</p>
+
+<h3 id="why-did-i-turn-it-on">why did I turn it on?</h3>
+
+<p>I put an embedded payment form in <a href="https://jvns.ca/blog/2017/04/29/new-zine--let-s-learn-tcpdump/">this blog post</a>
+(from Gumroad).
+The payments were definitely made using HTTPS either way (Gumroad
+embedded a secure iframe in my site), so you might think it doesn&rsquo;t
+matter if the site is HTTP or HTTPS!</p>
+
+<p>But, if your site has both HTTP and HTTPS content, then users&rsquo; browsers
+will show a &ldquo;mixed content warning&rdquo;.</p>
+
+<p>The reason mixed content is bad is &ndash; any HTTP content can be interfered
+with! So if I have a HTTP page with a secure payments thing embedded in
+it, someone could replace the secure payments thing with an Evil Bad
+Payments Thing. That would be no good! If everything on the page is
+HTTPS, then we know it&rsquo;s all for sure from who it says it is.</p>
+
+<p>The other reason that I find compelling is &ndash; sometimes ISPs will inject
+ads into sites. I don&rsquo;t want ads injected into my site! I want people to
+see my site exactly how I intended them to see it. If my site is always
+served with HTTPS, I can be confident nobody has done anything sketchy
+to it.</p>
+
+<p>There&rsquo;s also an argument to be made that <a href="https://www.troyhunt.com/i-wanna-go-fast-https-massive-speed-advantage/">HTTPS can be faster than HTTP</a>
+(for sites that support HTTP/2, which mine does because I use Cloudflare). I don&rsquo;t actually know
+if my site is faster with HTTPS, but that blog post is really
+interesting and you should read it.</p>
+
+<h3 id="hsts-you-can-t-go-back">HSTS: you can&rsquo;t go back</h3>
+
+<p>I use Cloudflare&rsquo;s free version, and I turned on HSTS with Cloudflare by
+clicking an &ldquo;Enable HSTS&rdquo;. Before letting me do it, I had to read the
+following warnings:</p>
+
+<blockquote>
+<p>If you have HSTS enabled and leave Cloudflare, you need to continue to
+support HTTPS through a new service provider otherwise your site will
+become inaccessible to visitors until you support HTTPS again.</p>
+
+<p>If you turn off Cloudflare’s HTTPS while HSTS is enabled, and you
+don&rsquo;t have a valid SSL certificate on your origin server, your website
+will become inaccessible to visitors.</p>
+</blockquote>
+
+<p>This is kind of scary! Basically browsers will really refuse the visit
+the HTTP version of your site after you turn on HSTS. So you&rsquo;d better
+make sure that you can keep having a HTTPS version of your site forever.
+This is what the max-age setting is for (I set it to 1 month to start because I
+was nervous and that was the lowest setting they&rsquo;d let me use).
+This is why I didn&rsquo;t turn on HSTS right away when I first made a HTTPS
+version for my site.</p>
+
+<p>Luckily, these days anyone can get a free SSL/TLS certificate with <a href="https://letsencrypt.org/">Let&rsquo;s Encrypt</a> so even
+if I stop using Cloudflare, I can pretty easily get a TLS
+certificate for my site and keep providing a secure version.</p>
+
+<p>That said, if you&rsquo;re gonna turn on HSTS it&rsquo;s extremely important to make
+sure that you&rsquo;re prepared to keep serving a secure site indefinitely.</p>
+
+<h3 id="cloudflare">Cloudflare</h3>
+
+<p>Technically the fact that my site uses HTTPS doesn&rsquo;t mean that
+everything on the site is from <strong>me</strong> &ndash; Cloudflare actually owns the
+TLS certificate for my site, and they can (and do!) add stuff to my
+website, like a Google analytics code.</p>
+
+<p>I&rsquo;m okay with this because I trust Cloudflare not to add anything
+evil to my site, but I think it&rsquo;s still useful to keep in mind.</p>
+
+<h3 id="how-can-i-tell-if-my-site-is-using-the-hsts-header-properly">how can I tell if my site is using the HSTS header properly?</h3>
+
+<p>Great question! There&rsquo;s a site called
+<a href="https://observatory.mozilla.org/analyze.html">https://observatory.mozilla.org/analyze.html</a> that you can use to give
+you a report card!</p>
+
+<p>For example:</p>
+
+<ul>
+<li>github: <a href="https://observatory.mozilla.org/analyze.html?host=github.com">https://observatory.mozilla.org/analyze.html?host=github.com</a></li>
+<li>jvns.ca: <a href="https://observatory.mozilla.org/analyze.html?host=jvns.ca">https://observatory.mozilla.org/analyze.html?host=jvns.ca</a></li>
+</ul>
+
+<p>You can see that GitHub gets an A+ (yay!) and that I get an F (aw.). I
+think this is okay because my site doesn&rsquo;t set any cookies with
+sensitive information, but it kinda makes me feel like I
+<em>should</em> increase my site&rsquo;s rating now =).</p>
+
+<h3 id="that-s-all">that&rsquo;s all!</h3>
+
+<p>There are a lot of security headers to know about. Here&rsquo;s a partial
+list:</p>
+
+<ul>
+<li>Access-Control-Allow-Origin</li>
+<li>Content-Security-Policy</li>
+<li>Strict-Transport-Security</li>
+</ul>
+
+<p>I think those three are the most important?</p>
+
+<p>and there&rsquo;s also</p>
+
+<ul>
+<li>Public-Key-Pins</li>
+<li>X-Content-Type-Options</li>
+<li>X-Frame-Options</li>
+<li>X-XSS-Protection</li>
+<li>&hellip; and more!</li>
+</ul>
+
+<p>The <a href="https://wiki.mozilla.org/Security/Guidelines/Web_Security">Mozilla Web Security Guidelines</a>
+looks to me like a good reference if you want to understand what some
+specific header does.</p>
+
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2017/04/30/using-strict-transport-security/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2017/04/30/using-strict-transport-security/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2017/05/02/like-zines-about-computers--you-might-love-bubblesort-zines/" title="Previous Post: Like zines about computers? You might love Bubblesort Zines">Like zines about computers? You might love Bubblesort Zines</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2017/04/29/new-zine--let-s-learn-tcpdump/" title="Next Post: New zine: let&#39;s learn tcpdump!">New zine: let&#39;s learn tcpdump!</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title><![CDATA[Julia Evans]]></title>
+  <link href="http://jvns.ca/atom.xml" rel="self"/>
+  <link href="http://jvns.ca"/>
+  <updated>2013-11-25T00:00:00+00:00</updated>
+  <id>http://jvns.ca</id>
+  <author>
+    <name><![CDATA[Julia Evans]]></name>
+  </author>
+  <generator uri="http://gohugo.io/">Hugo</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[Day 33: How to make music with ClojureScript]]></title>
+    <link href="https://jvns.ca/blog/2013/11/25/day-33-how-to-make-music-with-clojurescript/"/>
+    <updated>2013-11-25T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/11/25/day-33-how-to-make-music-with-clojurescript/</id>
+    <content type="html"><![CDATA[
+
+<p>I am working on a small project to practice
+<a href="https://en.wikipedia.org/wiki/Change_ringing">change ringing</a> with
+ClojureScript.</p>
+
+<p>As always when starting a new project I have been consulting
+approximately a million resources to get started. So I thought I&rsquo;d
+collect them all together in one place instead of searching for them
+over and over forever.</p>
+
+<h3 id="getting-started-with-clojurescript">Getting started with ClojureScript</h3>
+
+<ul>
+<li><a href="https://github.com/maryrosecook/barecljs">Empty ClojureScript project, with instructions</a>,
+from <a href="https://github.com/maryrosecook">Mary</a></li>
+<li><a href="http://cljsfiddle.net/">CLJSFiddle</a>, for trying out ClojureScript
+snippets</li>
+<li><a href="http://gist.io/7610122">Explanation of cljs/js interop</a>, from
+<a href="https://github.com/zachallaun">Zach</a></li>
+</ul>
+
+<h3 id="web-audio">Web Audio</h3>
+
+<p>There&rsquo;s a newish API for synthesizing sound in the browser called the
+WebAudio API.</p>
+
+<ul>
+<li><a href="http://webaudiodemos.appspot.com/">Some demos</a></li>
+<li><a href="https://github.com/liamgriffiths/music-box">Very cool player piano app</a>
+by Liam Griffiths, a Hacker Schooler in my batch. You will have to
+run it on your computer but it will be worth it.</li>
+<li><a href="https://github.com/mathias/hum">Hum</a>, a small ClojureScript wrapper
+around the WebAudio API. If you want to test if it works in your
+browser, try
+<a href="http://cljsfiddle.net/fiddle/jvns.cljs-music-test">this CLJSFiddle</a>.
+It should make an annoying noise when you run it..</li>
+</ul>
+
+<h3 id="sound-samples">Sound samples</h3>
+
+<p>If you don&rsquo;t want to synthesize music, there are tons of samples on
+<a href="http://www.freesound.org/">freesound.org</a></p>
+
+<ul>
+<li><a href="http://www.freesound.org/docs/api/">Freesound API documentation</a></li>
+<li><a href="www.freesound.org/api/apply/">Get a Freesound API key</a>. It says
+&ldquo;Apply&rdquo;, but it gives it to you automatically.</li>
+<li><a href="https://github.com/g-roma/freesound.js">freesound.js</a>, a JS library
+for working with freesound</li>
+<li><a href="https://github.com/overtone/overtone/blob/master/src/overtone/samples/piano.clj">IDs for a set of piano samples</a>,
+from the Overtone project.</li>
+<li><a href="http://jsfiddle.net/jvns/J4sW2/">JSFiddle demoing the Freesound API</a>.
+Scroll to the bottom to see the actual code; I copied all of <code>freesound.js</code>
+into it. It should make a piano sound when you run it.
+<br /></li>
+</ul>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 30: Making music in Clojure with Overtone. Clojure bugs with laziness! Fun!]]></title>
+    <link href="https://jvns.ca/blog/2013/11/19/day-30-making-music-in-clojure-with-overtone/"/>
+    <updated>2013-11-19T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/11/19/day-30-making-music-in-clojure-with-overtone/</id>
+    <content type="html"><![CDATA[<p>Today I started using a lovely Clojure library called
+<a href="http://overtone.github.io/">Overtone</a>, for generating music. It is
+pretty easy to use and a fun time. On the box it says that you need to
+be &ldquo;comfortable with&rdquo; Clojure, the basics of music theory, and the
+Supercollider audio synthesis environment. I do not know any of these
+things and I successfully made sounds by copying and changing
+examples.</p>
+
+<p>I wrote a tiny bit of code to play rhythms. And I ran into my first
+clojure bug! I defined a function <code>side-effecty-thing</code>, and ran</p>
+
+<pre><code>(map side-effecty thing sequence)
+</code></pre>
+
+<p>And that ran fine. It made sounds!</p>
+
+<p>But then I tried something like</p>
+
+<pre><code>(def new-function [time]
+    (map side-effecty thing sequence)
+    (apply-at (+ time 4) '#new-function (+ time 4)))
+</code></pre>
+
+<p>which basically does the <code>(map side-effecty-thing)</code> and then calls
+itself recursively, later. And this did not make sounds. And I was
+TOTALLY CONFUSED, because, it says <code>(map side-effecty-thing)</code> in it!
+It should make sounds!</p>
+
+<p>But then Travis explained that <code>map</code> is lazy and not actually
+appropriate if you want the function you are running to <em>happen</em> right
+away.</p>
+
+<p>So what I actually wanted to use was <code>doseq</code>, which will let you
+actually make the side-effecty things happen when you ask for them.
+And it throws away the result, which is good because I didn&rsquo;t actually
+want the result. Yay!</p>
+
+<p>ALSO EMACS IS ENJOYABLE. Paredit is nice. I am in fact not using Evil
+mode. I am using Normal Emacs, with a few packages:</p>
+
+<ul>
+<li><a href="https://github.com/rdallasgray/graphene">Graphene</a>, to make
+everything a bit prettier</li>
+<li>clojure mode, clojure test mode, and cider, for Clojure fun.
+Apparently cider is the thing that people use now and it is the same
+as nRepl.</li>
+</ul>
+
+<p>This is a strange and confusing world, humans! I no longer know how to
+write if statements without looking it up! Very Exciting Times!</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 7: An echo server in Clojure]]></title>
+    <link href="https://jvns.ca/blog/2013/10/09/day-7-an-echo-server-in-clojure/"/>
+    <updated>2013-10-09T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/10/09/day-7-an-echo-server-in-clojure/</id>
+    <content type="html"><![CDATA[<p>Today I spent some time on a fun kernel module, but it is not working
+yet!  So here is what I also did.</p>
+
+<p>It did not take very long and I didn&rsquo;t really learn too much Clojure
+doing this &ndash; this is really just procedural code written in Clojure. I
+can&rsquo;t tell yet if this is an appropriate way to write a small Clojure
+program. Need to get some code review on this.</p>
+
+<p>But it works! You can see the code here: <a href="https://gist.github.com/jvns/6910896">https://gist.github.com/jvns/6910896</a>
+</p>
+
+<p>You can interact with the server using <code>netcat</code>
+(see also: <a href="http://jvns.ca/blog/2013/10/01/day-2-netcat-fun/">Day 2: netcat fun!</a>).
+The <code>-u</code> option here tells netcat to use UDP instead of TCP.</p>
+
+<pre><code>bork@kiwi ~/w/h/clorrent&gt; nc -u localhost 12345
+Hi, Clojure!
+Hi, Clojure!
+</code></pre>
+
+<p>If you don&rsquo;t want to set up a whole
+<a href="https://github.com/technomancy/leiningen">Leinengen</a> project to run
+this, you can use
+<a href="https://github.com/kumarshantanu/lein-exec">lein-exec</a>.</p>
+
+<p>This is the first step towards maybe writing a BitTorrent client in
+Clojure &ndash; many other people are writing BitTorrent client and really
+enjoying it, and I&rsquo;m jealous. We&rsquo;ll see if it happens!</p>]]></content>
+  </entry>
+  
+</feed>

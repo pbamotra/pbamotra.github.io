@@ -1,0 +1,2530 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title><![CDATA[Julia Evans]]></title>
+  <link href="http://jvns.ca/atom.xml" rel="self"/>
+  <link href="http://jvns.ca"/>
+  <updated>2016-09-11T10:45:47+00:00</updated>
+  <id>http://jvns.ca</id>
+  <author>
+    <name><![CDATA[Julia Evans]]></name>
+  </author>
+  <generator uri="http://gohugo.io/">Hugo</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[Learning systems programming with Rust]]></title>
+    <link href="https://jvns.ca/blog/2016/09/11/rustconf-keynote/"/>
+    <updated>2016-09-11T10:45:47+00:00</updated>
+    <id>https://jvns.ca/blog/2016/09/11/rustconf-keynote/</id>
+    <content type="html"><![CDATA[
+
+<style>
+
+.container {
+    display: flex;
+}
+.slide {
+    width: 40%;
+}
+.content {
+    width: 60%;
+    align-items: center;
+    padding: 20px;
+}
+
+@media (max-width: 480px) { /*breakpoint*/
+    .container {
+        display: block;
+    }
+    .slide {
+        width: 100%;
+    }
+    .content {
+        width: 100%;
+}
+
+</style>
+
+<p>I did the closing keynote at the first RustConf yesterday, on Rust and systems
+programming and accessibility and learning about concurrency and why I write
+about programming and a bunch of other things.</p>
+
+<p>I was really delighted to be invited because I&rsquo;m a huge fan of the Rust
+community. They&rsquo;re working incredibly hard to make a language that is
+extremely powerful, but also easy to use, and there was a huge focus on
+usability and good error messages. The talks were really ambitious, friendly,
+and inclusive. Their challenge is &ldquo;Fast, safe, productive &ndash; pick three&rdquo; :).</p>
+
+<p>Here&rsquo;s a video &amp; transcript of that talk (where when I say &ldquo;transcript&rdquo; I mean &ldquo;more
+less what I said, kinda&rdquo;).</p>
+
+<h3 id="video">video</h3>
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/ftQfpAeyxPo" frameborder="0" allowfullscreen></iframe>
+
+<h3 id="transcript">transcript</h3>
+
+<p>You can click on any of the slides to see a big version.</p>
+
+<p>I drew the slides with <a href="https://www.amazon.com/Samsung-Galaxy-9-7-Inch-Tablet-Titanium/dp/B00V49LQZ4">this Samsung tablet</a>, and Powerpoint for android. These were the easiest slides I&rsquo;ve ever made.</p>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_01.png"><img src="/images/rust-talk/slide_01_small.png"></a>
+</div>
+<div class="content">
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_02.png"><img src="/images/rust-talk/slide_02_small.png"></a>
+</div>
+<div class="content">
+
+These are the 4 themes I want to talk about in this talk! Let's go.
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_03.png"><img src="/images/rust-talk/slide_03_small.png"></a>
+</div>
+<div class="content">
+
+A lot of people love Rust for these 3 reasons. And more! memory safety without garbage collection! These are great reasons to love Rust.
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_04.png"><img src="/images/rust-talk/slide_04_small.png"></a>
+</div>
+<div class="content">
+But that's not why I love Rust. I'm kind of a beginner Rust programmer, my understanding of the borrow checker is flaky, I've written maybe 1000 lines of Rust code, and I'm not writing any production Rust code.
+
+<br><br>
+I spend a lot of my time on a comet very far away from Rust. So why am I talking to you right now?
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_05.png"><img src="/images/rust-talk/slide_05_small.png"></a>
+</div>
+<div class="content">
+
+
+I care a lot about learning about systems, and I've spent a lot of my time doing that. I love doing experiments with programming, and I think Rust is a super good platform for experiments. And the community has helped me out!
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_06.png"><img src="/images/rust-talk/slide_06_small.png"></a>
+</div>
+<div class="content">
+
+When Aaron invited me to give this talk (which was, like, the best day ever), he wrote
+
+<p>
+"We see the language as empowering for a wide variety of people who
+might not otherwise consider themselves systems programmers."
+</p>
+
+And the person who doesn't consider themselves as a systems programmer! That has TOTALLY BEEN ME. So let's talk about experiments and empowement.
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_07.png"><img src="/images/rust-talk/slide_07_small.png"></a>
+</div>
+<div class="content">
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_08.png"><img src="/images/rust-talk/slide_08_small.png"></a>
+</div>
+<div class="content">
+
+I do a lot of programming experiments to learn more about programming. My goal with these experiments usually isn't to produce anything of value. Instead I just want to learn something!
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_09.png"><img src="/images/rust-talk/slide_09_small.png"></a>
+</div>
+<div class="content">
+
+In 2013, I'd been working as a programmer for 2 years, I had 2 CS degrees, and I knew all kinds of things about computer science. But there was still SO MUCH I didn't know.
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_10.png"><img src="/images/rust-talk/slide_10_small.png"></a>
+</div>
+<div class="content">
+
+In particular, I didn't know anything really about how the Linux kernel worked, even though I'd been using Linux for 8 years. I think I'd never heard the words "system call".
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_11.png"><img src="/images/rust-talk/slide_11_small.png"></a>
+</div>
+<div class="content">
+
+<p>
+</p>
+So I went to the Recurse Center! RC is a 12-week programming retreat in New York where you go to learn whatever you want about programming. 
+
+<p>
+It's totally self-directed, and while I was there I ended up spending a lot of time learning about operating systems, because that was the most confusing thing I could find to work on.
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_12.png"><img src="/images/rust-talk/slide_12_small.png"></a>
+</div>
+<div class="content">
+
+On my <a href="http://jvns.ca/blog/2013/10/02/day-3-what-does-the-linux-kernel-even-do/">third day </a> at RC, I learned what the Linux kernel does! I found out what a system call is! 
+
+<p>
+It turns out it had a pretty simplex explanation -- your operating system knows how to do things like open files, you program does not, so your program asks your operating system to do things with system calls! Like `open`.
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_13.png"><img src="/images/rust-talk/slide_13_small.png"></a>
+</div>
+<div class="content">
+
+Three weeks before the end of my time there, I decided to write an operating system. Lindsey Kuper suggested I try Rust, which I was also a beginner at, so I tried that!
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_14.png"><img src="/images/rust-talk/slide_14_small.png"></a>
+</div>
+<div class="content">
+<p>
+It turns out that writing an operating system in 3 weeks is actually impossible (at least for me!), so I reduced my scope a lot -- I decided to just write a keyboard driver from scratch. So my goal was, when I typed a key on my keyboard, that key would appear on my screen!
+</p>
+<p>
+Turns out that this is not at all trivial.
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_15.png"><img src="/images/rust-talk/slide_15_small.png"></a>
+</div>
+<div class="content">
+
+<p>
+So, one of the themes for this talk was "you can contribute without coding". I
+really believe in this -- I think that code contributions are great, don't get
+me wrong.
+</p>
+
+<p>
+But I have basically never contributed code to an open source
+project (even though I'm a programmer!) and I think I've contributed a lot to
+open source communities.
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_16.png"><img src="/images/rust-talk/slide_16_small.png"></a>
+</div>
+<div class="content">
+
+<p>
+When I started doing this I discovered a really surprising thing. At the time I was writing blog posts every day about what I'd learned that day.
+</p>
+
+<p>
+And even though I was a beginner to both Rust and operating systems development, it turned out that some of these blog posts were really popular! People were learning from them!
+</p>
+
+<p>I wrote buzzfeed-style posts like "12 things I learned today about linkers", <a href="http://jvns.ca/blog/2013/12/04/day-37-how-a-keyboard-works/">After 5 days, my OS doesn't crash when I press a key</a>, <a href="http://jvns.ca/blog/2013/12/13/day-42-how-to-run-an-elf-executable-i-dont-know/">How to run a simple ELF executable, from scratch (I don't know)</a>, and a lot more.
+</p>
+
+<p>
+So this is interesting, right! To teach people it turns out you don't have to be an expert at all. Maybe it's actually even better to be a beginner!
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_17.png"><img src="/images/rust-talk/slide_17_small.png"></a>
+</div>
+<div class="content">
+
+Niko made this comment "if it's not documented, it might as well not exist" in his keynote this morning. And I think this is really true. If there's an amazing program in the world, but you don't know about it.
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_18.png"><img src="/images/rust-talk/slide_18_small.png"></a>
+</div>
+<div class="content">
+
+<p>
+My friend Maya jokes that I'm basically developer relations for strace.
+</p>
+
+<p>
+This happened because in 2013, someone told me about strace, a program I love that traces system calls. And I was so shocked that I hadn't known about it before! So I started telling everyone.
+</p>
+
+<p>
+And now all kinds of people know about strace because of me, and they have a new useful tool! So that basically makes me the inventor of strace for those people, right? :)
+</p>
+
+<p>
+I like doing this in my spare time because I write code at work, so it's a really nice change of pace.
+</p>
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_19.png"><img src="/images/rust-talk/slide_19_small.png"></a>
+</div>
+<div class="content">
+
+<p>
+Writing code is a lot of work. And when you write the code, if you want people to use it, it's a lot of work to tell people about it!
+</p>
+
+<p>
+So I like to skip the whole first step of writing code, and just tell people about awesome things that already exist. I'm like the most productive software developer ever.
+</p>
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_21.png"><img src="/images/rust-talk/slide_21_small.png"></a>
+</div>
+<div class="content">
+
+<p>
+Let's switch gears and talk about learning systems programming.
+</p>
+<p>
+My coworker asked me the other day "I'm reading a book about Rust, what would be a good example program to write?". And this is a hard question to answer!
+</p>
+<p>
+So here's a possible answer to that question. I think it's important to have a lot of answers like this, because there's so much to learn!
+</p>
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_22.png"><img src="/images/rust-talk/slide_22_small.png"></a>
+</div>
+<div class="content">
+
+<p>
+So one evening, I was at home, and I wanted to know more about concurrency.
+</p>
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_23.png"><img src="/images/rust-talk/slide_23_small.png"></a>
+</div>
+<div class="content">
+
+<p>
+But this isn't a very specific question! A better question is -- what are the systems primitives for concurrency?
+</p>
+<p>
+I knew that a lot of concurrent programs used the same kind of functions and ideas and systems calls. So what were those things, and how did they work?
+</p>
+<p>
+Many concurrent programs use operating systems threads, they need to control access to resources with mutexes, and sometimes they do these "atomic instruction" things.
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_24.png"><img src="/images/rust-talk/slide_24_small.png"></a>
+</div>
+<div class="content">
+<p>
+My favorite way to start out exploring idea is to write a program that doesn't work.
+</p>
+
+<p>
+It's easy to write unsafe programs in C, so I did it in C. I made 1000 threads that each incremented the same counter 1000 times. You should get 100000 at the end, right?
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_25.png"><img src="/images/rust-talk/slide_25_small.png"></a>
+</div>
+<div class="content">
+<p>
+Nope! Instead we get a data race! The answer is way less than a million. This is great! I was very happy already because I'd made a race and it worked. 
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_26.png"><img src="/images/rust-talk/slide_26_small.png"></a>
+</div>
+<div class="content">
+<p>
+So one of the first ways to work on concurrency is mutexes, or locks. You and all the other threads have one place where you go to control who's allowed to update the counter.
+</p>
+<p>
+I like this as a simple example because you can just get it to work and move on, or, if you want, you can go a lot deeper.
+</p>
+<p>
+For example! To use mutexes, underneath you often use a function called pthread_mutex_lock. And it turns out that sometimes that uses the futex system call, and sometimes it doesn't! So there's all kinds of hidden complexity.
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_27.png"><img src="/images/rust-talk/slide_27_small.png"></a>
+</div>
+<div class="content">
+<p>
+The next thing I want to talk about is atomic instructions. Basically your CPU knows how to increment counters without races -- if you say "lock inc" then it will make sure that the counter gets incremented exactly once.
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_28.png"><img src="/images/rust-talk/slide_28_small.png"></a>
+</div>
+<div class="content">
+<p>
+So now we have a nice small exercise! This is not really that hard to do in Rust, but it introduces a lot of new ideas.
+</p>
+<p>
+And there are a lot of opportunities for questions, right? Like, are mutexes or atomics faster? How much? Why? I love problems that you can finish pretty easily, but take farther if you want.
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_29.png"><img src="/images/rust-talk/slide_29_small.png"></a>
+</div>
+<div class="content">
+<p>
+Now we're onto the last part of the talk.
+</p>
+<p>
+I originally wrote "impossible problems" here. But of course all programs are technically *possible* to write!
+</p>
+<p>
+As we're going to learn shortly, though, right now I really do not know C, and I have a day job, and so my free time for programming is not unlimited. So even if a program is *possible* for me to write, if I have to write it in C/C++, probably in practice it's not going to happen.
+</p>
+<p>
+I'm going to tell you about how Rust helped me write a program that I wanted to write, that would have been improbable otherwise.
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_30.png"><img src="/images/rust-talk/slide_30_small.png"></a>
+</div>
+<div class="content">
+<p>
+This where we get back to EMPOWERMENT.
+</p>
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_31.png"><img src="/images/rust-talk/slide_31_small.png"></a>
+</div>
+<div class="content">
+
+<p>
+So, here's the problem I was mad about. I'd run "top" on my computer, and it would tell me Ruby was using all the CPU, and I wouldn't know why.
+</p>
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_32.png"><img src="/images/rust-talk/slide_32_small.png"></a>
+</div>
+<div class="content">
+<p>
+And the reason this made me mad, is that I could see what other programs like Chrome were doing with  <a href="http://jvns.ca/blog/2016/02/24/perf-top-my-new-best-friend/">perf top</a>
+</p>
+<p>
+(cool demo of perf top goes here)
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_33.png"><img src="/images/rust-talk/slide_33_small.png"></a>
+</div>
+<div class="content">
+<p>
+So I wanted to write a program that I could just give the PID of a Ruby process, and it would tell me the top Ruby functions that were running right now.
+</p>
+<p>
+Is that possible? My friend Julian claimed this was totally possible and easy. So eventually I decided to try.
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_34.png"><img src="/images/rust-talk/slide_34_small.png"></a>
+</div>
+<div class="content">
+<p>
+To do this from the outside, you have to basically spy on the internals of a running Ruby process.
+</p>
+<p>
+The system call I used to spy is called process_vm_readv.
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_35.png"><img src="/images/rust-talk/slide_35_small.png"></a>
+</div>
+<div class="content">
+<p>
+In the Ruby interpreter, you have the C stack. That has unhelpful things on it like "you're in vm_exec right now" which basically means "you're running a Ruby function"
+</p>
+<p>
+BUT WHICH RUBY FUNCTION?!
+</p>
+<p>
+But somewhere inside its memory, somewhere, you have the Ruby stack. That's what I wanted to get at.
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_36.png"><img src="/images/rust-talk/slide_36_small.png"></a>
+</div>
+<div class="content">
+<p>
+I'm not going to go into the details of how this works because I don't have time, but I wrote a C demo of this program. I know how to write C! I can allocate memory in C! My demo kinda worked!
+</p>
+<p>
+However, I do not really know how to *free* memory in C. Like, I technically know that there is a free function, but I don't have a lot of experience with it. So my program had some pretty serious memory issues almost right away.
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_37.png"><img src="/images/rust-talk/slide_37_small.png"></a>
+</div>
+<div class="content">
+<p>
+At this point I asked my partner Kamal for some help translating my program to Rust.
+</p>
+<p>
+At the time I used bindgen and it was awesome, it took maybe a day, and now I had a Rust program that did the same thing! Except I didn't have to know how to free memory anymore.
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_38.png"><img src="/images/rust-talk/slide_38_small.png"></a>
+</div>
+<div class="content">
+<p>
+If you observe this highly scientific graph of "program workingness", you will see that my productivity went up.
+</p>
+<p>
+I had to fight with the compiler a lot more, but I did not have to learn how to implement hashmaps from scratch. Win.
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_39.png"><img src="/images/rust-talk/slide_39_small.png"></a>
+</div>
+<div class="content">
+<p>
+But I had one more problem. It turned out that I needed to know what the bytes in memory in my Ruby program *meant*. I wanted to know what the original struct definitions were so I could interpret all these 0s and 1s.
+</p>
+<p>
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_40.png"><img src="/images/rust-talk/slide_40_small.png"></a>
+</div>
+<div class="content">
+<p>
+Luckily, sometimes the C compiler will save a bunch of debug information in a format called DWARF.
+</p>
+<p>
+This basically has all the structs and saves them inside your programs! Yay! This is the best! I had hope again.
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_41.png"><img src="/images/rust-talk/slide_41_small.png"></a>
+</div>
+<div class="content">
+<p>
+I needed a library for parsing DWARF, though. I started with trying libdwarf, and I got it maybe 90% working. But it was sort of a terrible experience.
+</p>
+<p>
+The API was terrible, there were no docs that I could find, it was slow, I had a bad time linking the library into my Rust program.
+</p>
+<p>
+One of the most upsetting things to me about this library is that it was really hard to understand how DWARF actually worked by looking at the interfaces it provided. I like knowing how things work.
+</p>
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_42.png"><img src="/images/rust-talk/slide_42_small.png"></a>
+</div>
+<div class="content">
+<p>
+A lot of the time when I have programming problems, I complain about them on Twitter. Somebody suggested I try a Rust library called 'gimli'.
+</p>
+<p>
+One of the maintainers, Nick Fitzgerald, told me it wasn't done but he thought it might have all the features I needed! GREAT.
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_43.png"><img src="/images/rust-talk/slide_43_small.png"></a>
+</div>
+<div class="content">
+<p>
+Using Gimli was a way better experience. It didn't have too much documentation either, but that was okay -- the example program they provided was really helpful, and explained how to do basically everything I needed to do.
+</p>
+<p>
+The only thing it didn't do that I wanted was really small, and I submitted a tiny pull request to get it.
+</p>
+<p>
+And the maintainers were really helpful! I understood DWARF better after I started working with Gimli.
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_44.png"><img src="/images/rust-talk/slide_44_small.png"></a>
+</div>
+<div class="content">
+<p>
+"How does DWARF work" is a question pretty far out of the scope of this talk, but basically if your program is a train car (made of a bunch of ELF section), DWARF debug info is basically just a bunch of extra train cars tacked on to the end. One of the sections just basically has all the strings in your program concatenated together!
+</p>
+<p>
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_45.png"><img src="/images/rust-talk/slide_45_small.png"></a>
+</div>
+<div class="content">
+<p>
+So, after this whole saga, we did it!! I worked on this a lot with Kamal and our ruby stacktrace program worked! It's <a href="https://github.com/jvns/ruby-stacktrace">on github</a> and everything. It works on 3 computers.
+</p>
+<p>
+(insert cool demo here)
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_46.png"><img src="/images/rust-talk/slide_46_small.png"></a>
+</div>
+<div class="content">
+<p>
+I spend a lot of time being frustrated with the Rust compiler, but I still like it because it lets me do things I probably wouldn't get done otherwise.
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_47.png"><img src="/images/rust-talk/slide_47_small.png"></a>
+</div>
+<div class="content">
+<p>
+I want to leave you with a few things.
+</p>
+<p>
+One delightful thing about systems is that there's always SO MUCH MORE TO LEARN. I don't think there's any danger of any of knowing everything about systems programming any time soon.
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_48.png"><img src="/images/rust-talk/slide_48_small.png"></a>
+</div>
+<div class="content">
+<p>
+I'm pretty sure all of you know cool things about programming that I don't know. If you like writing, this can be a great way to make the community around you know more!
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_49.png"><img src="/images/rust-talk/slide_49_small.png"></a>
+</div>
+<div class="content">
+<p>
+One thing I really want to emphasize is -- I see a ton of resources for beginners, and I think those are really awesome.
+</p>
+<p>
+What I don't see as much of as I'd like is resources for people who know how to program, or know Rust, and really want to take their skills to the next level. I think the Rust community is really well placed to help people do this.
+</p>
+<p>
+Writing down information like this for developers who might already have 5 or 10 years of experiences is where I spend almost all my time.
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_50.png"><img src="/images/rust-talk/slide_50_small.png"></a>
+</div>
+<div class="content">
+<p>
+And while you're writing down cool things to help people level up -- remember that a lot of systems things aren't really that hard. People can learn harder things than you think they can if you explain it in a way that makes sense.
+</p>
+<p>
+I think computer networking is a really good example of this -- a lot of people get really intimidated by networking, but a lot of the core concepts like IP addresses and ports and packets are not really that hard, and once you understand them you can learn a lot.
+</p>
+<p>
+I wrote a zine called "linux debugging tools you'll love" that talks about ngrep, tcpdump, strace, etc. And somebody tweeted at me saying he was using it to teach his 8 year old! What? So I'm not totally sure I believe that the 8 year old is using tcpdump. But maybe I'm wrong!! Who am I to say that?
+</p>
+
+<p>
+So I've discovered that the audience for clear writing about systems programming is huge. A lot bigger than you might think.
+</p>
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_51.png"><img src="/images/rust-talk/slide_51_small.png"></a>
+</div>
+<div class="content">
+(the <a href="http://jvns.ca/zines">zine</a> I wrote)
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_52.png"><img src="/images/rust-talk/slide_52_small.png"></a>
+</div>
+<div class="content">
+<p>
+I'm really happy about the Rust community because there are a ton of people in this room who know about Linux and networking and concurrency and all these topics that have historically been really hard to learn about.
+</p>
+<p>
+But now many of you are gathered here inside this really welcoming and wonderful community! This feels magical to me and like it's going to be a really good thing for programming as a whole.
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_53.png"><img src="/images/rust-talk/slide_53_small.png"></a>
+</div>
+<div class="content">
+<p>
+So, to close, for real, I'm excited for this to be a place where people can walk in asking "what's a system call?"
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_54.png"><img src="/images/rust-talk/slide_54_small.png"></a>
+</div>
+<div class="content">
+<p>
+and wake up a year later knowing how to do systems programming, and thinking it wasn't really that hard.
+</p>
+
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_55.png"><img src="/images/rust-talk/slide_55_small.png"></a>
+</div>
+<div class="content">
+<p>
+this is a picture I commissioned of myself at the san franscisco zine festival from <a href="https://twitter.com/ohmaipie">@ohmaipie</a> as a wizard.
+</p>
+</div>
+</div>
+
+<div class="container">
+<div class="slide">
+<a href="/images/rust-talk/slide_56.png"><img src="/images/rust-talk/slide_56_small.png"></a>
+</div>
+<div class="content">
+♥♥♥
+</div>
+</div>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[A second try at using Rust]]></title>
+    <link href="https://jvns.ca/blog/2016/05/12/a-second-try-at-using-rust/"/>
+    <updated>2016-05-12T11:55:45+00:00</updated>
+    <id>https://jvns.ca/blog/2016/05/12/a-second-try-at-using-rust/</id>
+    <content type="html"><![CDATA[
+
+<p>I used Rust for the first time in late 2013, while trying to write a tiny operating system. At the time, I learned a lot and it was pretty fun, but I found the experience pretty frustrating. There were all these error messages I didn&rsquo;t understand! It took forever to work with strings! Everyone was very nice but it felt confusing.</p>
+
+<p>I just tried Rust again yesterday! Kamal has been trying to sell me (and <a href="http://kamalmarhubi.com/blog/2016/04/13/rust-nix-easier-unix-systems-programming-3/">everyone else</a>) on the idea that if you&rsquo;re doing systems-y work, and you don&rsquo;t know any systems language very well, then it&rsquo;s worth learning Rust.</p>
+
+<p>After a day or so of trying Rust again, I think he&rsquo;s right that learning Rust is easier than learning C. A few years after first trying, I feel like the language has progressed a lot, and it feels more like writing Python or some other easy language.</p>
+
+<p>Some things I could do easily without working too hard</p>
+
+<ul>
+<li>run a process and then match a regular expression on its output</li>
+<li>make a hashmap, store counts in it, and print the top 10</li>
+<li>format strings nicely and print them</li>
+<li>read command line options</li>
+<li>allocate a lot of memory without creating a memory leak</li>
+</ul>
+
+<p>Those things would have been really hard in C (how do you even make a hashmap???
+I think you have to write the data structure yourself or something.). I probably could have figured out how to free memory in C (i hear you use <code>free</code> :) ) but honestly I don&rsquo;t know how to write C and it&rsquo;s very likely it would have turned into an unmaintainable mess. The things were
+maybe slightly harder to do than in Python (which is a programming language that
+I actually know), but I think not way way way harder. I was surprised at how easy they were!</p>
+
+<h3 id="a-sidebar-on-learning-programming-languages">a sidebar on learning programming languages</h3>
+
+<p>I pair programmed a bunch of Rust code with Kamal, who actually knows Rust. Sometimes when I program, I try to understand everything all at once right away (&ldquo;what are lifetime? how do they work? what are all these pointer types? omg!!!&rdquo;). This time I tried a new approach! When I didn&rsquo;t understand something, I was just like &ldquo;hey kamal tell me what to type!&rdquo; and he would, and then my program would work.</p>
+
+<p>I&rsquo;d fix the bugs that I understood, and he&rsquo;d fix the bugs I didn&rsquo;t, and we made a lot of progress really quickly and it wasn&rsquo;t that frustrating.</p>
+
+<p>I kind of enjoy the experience of having a Magical Oracle to fix my programming problems for me &ndash; having someone elide away the harder stuff so I can focus on what&rsquo;s easy feels to me like a good way to learn.</p>
+
+<p>Of course, you can&rsquo;t let someone else fix all your hard programs <em>forever</em>. Eventually I&rsquo;ll have to understand all about Rust pointers and lifetimes and everything, if I want to write Rust! I bet it&rsquo;s not even all that hard. But for today I only understand like 6 things and that&rsquo;s fine.</p>
+
+<h3 id="error-messages">error messages</h3>
+
+<p>I&rsquo;ve also been mostly happy with the Rust error messages! Sometimes they&rsquo;re super inscrutable, but often they&rsquo;re mostly lucid. Sometimes they link to GitHub issues, and someone on the GitHub issue will have a workaround for your problem! Sometimes they come with detailed explanations!</p>
+
+<p>Here&rsquo;s an example:</p>
+
+<pre><code>$ rustc --explain E0281
+`You tried to supply a type which doesn't implement some trait in a location
+which expected that trait. This error typically occurs when working with
+`Fn`-based types. Erroneous code example:
+
+---
+fn foo&lt;F: Fn()&gt;(x: F) { }
+
+fn main() {
+    // type mismatch: the type ... implements the trait `core::ops::Fn&lt;(_,)&gt;`,
+    // but the trait `core::ops::Fn&lt;()&gt;` is required (expected (), found tuple
+    // [E0281]
+    foo(|y| { });
+}
+---
+
+The issue in this case is that `foo` is defined as accepting a `Fn` with no
+arguments, but the closure we attempted to pass to it requires one argument.
+
+</code></pre>
+
+<h3 id="valgrind-perf-rust-3">valgrind + perf + rust = &lt;3</h3>
+
+<p>another cool thing I noticed is that you can run valgrind or perf on the Rust program and figure out easily which parts of your program are running slowly! And I think the Rust program even has debug info so you can look at the source code in kcachegrind. This was really cool. I ran into a program with valgrind where my program worked fine in Rust, but when I ran it under valgrind it failed. I don&rsquo;t understand why this happened at all.</p>
+
+<h3 id="the-rust-docs-actually-seem-good">the rust docs actually seem good?</h3>
+
+<p>I haven&rsquo;t delved super a lot into the Rust docs, but so far I&rsquo;ve been happy: there&rsquo;s a <a href="https://doc.rust-lang.org/book/">book</a> and lots of other <a href="https://www.rust-lang.org/documentation.html">documentation</a> and it&rsquo;s all official on the Rust website! I think they actually paid Steve Klabnik to write docs, which is amazing.</p>
+
+<p>Here is my <a href="https://github.com/jvns/ruby-stacktrace">Rust project!</a>. More on what it actually does later, but I&rsquo;m super excited about it (for now it&rsquo;s a MYSTERY :D :D).</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Calling C from Rust]]></title>
+    <link href="https://jvns.ca/blog/2016/01/18/calling-c-from-rust/"/>
+    <updated>2016-01-18T09:31:42+00:00</updated>
+    <id>https://jvns.ca/blog/2016/01/18/calling-c-from-rust/</id>
+    <content type="html"><![CDATA[<p>Yesterday I asked <a href="https://twitter.com/kamalmarhubi">Kamal</a> how to call C code from Rust, for a project I&rsquo;m thinking about. It turned out to be a little harder than I expected! Largely because I don&rsquo;t know Rust well, and fixing compiler errors is nontrivial. 30 minutes and some number of inscrutable-to-me compiler errors later, we figured it out.</p>
+
+<p>I want to do something pretty simple &ndash; copy the string &ldquo;Hello, world!&rdquo; and print it.</p>
+
+<p>Here&rsquo;s the Rust code that calls C. It doesn&rsquo;t use any special libraries &ndash; just Rust.</p>
+
+<pre><code>extern {
+    // Our C function definitions!
+    pub fn strcpy(dest: *mut u8, src: *const u8) -&gt; *mut u8;
+    pub fn puts(s: *const u8) -&gt; i32;
+}
+
+fn main() {
+    let x = b&quot;Hello, world!\0&quot;; // our string to copy
+    let mut y = [0u8; 32]; // declare some space on the stack to copy the string into
+    unsafe {
+      // calling C code is definitely unsafe. it could be doing ANYTHING
+      strcpy(y.as_mut_ptr(), x.as_ptr()); // we need to call .as_ptr() to get a pointer for C to use
+      puts(y.as_ptr());
+    }
+}
+</code></pre>
+
+<p>I&rsquo;m mostly writing this down so that I don&rsquo;t forget, but maybe it will be useful for you too!</p>
+
+<p>Along the way I found out that <code>cargo</code> (Rust&rsquo;s build tool) is super easy to get started with &ndash; all you need to do is run</p>
+
+<pre><code>$ cargo new --bin my-project
+$ cd my-project
+$ cargo run
+   Compiling my-project v0.1.0 (file:///home/bork/work/my-project)
+     Running `target/debug/my-project`
+Hello, world!
+</code></pre>
+
+<p>and you have a new Rust project that you can run with <code>cargo run</code>!</p>
+
+<p>Rust is way easier to install than it was in 2013, though I still find the error messages hard to understand.</p>
+
+<p>There might be more of these short project-notes posts to come &ndash; hopefully some of you will find them interesting!</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Why I ❤ Rust]]></title>
+    <link href="https://jvns.ca/blog/2016/01/10/why-i-rust/"/>
+    <updated>2016-01-10T08:43:43+00:00</updated>
+    <id>https://jvns.ca/blog/2016/01/10/why-i-rust/</id>
+    <content type="html"><![CDATA[<p>I gave a talk about why I like Rust a while ago! There&rsquo;s no video. Normally my
+talk slides are unremarkable and I don&rsquo;t post them, but I think these mostly stand on their own and I&rsquo;m happy with how they turned out. <a href="https://speakerdeck.com/jvns/why-i-rust">Here it is (and it&rsquo;s embedded below)</a>.</p>
+
+<script async class="speakerdeck-embed" data-id="2217f185971243a4ac638c2fa6993ca0" data-ratio="1.29456384323641" src="//speakerdeck.com/assets/embed.js"></script>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Diving into concurrency: trying out mutexes and atomics]]></title>
+    <link href="https://jvns.ca/blog/2014/12/14/fun-with-threads/"/>
+    <updated>2014-12-14T12:58:55+00:00</updated>
+    <id>https://jvns.ca/blog/2014/12/14/fun-with-threads/</id>
+    <content type="html"><![CDATA[<p>I hadn&rsquo;t written any threaded programs before yesterday. I knew sort of
+abstractly about some concurrency concepts (mutexes! people say
+compare-and-swap but I don&rsquo;t totally get it!), but actually
+understanding a Thing is hard if I&rsquo;ve never done it. So yesterday I
+decided to write a program with threads! In this post, we&rsquo;re going to:</p>
+
+<ol>
+<li>Write a threaded program that gets the wrong answer because of a race
+condition</li>
+<li>Fix that race condition in C and Rust, using 2 different approaches
+(mutexes and atomics)</li>
+<li>Find out why Rust is slower than C</li>
+<li>Talk a little about the actual system calls and instructions that
+make some of this work</li>
+</ol>
+
+<p></p>
+
+<p>At first I was going to write a concurrent hashmap, but
+<a href="https://twitter.com/kamalmarhubi">Kamal</a> wisely pointed out that I
+should start with something simpler, like a counter!</p>
+
+<p>So. We&rsquo;re going to get 20 threads to count to 20,000,000 all together.
+We&rsquo;ll have a global counter variable, and increment it like this:</p>
+
+<pre><code>counter += 1
+</code></pre>
+
+<p>That seems so safe! What can go wrong here is that if two threads try to
+increment the number at the exact same time, then it&rsquo;ll only get
+incremented once instead of twice. This is called a <strong>race condition</strong>.</p>
+
+<h3 id="writing-a-race-condition">Writing a race condition</h3>
+
+<p>Here&rsquo;s what my original C program looks like, with the bug. I wrote this
+by knowing that people used a library called &ldquo;pthreads&rdquo; to do threads in
+c, and googling &ldquo;pthreads example&rdquo;. I&rsquo;m not going to explain it very
+much, but essentially it creates 20 threads and has them all run the
+<code>AddThings</code> function which increments a global counter a million times.</p>
+
+<p>Full version:
+<a href="https://github.com/jvns/fun-with-threads/blob/master/counter_race.c">counter_race.c</a>.</p>
+
+<pre><code class="language-c">#define NUM_THREADS     20
+#define NUM_INCREMENTS  1000000
+
+int counter;
+
+void *AddThings(void *threadid) {
+   for (int i = 0; i &lt; NUM_INCREMENTS; i++)
+        counter += 1;
+   pthread_exit(NULL);
+}
+
+int main (int argc, char *argv[]) {
+   pthread_t threads[NUM_THREADS];
+   long t;
+   for(t = 0; t&lt;NUM_THREADS; t++){
+      int rc = pthread_create(&amp;threads[t], NULL, AddThings, (void *)t);
+      if (rc){
+         printf(&quot;ERROR; return code from pthread_create() is %d\n&quot;, rc);
+         exit(1);
+      }
+   }
+   // Wait for threads to finish
+   for (t = 0; t &lt; NUM_THREADS; t++)
+       pthread_join(threads[t], NULL);
+   printf(&quot;Final value of counter is: %d\n&quot;, counter);
+   pthread_exit(NULL);
+}
+</code></pre>
+
+<p>This program a) runs very fast and b) returns wildly different answers
+each time. We&rsquo;re expecting 20,000,000. I ran it 10 times and got 10
+different answers, between 2,838,838 and 5,695,671.</p>
+
+<h3 id="first-try-mutexes-and-learning-that-mutexes-can-be-really-slow">First try: mutexes! (and learning that mutexes can be Really Slow)</h3>
+
+<p>A mutex (or <strong>lock</strong>) is a way to control access to a resource so that
+two threads don&rsquo;t change it in conflicting ways at the same time.</p>
+
+<p>A typical pattern for using a lock is:</p>
+
+<pre><code>lock.lock();
+// do something with shared state, eg counter +=1 
+lock.unlock();
+</code></pre>
+
+<p>Mutexes are often implemented on Linux systems with the <a href="http://man7.org/linux/man-pages/man2/futex.2.html"><code>futex</code> system
+call</a>. Basically it&rsquo;s
+a way of saying &ldquo;hey, kernel! This lock is closed, so I&rsquo;d like to stop
+running. Can you please wake me up when it&rsquo;s available again?&ldquo;.</p>
+
+<p>I learned during these explorations that all this making system calls
+and going to sleep and waking up again is actually pretty expensive. But
+let&rsquo;s do performance numbers first!</p>
+
+<p>So the C pthread library has a mutex implementation like this. Let&rsquo;s
+implement our counter with it! You can see the full implementation t
+<a href="https://github.com/jvns/fun-with-threads/blob/master/counter_with_mutex.c">counter_with_mutex.c</a>.
+It&rsquo;s a pretty small change: we need to add</p>
+
+<pre><code>pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+</code></pre>
+
+<p>at the beginning, and replace <code>counter += 1</code> with</p>
+
+<pre><code>pthread_mutex_lock(&amp;mutex);
+counter += 1;
+pthread_mutex_unlock(&amp;mutex);
+</code></pre>
+
+<p>If we run our new program, it calculates the correct answer every time!
+Amazing! What does the performance of this look like? I&rsquo;m going to do
+all my profiling with <code>perf stat</code> (perf is an amazing program that you
+can read more about in <a href="http://jvns.ca/blog/2014/05/13/profiling-with-perf/">I can spy on my CPU cycles with perf!</a>)</p>
+
+<pre><code>$ perf stat ./counter_with_mutex
+Final value of counter is: 20000000
+       3.134196432 seconds time elapse
+</code></pre>
+
+<p>Our original counter with the race condition took more like 0.08
+seconds. This is a really big performance hit, even if it means that we
+have a program that works instead of a program that doesn&rsquo;t!</p>
+
+<h3 id="mutexes-in-rust-too-it-s-even-slower">Mutexes in Rust, too! (it&rsquo;s even slower!)</h3>
+
+<p>I decided to implement the same thing in Rust because, well, Rust is
+fun! You can see it at
+<a href="https://github.com/jvns/fun-with-threads/blob/master/rust_counter_mutex.rs">rust_counter_mutex.rs</a>.</p>
+
+<p>We create a mutex with</p>
+
+<pre><code>let data = Arc::new(Mutex::new(0u));
+</code></pre>
+
+<p>and increment it with</p>
+
+<pre><code>for _ in range(0u, NUM_INCREMENTS) {
+   let mut d = data.lock();
+    *d += 1;
+}
+</code></pre>
+
+<p>I basically got this to work by <a href="http://doc.rust-lang.org/std/sync/struct.Mutex.html">copying the Rust mutex
+documentation</a>. I&rsquo;m
+pretty impressed by how much Rust&rsquo;s documentation has improved in the
+last year.</p>
+
+<p>I ran this, and I was expecting it to perform about as well as my C code.
+It didn&rsquo;t.</p>
+
+<pre><code>$ perf stat ./rust_counter_mutex
+       8.842611143 seconds time elapsed
+</code></pre>
+
+<p>My first instinct was to profile it! I used Brendan Gregg&rsquo;s excellent
+<a href="https://github.com/brendangregg/FlameGraph">flame graph library</a>, and ran</p>
+
+<pre><code>$ sudo perf record ./rust_counter_mutex
+$ sudo perf script | stackcollapse-perf.pl | flamegraph.pl &gt; rust_mutex_flamegraph.svg
+</code></pre>
+
+<p><a href="/images/rust_mutex_flamegraph.svg"><img src="/images/rust_mutex_flamegraph.svg"></a></p>
+
+<p><a href="/images/c_mutex_flamegraph.svg"><img src="/images/c_mutex_flamegraph.svg"></a></p>
+
+<p>What is even going on here?! These two graphs look exactly the same. Why
+does the Rust one taking longer?</p>
+
+<p>So, off to the races in the #rust IRC channel! Fortunately, the people
+in #rust are the Nicest People. You can see them helping me out <a href="https://botbot.me/mozilla/rust/2014-12-13/?msg=27485007&amp;page=27">in the
+logs</a>
+=D.</p>
+
+<p>After a while, someone named Sharp explains that Rust&rsquo;s mutexes are
+implemented in a Slow Way using channels. This seems to make sense, but
+then why couldn&rsquo;t I see that from the flamegraph? He explains helpfully
+that channels in Rust are also implemented with the <code>futex</code> syscall, so
+it&rsquo;s spending all of its time in the same syscalls, just doing it less
+efficiently. COOL.</p>
+
+<p>Sharp also suggests using an atomic instead of a mutex, so that&rsquo;s the next
+step!</p>
+
+<h3 id="making-it-fast-with-atomics-in-rust">Making it fast with atomics in Rust</h3>
+
+<p>This one is at
+<a href="https://github.com/jvns/fun-with-threads/blob/master/rust_counter_atomics.rs">rust_counter_atomics.rs</a>.
+I did this without actually understanding what an atomic even is, so I&rsquo;m not
+going to explain anything yet.</p>
+
+<p>Basically we replace our mutex with a</p>
+
+<pre><code>let counter = Arc::new(AtomicUint::new(0));
+</code></pre>
+
+<p>and our loop with</p>
+
+<pre><code>for _ in range(0u, NUM_INCREMENTS) {
+    counter.fetch_add(1, Relaxed);
+}
+</code></pre>
+
+<p>I&rsquo;m not going to talk about the <code>Relaxed</code> right now (because I don&rsquo;t understand it as well as I&rsquo;d like), but basically this increments our counter in a threadsafe way (so that two threads can&rsquo;t race).</p>
+
+<p>And it works! And it&rsquo;s fast!</p>
+
+<pre><code>perf stat ./rust_counter_atomics
+20000000
+       0.556901591 seconds time elapsed
+</code></pre>
+
+<p>Here&rsquo;s the new flamegraph:</p>
+
+<p><a href="/images/rust_atomics_flamegraph.svg"><img src="/images/rust_atomics_flamegraph.svg"></a></p>
+
+<p>You can see from the new flamegraph that it&rsquo;s definitely not using
+mutexes at all. But we still don&rsquo;t know how these atomics work, which is
+troubling. Let&rsquo;s implement the same thing in C, to see if it makes it a
+little clearer.</p>
+
+<h3 id="atomics-in-c-even-faster">Atomics in C: even faster!</h3>
+
+<p>To use atomics in our C program, I replaced</p>
+
+<pre><code>for (int i = 0; i &lt; NUM_INCREMENTS; i++) {
+    pthread_mutex_lock(&amp;mutex);
+    counter += 1;
+    pthread_mutex_unlock(&amp;mutex);
+}
+</code></pre>
+
+<p>with something called <code>__sync_add_and_fetch</code>:</p>
+
+<pre><code>   for (int i = 0; i &lt; NUM_INCREMENTS; i++) {
+       __sync_add_and_fetch(&amp;counter, 1);
+   }
+</code></pre>
+
+<p>You might have noticed that the <code>fetch_add</code> in Rust is suspiciously
+similar to <code>__sync_add_and_fetch</code>. This is a special GCC <a href="https://gcc.gnu.org/onlinedocs/gcc-4.1.2/gcc/Atomic-Builtins.html">atomic builtin</a>
+which generates assembly instructions to safely increment our counter.</p>
+
+<p>That GCC documentation page is pretty readable! One interesting thing is
+this:</p>
+
+<blockquote>
+<p>All of the routines are described in the Intel documentation to take
+“an optional list of variables protected by the memory barrier”. It&rsquo;s
+not clear what is meant by that; it could mean that only the following
+variables are protected, or it could mean that these variables should
+in addition be protected. At present GCC ignores this list and
+protects all variables which are globally accessible. If in the future
+we make some use of this list, an empty list will continue to mean all
+globally accessible variables.</p>
+</blockquote>
+
+<p>It&rsquo;s sort of refreshing to hear the people who write GCC (who I think of
+as MAGICAL WIZARDS WHO KNOW EVERYTHING) say that they read some Intel
+documentation and it was not clear what it meant! This stuff must really
+not be easy.</p>
+
+<p>This C program is a little faster than the Rust version, clocking in at
+around 0.44 seconds on my machine. I don&rsquo;t know why.</p>
+
+<h3 id="what-actual-cpu-instructions-are-involved">What actual CPU instructions are involved?</h3>
+
+<p>I don&rsquo;t really read assembly, so we&rsquo;ll need some help to see which are
+the Magical Safe Instructions. <code>perf</code> is the best program in the
+universe, and it can help us with this! <code>perf record</code> and <code>perf
+annotate</code> together let us see which instructions in our program are
+taking the most time.</p>
+
+<pre><code>$ perf record ./counter_with_atomics
+$ perf annotate --no-source
+       │    ↓ jmp    21 
+  0.03 │15:   lock   addl   $0x1,counter
+ 99.43 │      addl   $0x1,-0x4(%rbp)
+  0.13 │21:   cmpl   $0xf423f,-0x4(%rbp)
+  0.41 │    ↑ jle    15  
+</code></pre>
+
+<p>and we can try it with the Rust program, too:</p>
+
+<pre><code>$ perf record ./rust_counter_atomics
+$ perf annotate --no-source
+       │       nop
+  0.05 │ 50:   mov    0x20(%rbx),%rcx
+  0.02 │       lock   incq 0x10(%rcx)
+ 99.93 │       dec    %rax
+       │     ↑ jne    50  
+</code></pre>
+
+<p>So we can see that there&rsquo;s a <code>lock</code> instruction prefix that increments a
+variable in each case. Googling for &ldquo;lock instruction finds us this <a href="http://x86.renejeschke.de/html/file_module_x86_id_159.html">x86 instruction set reference</a>:</p>
+
+<blockquote>
+<p>In a multiprocessor environment, the LOCK# signal insures that the
+processor has exclusive use of any shared memory while the signal is
+asserted.</p>
+</blockquote>
+
+<p>In both cases over 99% of the run time is spent in the instruction right
+after that instruction. I&rsquo;m not totally sure why that is, but it could
+be that the <code>lock</code> itself is fast, but then once it&rsquo;s done the memory it
+updated needs to be synchronized and the next instruction needs to wait
+for that to happen. That&rsquo;s mostly made up though. If you want to explain
+it to me I would be delighted.</p>
+
+<p>(If you&rsquo;ve heard about compare-and-swap, that&rsquo;s a similar instruction
+that lets you update variables without creating races)</p>
+
+<h3 id="we-are-now-slightly-closer-to-being-concurrency-wizards">We are now slightly closer to being concurrency wizards</h3>
+
+<p>This was really fun! In January I was talking to a (super nice!) company
+that built distributed systems about interviewing there, and they sent
+me some questions to answer. One of the questions was something like
+&ldquo;can you discuss the pros and cons of using a lock-free approach for
+implementing a thread-safe hashmap?&rdquo;</p>
+
+<p>My reaction at the time was WHAT ARE YOU EVEN ASKING ME HELP. But these
+concurrency explorations make me feel like that question is a lot more
+reasonable! Using atomic instructions in this case was way faster than
+using a mutex, and I feel like I have a slightly better sense of how all
+this works now.</p>
+
+<p>Also when I see a process waiting in a <code>futex(...</code> system call when I
+strace it, I understand what&rsquo;s going on a little better! This is
+wonderful.</p>
+
+<p>Thanks are due to <a href="https://twitter.com/kamalmarhubi">Kamal</a> for having
+lots of wonderful suggestions, and the people of the ever-amazing #rust
+IRC channel. You can see all the code for this post at
+<a href="https://github.com/jvns/fun-with-threads/">https://github.com/jvns/fun-with-threads/</a>.</p>]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Ruby Rogues podcast: systems programming tricks!]]></title>
+    <link href="https://jvns.ca/blog/2014/07/17/ruby-rogues/"/>
+    <updated>2014-07-17T20:21:11+00:00</updated>
+    <id>https://jvns.ca/blog/2014/07/17/ruby-rogues/</id>
+    <content type="html"><![CDATA[<p>If you listen to the
+<a href="http://rubyrogues.com/165-rr-systems-programming-tricks-with-julia-evans/">Ruby Rogues podcast</a>
+this week, you will find me! We talked about using systems programming
+tools (like strace) to debug your regular pedestrian code, building an
+operating system in Rust, but also other things I didn&rsquo;t expect, like
+how asking stupid questions is an amazing way to learn.</p>
+
+<p>Ruby Rogues also has a transcript of the entire episode, an index, and
+links to everything anyone referenced during the episode, including
+apparently 13 posts from this blog (!). I don&rsquo;t even understand how
+this is possible, but apparently it is! It was a fun time, and
+apparently it is totally okay to spend a Ruby podcast discussing Rust,
+statistics, strace, and, well&hellip; not Ruby :)</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[My Rust OS will never be finished (and it&#39;s a success!)]]></title>
+    <link href="https://jvns.ca/blog/2014/03/21/my-rust-os-will-never-be-finished/"/>
+    <updated>2014-03-21T07:38:59+00:00</updated>
+    <id>https://jvns.ca/blog/2014/03/21/my-rust-os-will-never-be-finished/</id>
+    <content type="html"><![CDATA[<p>In November/December last year, I spent 3 weeks working on a toy
+operating system in Rust. (for more, see
+<a href="http://jvns.ca/blog/2014/03/12/the-rust-os-story/">Writing an OS in Rust in tiny steps</a>,
+and <a href="http://jvns.ca/blog/categories/kernel/">more</a>).</p>
+
+<p>I wrote a ton of blog posts about it, and I gave a talk about the
+process at Mozilla last week
+(<a href="https://air.mozilla.org/rust-meetup-march-2014/">the video</a>). At
+that talk, a few people asked me if I was going to finish the project.
+I said no, and here&rsquo;s why.</p>
+
+<p>There are lots of reasons for working on programming projects. Just a
+few:</p>
+
+<ul>
+<li>to end up with useful code</li>
+<li>to learn something</li>
+<li>to explore a new concept (see: Bret Victor&rsquo;s demos)</li>
+</ul>
+
+<p>The reason I wrote an operating system in Rust wasn&rsquo;t so that I could
+have an operating system written in Rust.
+
+I already have an kernel on
+my computer (Linux), and other people have already written Rust
+operating systems better than I have. Any code that I write in 3 weeks
+is at best a duplication of someone else&rsquo;s work, and mimicking
+the state of the art 20 years ago.</p>
+
+<p>I worked on that project to learn about how operating systems work,
+and that was a huge success. I read a 20-part essay about linkers, and
+learned about virtual memory, how executables are structured, how
+program execution works, how system calls work, the x86 boot process,
+interrupt handlers, keyboard drivers, and a ton of other things.</p>
+
+<p>Another amazing example of a project like this is
+<a href="http://twitter.com/kellabyte">@kellabyte</a>&rsquo;s
+<a href="https://github.com/kellabyte/Haywire">Haywire</a>, a HTTP server in C
+she wrote to learn more about writing performant code. It actually
+compiles and you can benchmark it yourself, but her blog posts are
+more useful to me than her code &ndash;
+<a href="http://kellabyte.com/2013/08/16/hello-haywire/">Hello haywire</a>
+<a href="http://kellabyte.com/2013/08/20/http-response-caching-in-haywire/">HTTP response caching in Haywire</a>,
+<a href="http://kellabyte.com/2013/08/22/further-reducing-memory-allocations-and-use-of-string-functions-in-haywire/">Further reducing memory allocations and use of string functions in Haywire</a>.</p>
+
+<p>So when people ask me why my code doesn&rsquo;t compile, it&rsquo;s because the
+code is basically a trivial output of the process. The
+<a href="http://jvns.ca/blog/categories/kernel/">blog posts I wrote</a> are
+<em>much</em> more important, because they talk about what I learned. My code
+probably won&rsquo;t be useful to you &ndash; it would be better to start with
+<a href="https://github.com/charliesome/rustboot">rustboot</a> and take your own
+path.</p>
+
+<p>Not finishing your project doesn&rsquo;t mean it&rsquo;s not a success. It depends
+what your goals are the for the project! I wrote an operating system
+in Rust to learn, and I learned a ton. It&rsquo;s not finished, and it won&rsquo;t
+be. How could it ever be? I hope to not ever finish learning.</p>]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Writing an OS in Rust in tiny steps (Steps 1-5)]]></title>
+    <link href="https://jvns.ca/blog/2014/03/12/the-rust-os-story/"/>
+    <updated>2014-03-12T07:09:10+00:00</updated>
+    <id>https://jvns.ca/blog/2014/03/12/the-rust-os-story/</id>
+    <content type="html"><![CDATA[<p>I&rsquo;m giving a talk tomorrow on writing a kernel in Rust.</p>
+
+<p>My experience of writing a kernel that it was like jumping in puddles:
+it&rsquo;s a lot of fun, and there are a lot of mishaps:</p>
+
+<p><img src="/images/puddle.gif"></p>
+
+<p>Here are a few of the tiny steps I took. There are more, but those
+will have to wait for the evening.</p>
+
+<p></p>
+
+<h3 id="step-1-copy-some-code-from-the-internet">Step 1: copy some code from the internet</h3>
+
+<p>I didn&rsquo;t know what I was doing, so I didn&rsquo;t want to start from
+scratch! So I started with something that already existed! Behold
+<a href="https://github.com/charliesome/rustboot">rustboot</a>, a tiny 32-bit
+kernel written in Rust.</p>
+
+<p>Rustboot does only two things, but it does them well!</p>
+
+<ol>
+<li>Turn the screen red</li>
+<li>Hang</li>
+</ol>
+
+<p>Of course what it actually does is a bit more complicated &ndash; there&rsquo;s</p>
+
+<ul>
+<li>a loader written in assembly</li>
+<li>a Makefile that lets you run it with <code>qemu</code></li>
+<li>Some Rust code to clear the screen</li>
+</ul>
+
+<p>Here&rsquo;s the code that clears the screen:</p>
+
+<pre><code>unsafe fn clear_screen(background: Color) {
+    range(0, 80*25, |i| {
+        *((0xb8000 + i * 2) as *mut u16) = (background as u16) &lt;&lt; 12;
+    });
+}
+</code></pre>
+
+<p>What does this mean? The key part here is that the address of the VGA
+buffer is <code>0xb8000</code>, so we&rsquo;re setting some bytes there. And there&rsquo;s a
+loop.</p>
+
+<h3 id="step-2-turn-the-screen-blue-instead">Step 2: Turn the screen blue instead.</h3>
+
+<p>The first thing I did was:</p>
+
+<ol>
+<li>Make sure I could run <code>rustboot</code>.</li>
+<li>Change &lsquo;red&rsquo; to &lsquo;blue&rsquo; and run it again</li>
+</ol>
+
+<p>This sounds silly, but psychologically it&rsquo;s an important step! It
+forced me to look at the code and understand how it worked, and it was
+really exciting that it worked right away.</p>
+
+<h3 id="step-3-start-writing-i-o-functions">Step 3: Start writing I/O functions</h3>
+
+<p>The next obvious step now that I had a blue screen was to try to write
+a <code>print</code> function.</p>
+
+<p>Here&rsquo;s what it looked like!</p>
+
+<pre><code>pub fn putchar(x: u16, y: u16, c: u8) {
+    let idx : uint =  (y * VGA_WIDTH * 2 + x * 2) as uint;
+    unsafe {
+        *((VGA_ADDRESS + idx) as *mut u16) = make_vgaentry(c, fg_color, bg_color);
+    }
+}
+</code></pre>
+
+<p>I didn&rsquo;t explain the <code>unsafe</code> block before. Everything inside
+<code>unsafe{}</code> is <em>unsafe</em> code. This particular code is unsafe because it
+accesses a memory address directly. Wrapping it in an unsafe block
+tells Rust &ldquo;okay, I checked and I promise this code is actually doing
+the right thing and won&rsquo;t blow anything up&rdquo;.</p>
+
+<p>We can also look at <code>make_vgaentry</code>:</p>
+
+<pre><code>fn make_vgaentry(c: u8, fg: Color, bg: Color) -&gt; u16 {
+    let color = fg as u16 | (bg as u16 &lt;&lt; 4);
+    return c as u16 | (color &lt;&lt; 8);
+}
+</code></pre>
+
+<p>In the VGA buffer, each character is represented by 2 bytes (so a
+<code>u16</code>). The lower 8 bits are the ASCII character, and the upper 8 bits
+are the foreground and background colour (4 bits each). <code>Color</code> here
+is an enum so that I can refer to Red or Green directly.</p>
+
+<p>I found this part pretty approachable and it didn&rsquo;t take too long.
+Which isn&rsquo;t to say that I didn&rsquo;t have problems! I had SO MANY
+PROBLEMS. Most of my problems were to do with arrays and string and
+iterating over strings. Here&rsquo;s some code that caused me much pain:</p>
+
+<pre><code>pub fn write(s: &amp;str) {
+    let bytes : &amp;[u8] = as_bytes(s);
+    for b in super::core::slice::iter(bytes) {
+        putc(*b);
+    }
+}
+</code></pre>
+
+<p>This code looks simple! It is a lie.
+Friends. Here were some questions that I needed to ask to write this code.</p>
+
+<ul>
+<li>How do I turn a string into a byte array? (<code>as_bytes()</code>)</li>
+<li>What is the type of a byte array? (<code>&amp;[u8]</code>)</li>
+<li>How do I iterate over a byte array? (+ &ldquo;it still doesn&rsquo;t work!&rdquo;, 4 times)</li>
+</ul>
+
+<p>Also, what is this <code>super::core::slice::iter</code> business? This brings us
+to a fairly long digression, and an important point</p>
+
+<h3 id="why-you-can-t-write-a-kernel-in-python">Why you can&rsquo;t write a kernel in Python</h3>
+
+<p>So you want to write an operating system, let&rsquo;s say for x86. You need
+to write this in a programming language!</p>
+
+<p>Can you write your operating system in Python (using CPython, say)?
+You cannot. This is not being curmudgeonly! It is actually just not
+possible.</p>
+
+<p>What happens when you write <code>print &quot;Hello!&quot;</code> in Python?</p>
+
+<p>Well, many things happen. But the <em>last</em> thing that happens is that
+the CPython interpreter will do something like <code>printf(&quot;Hello&quot;)</code>. And
+you might think, well, maybe I could link against the code for
+<code>printf</code> somehow!</p>
+
+<p>But what <code>printf</code> does is it calls the <code>write()</code> system call. The
+<code>write()</code> system call is implemented IN YOUR KERNEL.</p>
+
+<p>OH WAIT YOU DON&rsquo;T HAVE A KERNEL YET. YOU ARE WRITING ONE.</p>
+
+<p>This also means that you can&rsquo;t write a kernel as a &ldquo;normal&rdquo; C program
+which includes C libraries. Any C libraries. All C libraries for Linux
+are built on top of some version of <code>libc</code>, which makes calls to the
+Linux kernel! So if you&rsquo;re <em>writing</em> a kernel, this doesn&rsquo;t work.</p>
+
+<h3 id="why-you-can-write-a-kernel-in-rust">Why you <em>can</em> write a kernel in Rust</h3>
+
+<p>Writing Rust code has many of the same problems, of course! By
+default, if you compile a Rust program with a print statement, it will
+call your kernel&rsquo;s equivalent to <code>write</code>.</p>
+
+<p>But! Unlike with Python, you can put <code>#[no_std]</code> at the beginning of
+your Rust program.</p>
+
+<p>You lose a lot! You can no longer</p>
+
+<ul>
+<li>allocate memory</li>
+<li>do threading</li>
+<li>print anything</li>
+<li>many many more things</li>
+</ul>
+
+<p>It&rsquo;s still totally fine to define functions and make calculations,
+though. And you can of course define your own functions to allocate
+memory.</p>
+
+<p>You also lose things like Rust&rsquo;s iterators, which is sad!</p>
+
+<h3 id="rust-core">rust-core</h3>
+
+<p><a href="https://github.com/thestinger/rust-core">rust-core</a> is &ldquo;a standard
+library for Rust with freestanding support&rdquo;. What this means is that
+if you&rsquo;re writing an OS, <code>rust-core</code> will provide you with all kinds
+of helpful data structures and functions that you lost when you wrote
+<code>#[no_std]</code>.</p>
+
+<p>I found using this library pretty confusing, but the author hangs out
+in IRC all the time and was really friendly to me, so it wasn&rsquo;t a huge
+problem.</p>
+
+<p>So back to <code>super::core::slice::iter</code>! This says &ldquo;iterate over this
+using an iteration function from <code>rust-core</code>&ldquo;</p>
+
+<h3 id="step-4-keyboard-interrupts">Step 4: keyboard interrupts!</h3>
+
+<p>So it took me a few days to learn how to print because I needed
+to learn about freestanding mode and get confused about rust-core and
+at the same time I didn&rsquo;t really understand Rust&rsquo;s types very well.</p>
+
+<p>Once that was done, I wanted to be able to do the following:</p>
+
+<ol>
+<li>Press a key (&lsquo;j&rsquo; for example)</li>
+<li>Have that letter appear on the screen.</li>
+</ol>
+
+<p>I thought this wouldn&rsquo;t be too hard. I was pretty wrong.</p>
+
+<p>I wrote about what went wrong in
+<a href="http://jvns.ca/blog/2013/12/04/day-37-how-a-keyboard-works/">After 5 days, my OS doesn&rsquo;t crash when I press a key</a>.</p>
+
+<p>It lists all my traumas in excruciating detail and I won&rsquo;t repeat them
+here. Go read it. It&rsquo;s kinda worth it. I&rsquo;ll wait.</p>
+
+<h3 id="step-5-malloc">Step 5: malloc!</h3>
+
+<p>After I&rsquo;d done that, I thought it might be fun to be able to allocate
+memory.</p>
+
+<p>You may be surprised at this point. We have printed strings! We have
+made our keyboard work! Didn&rsquo;t we need to allocate memory? Isn&rsquo;t
+that&hellip; <em>important</em>?</p>
+
+<p>It turns out that you can get away without doing it pretty easily!
+Rust would automatically create variables on the stack for me, so I
+could use local variables. And for anything else I could use global
+variables, and the space for those was laid out at compile time.</p>
+
+<p>But allocating memory seemed like a fun exercise. To allocate
+something on the heap in Rust, you can do</p>
+
+<p><code>let a = ~2</code></p>
+
+<p>This creates a pointer to a <code>2</code> on the heap. Of course, we talked
+before about how there is no malloc! So I wrote one, and then made
+sure that Rust knew about it.</p>
+
+<p>You can see the <code>malloc</code> function I wrote in
+<a href="http://jvns.ca/blog/2013/12/10/day-39-i-wrote-a-malloc/">Writing malloc wrong, for fun</a></p>
+
+<p>The hardest parts of this were not writing the function, but</p>
+
+<ul>
+<li>getting the type right</li>
+<li>Understanding how Rust&rsquo;s language features can be turned on and off.</li>
+</ul>
+
+<p>WHAT DO YOU MEAN TURNED ON AND OFF, you may ask!</p>
+
+<p>So in <code>rust-core</code>, if you go to
+<a href="https://github.com/thestinger/rust-core/blob/85c28bb64ec093aff9e3f81110200793c6291467/core/heap.rs#L32">heap.rs</a>,
+you&rsquo;ll see this code:</p>
+
+<pre><code>#[lang = &quot;exchange_malloc&quot;]
+pub unsafe fn alloc(size: uint) -&gt; *mut u8 {
+    if size == 0 {
+        0 as *mut u8
+    } else {
+        let ptr = malloc(size);
+        if ptr == 0 as *mut u8 {
+            out_of_memory()
+        }
+        ptr
+    }
+}
+</code></pre>
+
+<p>This weird-looking <code>#[lang = &quot;exchange_malloc&quot;]</code> bit means &ldquo;Code like
+<code>let x = ~2</code> is now allowed to work&rdquo;. It requires there to be an
+implementation of <code>malloc</code>, which I wrote. It also needs implements of
+<code>realloc</code> and <code>free</code>, but I left those blank :)</p>
+
+<p>Before seeing that, Rust would not compile code that allocated memory.</p>
+
+<p>I think this language feature gating is really cool: it means that you
+can write Rust programs that can allocate memory, but not do
+threading. Or that can do hardly anything at all!</p>
+
+<p>I need to get up now.</p>
+
+<p><strong>Next up:</strong> running problems! AND SOMETHING IS ERASING MY PROGRAM WHILE
+IT IS RUNNING.</p>]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 39: Writing malloc wrong, for fun]]></title>
+    <link href="https://jvns.ca/blog/2013/12/10/day-39-i-wrote-a-malloc/"/>
+    <updated>2013-12-10T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/12/10/day-39-i-wrote-a-malloc/</id>
+    <content type="html"><![CDATA[<p>My major achievement for today is writing the following five lines of
+code:</p>
+
+<pre><code>let a: ~u8 = ~('A' as u8);
+stdio::putc(*a);
+let b: ~u8 = ~('B' as u8);
+stdio::putc(*a);
+stdio::putc(*b);
+</code></pre>
+
+<p>and having them do the wrong thing. One would normally expect this to
+print &ldquo;AAB&rdquo;. But for me, right now, until I stop goofing off, it
+prints &ldquo;ABB&rdquo;. Why is that?</p>
+
+<p>Well, it&rsquo;s because my <code>malloc</code> implementation looks like this:</p>
+
+<pre><code>static mut base: uint = 0x200000;
+pub extern &quot;C&quot; fn malloc(len: uint) -&gt; *mut u8 {
+    unsafe {
+        let ret: uint = base;
+        return base as *mut u8;
+   }
+}
+</code></pre>
+
+<p>This means that every time I allocate memory, I get the same pointer
+back, and so <code>a</code> and <code>b</code> will always be equal no matter what. And for
+that matter any variable I create will always have the same value.
+This is of course a terrible idea in real life, but it is <em>really
+fun</em>.</p>
+
+<p>Here&rsquo;s my real <code>malloc</code> function (that causes the above code to print
+&ldquo;AAB&rdquo;, like it should):</p>
+
+<pre><code>pub extern &quot;C&quot; fn malloc(len: uint) -&gt; *mut u8 {
+    unsafe {
+        let ret: uint = base;
+        base += len + size_of::&lt;uint&gt;();
+
+        // Align next allocation to 4-byte boundary.
+        if(base % 4 != 0) {
+            base += 4 - (base % 4);
+        }
+
+        *(base as *mut uint) = len;
+
+        return (ret + size_of::&lt;uint&gt;()) as *mut u8;
+    }
+}
+
+pub extern &quot;C&quot; fn free(ptr: *mut u8) {
+    // meh.
+}
+</code></pre>
+
+<p>The hardest part about this was not actually writing <code>malloc</code>. Writing
+<code>malloc</code> is easy, as long as you never need to free memory. I also
+just wrote this by copying it from a C implementation. You just need
+to keep a counter and keep incrementing it.</p>
+
+<p>The hard part was getting the type of the function right, because Rust
+:). This is entirely made up for by being able to play silly memory
+games.</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 38: After 6 days, I have problems that I can&#39;t understand at all]]></title>
+    <link href="https://jvns.ca/blog/2013/12/06/day-38-after-7-days/"/>
+    <updated>2013-12-06T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/12/06/day-38-after-7-days/</id>
+    <content type="html"><![CDATA[<p>tl;dr: I expect <code>NUMS[2]</code> to equal <code>NUMS[keycode]</code> when <code>keycode ==
+2</code>. This doesn&rsquo;t appear to be the case, and I don&rsquo;t understand how
+this is possible.</p>
+
+<p>I&rsquo;m trying to set up keycode handling in my kernel, and I&rsquo;m having a
+strange problem with array indexing that I can&rsquo;t really fathom at all
+(except &ldquo;something is wrong&rdquo;).</p>
+
+<p>When I run this code, and press <code>1</code> several times, it prints <code>|2C |2C |2C |2C |2C |2C |2C |2C |2C</code>.</p>
+
+<p>I am expecting it to print <code>|2C2|2C2|2C2|2C2|2C2|2C2|2C2|2C2|2C2|</code>.</p>
+
+<p>Here is the code:</p>
+
+<pre><code>// some imports removed
+static NUMS: &amp;'static [u8] = bytes!(&quot;01234567890&quot;);
+
+#[no_mangle]
+pub unsafe fn _interrupt_handler_kbd() {
+    let keycode: u8 = inb(0x60);
+    if (keycode == 2 || keycode == 3) {
+        stdio::putc(NUMS[2]); // should be '2'. It is.
+        stdio::putc(65 + keycode); // should be 'C' (keycode = 2), because 'A' is 65 
+        stdio::putc(NUMS[keycode]); // should be '2', BUT IT ISN'T. IT IS SOMETHING ELSE. HOW IS THIS HAPPENING. 
+        stdio::putc(124); /// this is '|', just as a delimiter.
+    }
+    outb(0x20, 0x20); // Tell the interrupt handler that we're done.
+}
+</code></pre>
+
+<p>To summarize:</p>
+
+<ul>
+<li>the <code>2</code> is printed by <code>putc(NUMS[2])</code></li>
+<li>the <code>C</code> is printed by <code>putc(65 + keycode)</code>. This implies that <code>keycode == 2</code>, since 65 is &lsquo;A&rsquo;</li>
+<li>the blank space is printed by <code>putc(NUMS[keycode])</code>. I would expect this to print <code>2</code>. But no.</li>
+</ul>
+
+<p>For bonus points, if I replace <code>if (keycode == 2 || keycode == 3) {</code>
+with <code>if(keycode == 2) {</code>, then it prints
+<code>|2C2|2C2|2C2|2C2|2C2|2C2|2C2|2C2|2C2|</code>, which is right. I think this
+is because of a compiler optimization replacing <code>keycode</code> with <code>2</code>.</p>
+
+<p>If you have <code>qemu</code> and a nightly build of <code>rust</code> installed, you can
+run this code by doing</p>
+
+<pre><code>git clone git@github.com:jvns/rustboot.git
+cd rustboot
+git checkout origin/compiler-nonsense
+git submodule init
+git submodule update
+make run
+</code></pre>
+
+<p>Some hypotheses:</p>
+
+<ul>
+<li>There&rsquo;s something wrong with the Rust compiler</li>
+<li>There&rsquo;s something wrong with the stack and how I&rsquo;m calling
+<code>_interrupt_handler_kbd</code></li>
+<li>?????????</li>
+</ul>
+
+<p>I also can&rsquo;t yet find the address of <code>_interrupt_handler_kbd</code> to look
+at the assembly to debug. It&rsquo;s in the symbol table of the original
+object file (<code>main.o</code>), but after linking it&rsquo;s not in <code>main.bin</code>, so I
+can&rsquo;t set a breakpoint in gdb.</p>
+
+<p>Ack.</p>
+
+<p><strong>Edit:</strong> <a href="http://brian.mastenbrook.net/">Brian Mastenbrook</a> suggested
+to link using ELF and then use objcopy to create a binary, and that
+somehow magically fixed the problem
+(<a href="https://github.com/jvns/rustboot/commit/2dab3a8ca693a1754b498f05472670e15343bb07">this commit</a>).
+If anyone can explain why, I would be Extremely Interested.</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 37: After 5 days, my OS doesn&#39;t crash when I press a key]]></title>
+    <link href="https://jvns.ca/blog/2013/12/04/day-37-how-a-keyboard-works/"/>
+    <updated>2013-12-04T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/12/04/day-37-how-a-keyboard-works/</id>
+    <content type="html"><![CDATA[
+
+<p>Right now I&rsquo;m working towards being able to:</p>
+
+<ol>
+<li>press keys on my keyboard</li>
+<li>having the OS not crash</li>
+<li>and have the key I pressed be echoed back</li>
+</ol>
+
+<p>I just achieved step 2, and this has been kind of a saga, so here&rsquo;s an
+explanation of the blood and tears involved. First up, some resources
+that really helped me out:</p>
+
+<ul>
+<li>The fantastic <a href="http://wiki.osdev.org/Main_Page">OSDev wiki</a>.</li>
+<li>This
+<a href="http://www.osdever.net/bkerndev/Docs/idt.htm">tutorial on how to make a basic x86 kernel</a>,
+especially the IDT page.</li>
+<li>This <a href="https://github.com/pcmattman/rustic/">other Rust kernel</a>,
+mostly for Rust coding style.</li>
+<li>Most of all: the OSDev wiki page
+<a href="http://wiki.osdev.org/I_Cant_Get_Interrupts_Working">&ldquo;I Can&rsquo;t Get Interrupts Working&rdquo;</a>.
+Read this three times every time you have a problem. For real.</li>
+</ul>
+
+<p>So here&rsquo;s how I did it. There were a lot of pitfalls. Notably absent
+are the hours I spent in the Rust IRC channel being confused about
+types.</p>
+
+<h3 id="how-to-get-interrupts-working-julia-s-way">How To Get Interrupts Working, Julia&rsquo;s Way</h3>
+
+<ol>
+<li>Create a Global Descriptor Table (GDT) and load it (<a href="https://github.com/jvns/rustboot/blob/b845c49358e6f789636a0ce763406fa5200403a5/src/loader.asm#L67">source</a>)</li>
+<li><a href="http://wiki.osdev.org/Protected_mode">Switch from Real Mode to Protected Mode</a>.
+This involves turning interrupts off (<code>cli</code>).</li>
+<li>Create a Interrupt Descriptor Table (IDT) and load it.</li>
+<li>Put interrupt handlers into my table.</li>
+<li>Press keys. Nothing happens. Hours pass. Realize interrupts are
+turned off and I need to turn them on.</li>
+<li>Turn interrupts on (<code>sti</code>).</li>
+<li>Press a key. The OS crashes. Continue experimenting in this
+vein for some time. Still crashing.</li>
+<li>Take the advice from <a href="http://wiki.osdev.org/I_Cant_Get_Interrupts_Working">&ldquo;I Can&rsquo;t Get Interrupts Working&rdquo;</a>
+and trigger the interrupts <strong>manually</strong> (with <code>int 1</code>) before
+turning interrupts back on and trying it for real. Get my interrupt
+descriptor table not broken. Sweet.</li>
+<li>Turn interrupts on (<code>sti</code>).</li>
+<li>The OS AGAIN crashes every time i press a key. Read &ldquo;I Can&rsquo;t
+Get Interrupts Working&rdquo; again. This is called &ldquo;I&rsquo;m receiving EXC9
+instead of IRQ1 when striking a key?!&rdquo; Feel on top of this.</li>
+<li><a href="http://wiki.osdev.org/PIC">Remap the PIC</a> so that interrupt <code>i</code>
+gets mapped to <code>i + 32</code>, because of an Intel design bug. This
+<em>basically</em> looks like just typing in a bunch of random numbers,
+but it works.</li>
+<li>THE OS IS STILL CRASHING WHEN I PRESS A KEY. This continues for 2
+days.</li>
+<li>Remember that now that I have remapped interrupt 1 to interrupt 33
+and I need to update my IDT.</li>
+<li>Update my IDT.</li>
+<li>Press a key. My interrupt handler runs. Practically faint with joy.</li>
+<li>But it only runs the first time I press a key, not the second
+time. This is the section &ldquo;I can only receive one IRQ&rdquo;</li>
+</ol>
+
+<p>As far as I can tell this is all totally normal and just how OS
+programming is. Or something. Hopefully by the end of the week I will
+get past &ldquo;I can only receive one IRQ&rdquo; and into &ldquo;My interrupt handler
+is the bomb and I can totally write a keyboard driver now&rdquo;.</p>
+
+<p>Then I&rsquo;m going to write a keyboard driver where in addition to doing
+normal keyboard driver things, it changes the screen colour every time
+I press a key. (<a href="http://kate.io">Kate</a>&rsquo;s idea)</p>
+
+<p>I&rsquo;m seriously amazed that operating systems exist and are available
+for free.</p>
+
+<p><strong>Edit:</strong> Thanks for all the help everyone! I&rsquo;ve solved &ldquo;It only runs
+the first time I press a key&rdquo; now and moved on to new problems :)</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 36: On programming without malloc]]></title>
+    <link href="https://jvns.ca/blog/2013/12/03/day-36-programming-without-malloc/"/>
+    <updated>2013-12-03T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/12/03/day-36-programming-without-malloc/</id>
+    <content type="html"><![CDATA[<p>So right now I&rsquo;m working on writing a kernel in Rust. My current goal
+is to press keys on the keyboard and have them echoed to the screen.
+This is going okay! I anticipate being able to type by the end of the
+week.</p>
+
+<p>One thing that&rsquo;s interesting is that my expectations around what
+programs should be able to do is really different right now. Normally
+I write Python or other high-level languages, so my programs don&rsquo;t run
+too quickly, but have tons of resources available to them (the
+Internet, a standard library, memory allocation, garbage collection,
+&hellip;).</p>
+
+<p>Writing operating systems is totally different. This is kind of
+obvious, but actually doing it is really fascinating. My OS literally
+can&rsquo;t allocate memory, and there&rsquo;s no standard way to print (I have to
+write to the VGA buffer manually). I can still write loops, though, and
+in general writing Rust doesn&rsquo;t feel too unfamiliar. But I expect my
+code to run super fast, because it has no excuse not to :). Right now
+I definitely don&rsquo;t have timers or anything, so I&rsquo;m looping 80,000,000
+times to sleep.</p>
+
+<p>A few things that I can&rsquo;t do that I&rsquo;m used to being able to do:</p>
+
+<ul>
+<li>allocate memory</li>
+<li>print (I can sort of do this)</li>
+<li><code>sleep</code></li>
+<li>run other processes (there are no other programs)</li>
+<li>read from stdin (I don&rsquo;t have a keyboard driver yet. There is no stdin.)</li>
+<li>open files (there are no files)</li>
+<li>list files (there are no files)</li>
+</ul>
+
+<p>(thanks to <a href="http://instamatique.com/lea/">Lea</a> for &ldquo;there are no
+files&rdquo; =D)</p>
+
+<p>The only real problem with not having <code>malloc</code> is that all the memory
+I use has to either be</p>
+
+<ul>
+<li>in the program at compile time, or</li>
+<li>allocated on the stack</li>
+</ul>
+
+<p>This is less difficult than I expected it to be! We&rsquo;ll see how it
+continues. It does mean that I use a lot of global variables, and it&rsquo;s
+given me an appreciation for why there is so much use of global
+variables in the Linux kernel &ndash; if just need 1 struct, it makes so
+much more sense to just have 1 global struct than to keep <code>malloc</code>ing
+and <code>free</code>ing it all the time.</p>
+
+<p>Here&rsquo;s an example of some code I have in the kernel! <code>main()</code> prints
+all the ASCII characters in a loop.</p>
+
+<pre><code>pub unsafe fn putchar(x: u16, y: u16, c: u8) {
+    let idx : uint =  (y * VGA_WIDTH * 2 + x * 2) as uint;
+    // 0xb8000 is the VGA buffer
+    *((0xb8000 + idx) as *mut u16) = make_vgaentry(c, Black, Yellow);
+}
+
+fn make_vgaentry(c: u8, fg: Color, bg: Color) -&gt; u16 {
+    // VGA entries are 2 bytes. The first byte is the character, the
+    second is the colour
+    let color = fg as u16 | (bg as u16 &lt;&lt; 4);
+    return c as u16 | (color &lt;&lt; 8);
+}
+
+pub unsafe fn main() {
+    let mut i: u32 = 0;
+    let mut c: u8 = 65; // 'A'
+    let N: u32 = 80000000; // big enough number so that it goes slowly
+    loop {
+        i += 1;
+        if (i % N == 0) {
+            c += 1;
+            putchar(2, 4, c);
+        }
+    }
+}
+</code></pre>
+
+<p><small>
+Note for pedants: I actually do have a <code>malloc</code> function because my
+Rust standard library needs to link against it, but it&rsquo;s defined like
+this:</p>
+
+<pre><code>malloc:
+    jmp $
+</code></pre>
+
+<p>That&rsquo;s assembly-speak for &ldquo;loop forever&rdquo;. If I get around to
+implementing <code>malloc</code> it will be the Most Exciting Thing
+~~~
+</small></p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 35: Types in Rust, for beginners]]></title>
+    <link href="https://jvns.ca/blog/2013/12/02/types-in-rust/"/>
+    <updated>2013-12-02T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/12/02/types-in-rust/</id>
+    <content type="html"><![CDATA[
+
+<p>I found understanding Rust types really confusing, so I wrote up a
+small tutorial for myself in an attempt to understand some of them.
+This is by no means exhaustive. There is a
+<a href="http://static.rust-lang.org/doc/master/rust.html#type-system">types section</a>
+in the manual, but it has nowhere near enough examples.</p>
+
+<p>This assumes that you&rsquo;ve read the sections about
+<a href="http://static.rust-lang.org/doc/master/tutorial.html#ownership">owned</a>
+and
+<a href="http://static.rust-lang.org/doc/master/tutorial.html#borrowed-pointers">borrowed</a>
+pointers in the Rust tutorial, but not much else.</p>
+
+<p>I&rsquo;m not talking about managed pointers (<code>@</code>) at all. A lot of the
+difficulty with Rust types is that the language is constantly
+changing, so this will likely be out of date soon.</p>
+
+<p>First, a few preliminaries: it&rsquo;s easier to play with types if you have
+a REPL and can interactively check the types of objects. This isn&rsquo;t
+really possible in Rust, but there are workarounds.</p>
+
+<h2 id="to-start-out-some-help">To start out: some help</h2>
+
+<h3 id="how-to-get-a-rust-repl">How to get a Rust REPL</h3>
+
+<p>There is no working Rust REPL. However, you can use
+<a href="http://sprunge.us/ahKj">this script</a> to approximate one &ndash; it
+compiles what you put into it and prints the result. You can&rsquo;t use the
+results of what you did previously, though. Save as <code>rustci</code>.</p>
+
+<h3 id="how-to-find-the-type-of-a-variable">How to find the type of a variable</h3>
+
+<p><strong>Edit:</strong> The fantastic <a href="https://github.com/thestinger">Daniel Micay</a>
+showed me this function to find the type of a variable. It&rsquo;s included
+in the <code>rustci</code> script above, so you can just do</p>
+
+<p><code>let x = 2; type_of(&amp;x)</code></p>
+
+<p>to print the type of <code>2</code>. Amazing. Note that you have to call
+<code>type_of</code> with <code>&amp;x</code> and not <code>x</code>.</p>
+
+<p>The function is:</p>
+
+<pre><code>fn type_of&lt;T&gt;(_: &amp;T) -&gt; &amp;'static str {
+    unsafe {
+        (*std::unstable::intrinsics::get_tydesc::&lt;T&gt;()).name
+    }
+}
+</code></pre>
+
+<p><strong>Hackier approach:</strong></p>
+
+<p>You can also generate a compiler error with the type of a variable <code>y</code>
+like this:</p>
+
+<pre><code>fn y() {}
+let x: () = y;
+</code></pre>
+
+<p>It&rsquo;s a hack, but it will give you an error like this:</p>
+
+<pre><code>error: mismatched types: expected `()` but found `fn()` (expected () but found extern fn)
+</code></pre>
+
+<p>which tells us that the type of <code>f</code> is <code>fn()</code>.</p>
+
+<h2 id="the-types">The types!</h2>
+
+<h3 id="primitive-types">Primitive types</h3>
+
+<p>This is an incomplete list.</p>
+
+<p>Integers (signed and unsigned): <code>int</code>, <code>uint</code>, <code>i8</code>, <code>i16</code>, <code>i32</code>, <code>i64</code>, <code>u8</code>, <code>u16</code>, <code>u32</code>, <code>u64</code></p>
+
+<p>Floats: <code>f32</code>, <code>f64</code></p>
+
+<p>Booleans: <code>bool</code></p>
+
+<p><strong>Primitive type examples</strong></p>
+
+<pre><code>let x: uint = 2;
+let y: u8 = 40;
+let z: f32 = abc;
+</code></pre>
+
+<h3 id="vectors">Vectors</h3>
+
+<p>There are 3 possible types for a vector of <code>u8</code>: <code>[u8, ..N]</code>, <code>&amp;[u8]</code>, <code>~[u8]</code></p>
+
+<p><code>[u8]</code> by itself is not a type.</p>
+
+<p><code>[u8, ..5]</code> is a fixed-size vector of <code>u8</code> of length 5.</p>
+
+<p><strong>Vector Examples</strong></p>
+
+<pre><code>// Fixed size vector
+let x : [uint, ..10] = [5, ..10]; // [5,5,5,5,5,5,5,5,5,5]
+
+// Create a variable size owned vector
+let mut numbers1 : ~[uint]= ~[0, 1, 2, 3, 4, 5];
+
+// Create a variable size borrowed vector. This is also called a &quot;vector slice&quot;.
+let mut numbers2 : &amp;[uint]= &amp;[0, 1, 2];
+let mut slice: &amp;[uint] = numbers1.slice(0, 3);
+</code></pre>
+
+<h3 id="strings-and-characters">Strings and characters</h3>
+
+<p>Some string types include: <code>&amp;str</code>, <code>~str</code>, and <code>&amp;'static str</code>.</p>
+
+<p>A string is represented internally as a vector of bytes. However,
+<code>str</code> by itself is <em>not</em> a type, and there are no fixed-size strings.
+You can convert any of the string types to a byte vector <code>&amp;[u8]</code>.</p>
+
+<p><code>char</code> is a 32-bit Unicode character.</p>
+
+<p><strong>String Examples</strong></p>
+
+<pre><code>use std::option::Option;
+// Static string
+let hello: &amp;'static str = &quot;Hello!&quot;;
+let hello2: &amp;str = &quot;Hello!&quot;;
+
+// Owned string
+let owned_hello: ~str = ~&quot;Hello!&quot;;
+
+// Borrowed string
+let borrowed_hello = &amp;owned_hello;
+
+// Character
+let c: char = 'a';
+
+// Indexing into a string gives you a byte, not a character.
+let byte: u8 = owned_hello[1];
+
+// You need to create an iterator to get a character from a string.
+let c: Option&lt;char&gt; = owned_hello.chars().nth(2);
+
+// Switch to the string's representation as bytes
+let bytes: &amp;[u8] = owned_hello.as_bytes();
+</code></pre>
+
+<h3 id="functions">Functions</h3>
+
+<p>For a function <code>fn(a: A) -&gt; B</code></p>
+
+<p><code>fn(A)-&gt;B</code> is a type, So are <code>&amp;(fn(A)-&gt;B)</code>, <code>~(fn(A)-&gt;B)</code>, but you need to add parens right now.</p>
+
+<p>You probably only want to use <code>fn(A)-&gt;B</code>, though.</p>
+
+<p><strong>Function type examples</strong></p>
+
+<pre><code>fn foo(a: int) -&gt; f32 {
+    return 0.0;
+}
+let bar: fn(int) -&gt; f32 = foo; 
+let baz: &amp;(fn(int) -&gt; f32) = &amp;foo;
+</code></pre>
+
+<h3 id="closures">Closures</h3>
+
+<p>The type of a closure mapping something of type <code>A</code> to type <code>B</code> is <code>|A| -&gt; B</code>. A closure with no arguments or return values has type <code>||</code>.</p>
+
+<p><strong>Closure type examples</strong></p>
+
+<pre><code>let captured_var = 10; 
+let closure_no_args = || println!(&quot;captured_var={}&quot;, captured_var); 
+let closure_args = |arg: int| -&gt; int {
+  println!(&quot;captured_var={}, arg={}&quot;, captured_var, arg); 
+  arg
+};
+
+// closure_no_args has type ||
+// closure_args has type |int| -&gt; int
+
+fn call_closure(c1: ||, c2: |int| -&gt; int) {
+  c1();
+  c2(2);
+}
+
+call_closure(closure_no_args, closure_args);
+</code></pre>
+
+<h3 id="raw-pointers">Raw pointers</h3>
+
+<p>For any type <code>T</code>, <code>*T</code> is a type.</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[How to call Rust from assembly, and vice versa]]></title>
+    <link href="https://jvns.ca/blog/2013/12/01/how-to-call-rust-from-assembly/"/>
+    <updated>2013-12-01T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/12/01/how-to-call-rust-from-assembly/</id>
+    <content type="html"><![CDATA[
+
+<p>In the last few days I&rsquo;ve been working on a kernel in Rust. This has
+entailed learning about linkers and foreign function interfaces and
+all kinds of things.</p>
+
+<p>To learn this stuff, I read
+<a href="http://www.lurklurk.org/linkers/linkers.html">this guide to linkers</a>, looked
+at the
+<a href="http://static.rust-lang.org/doc/master/tutorial-ffi.html">Rust foreign function interface tutorial</a>,
+and asked a million questions on the Rust IRC channel.</p>
+
+<p>Disclaimer: even more than usual, some of this is probably wrong.</p>
+
+<p>So. Linkers.</p>
+
+<p>I have assembly functions that I need to call from Rust, and Rust
+functions I need to call from assembly. Everything gets compiled to
+assembly eventually, so this is a reasonable thing to do. As far as I
+understand it, a function call is just jumping to an address in memory
+and putting some stuff on the stack and in registers, and the code
+doesn&rsquo;t care at all if that address in memory comes from Rust or C or
+assembly or what.</p>
+
+<p>Some terminology:</p>
+
+<ul>
+<li>A <strong>calling convention</strong> is about how exactly the stuff gets put on
+the stack and in the registers. Rust and C have different calling
+conventions.</li>
+<li>An <strong>object file</strong> is what you get when you compile some source code
+to a library (using <code>gcc</code> or <code>nasm</code> or <code>rustc</code>). It ends in <code>.o</code></li>
+<li>A <strong>symbol</strong> is an identifier in a program, like a variable or
+function name. Object files have a <strong>symbol table</strong> and can refer to
+symbols in other object files.</li>
+<li>A <strong>linker</strong> (like <code>ld</code>) combines several object files into one
+binary, matching up their symbol tables.</li>
+</ul>
+
+<h3 id="calling-rust-from-assembly">Calling Rust from assembly</h3>
+
+<p>So here&rsquo;s an assembly function that calls a Rust function:</p>
+
+<pre><code>global  _interrupt_handler_kbd_wrapper
+extern _interrupt_handler_kbd
+
+_interrupt_handler_kbd_wrapper: 
+    pushad
+    call    _interrupt_handler_kbd
+    popad
+    iret
+</code></pre>
+
+<p><code>extern</code> says that <code>_interrupt_handler_kbd</code> isn&rsquo;t actually defined in
+this file, but that <code>nasm</code> shouldn&rsquo;t worry about it when assembling &ndash;
+it&rsquo;ll be fixed later. This is like a function declaration in C, except
+without the types.</p>
+
+<p>I haven&rsquo;t tested this yet so there&rsquo;s probably something wrong with it.
+But it compiles.</p>
+
+<h3 id="calling-assembly-from-rust">Calling assembly from Rust</h3>
+
+<p>External functions are defined in Rust again using the <code>extern</code>
+keyword (sound familiar? =D).</p>
+
+<p>I need to get the address of the <code>_interrupt_handler_kbd_wrapper</code> and
+<code>idt_load</code> functions in Rust, so I defined them like this:</p>
+
+<pre><code>extern {
+    fn _interrupt_handler_kbd_wrapper ();
+    fn idt_load(x: *IDTPointer);
+}
+</code></pre>
+
+<p>You&rsquo;ll notice that I needed to specify the types of the function&rsquo;s
+arguments. These don&rsquo;t have return values, but if they did I&rsquo;d need to
+write those types too.</p>
+
+<p>The type of <code>_interrupt_handler_kbd_wrapper</code> is <code>extern &quot;C&quot; unsafe
+fn()</code>. That&rsquo;s pretty complicated, but let&rsquo;s break it down:</p>
+
+<ul>
+<li><code>extern</code> means it&rsquo;s defined in another object file.</li>
+<li><code>&quot;C&quot;</code> is the <em>calling convention</em> which we mentioned before.</li>
+<li>We have no idea what the function could be doing, so it&rsquo;s <code>unsafe</code>.</li>
+</ul>
+
+<p>Then I can just call my <code>extern</code> functions like normal Rust functions.</p>
+
+<h3 id="putting-it-together-the-linker">Putting it together: the linker</h3>
+
+<p>I have a file named <code>linker.ld</code> that contains:</p>
+
+<pre><code>ENTRY(start)
+OUTPUT_FORMAT(binary)
+
+SECTIONS {
+    . = 0x7e00;
+
+    .text : {
+        *(.text)
+    }
+}
+</code></pre>
+
+<p>Then I run</p>
+
+<p><code>i386-elf-ld -T linker.ld runtime.o main.o isr_wrapper.o -o main.bin</code></p>
+
+<p>where <code>main.o</code> is my Rust file and <code>isr_wrapper.o</code> is my assembly
+file. You&rsquo;ll notice that now they have a <code>.o</code> extension &ndash; now they&rsquo;re
+&ldquo;object files&rdquo; and they&rsquo;re all assembly code.</p>
+
+<p>This <code>ld</code> command puts <code>main.o</code>, <code>runtime.o</code>, and <code>isr_wrapper.o</code>
+together into one binary. Basically this matches up symbols with the
+same name and makes it work. If an <code>extern</code> function I declare in a
+file doesn&rsquo;t exist, then I&rsquo;ll get a linker error like this:</p>
+
+<pre><code>main.o: In function `main':
+main.rc:(.text+0x1db): undefined reference to `_interrupt_handler_kbd_wrapper'
+</code></pre>
+
+<p>But this kind of linker error isn&rsquo;t scary any more! It just means that
+<code>_interrupt_handler_kbd_wrapper</code> isn&rsquo;t in the symbol table of any of
+the other object files we&rsquo;re linking.</p>
+
+<h3 id="how-to-look-at-an-object-file-s-symbol-table">How to look at an object file&rsquo;s symbol table</h3>
+
+<p>To see the symbols that are defined in <code>isr_wrapper.o</code>, I can use
+<code>objdump</code> like this:</p>
+
+<pre><code>bork@kiwi ~/w/h/rustboot&gt; objdump -t isr_wrapper.o
+
+isr_wrapper.o:     file format elf32-i386
+
+SYMBOL TABLE:
+00000000 l    df *ABS*  00000000 isr_wrapper.asm
+00000000 l    d  .text  00000000 .text
+00000000         *UND*  00000000 _interrupt_handler_kbd
+00000000 g       .text  00000000 _interrupt_handler_kbd_wrapper
+00000008 g       .text  00000000 idt_load
+</code></pre>
+
+<p>You can see here that I&rsquo;ve defined <code>_interrupt_handler_kbd_wrapper</code>
+and <code>idt_load</code>, but that <code>_interrupt_handler_kbd</code> is undefined and
+needs to be defined in another file.</p>
+
+<p>You can also use <code>objdump -T</code> to look at a dynamically linked <code>.so</code>
+file&rsquo;s symbol table. We&rsquo;re not talking about dynamic linking today =).
+For example <code>objdump -T  /usr/lib32/libm.so</code> shows me the math
+library&rsquo;s symbol table. COOL.</p>
+
+<p>That&rsquo;s all!</p>
+
+<p><small>
+You may notice that it doesn&rsquo;t really make sense to call
+<code>_interrupt_handler_kbd_wrapper</code> from Rust. I&rsquo;m not actually calling
+it, I just need to refer to it so I can store its address.
+</small></p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Writing a kernel using rustboot &amp; rust-core]]></title>
+    <link href="https://jvns.ca/blog/2013/11/29/writing-an-os-using-rustboot-and-rust-core/"/>
+    <updated>2013-11-29T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/11/29/writing-an-os-using-rustboot-and-rust-core/</id>
+    <content type="html"><![CDATA[<p>Here I am again using the word &ldquo;kernel&rdquo; in a fairly broad sense :)</p>
+
+<p>So today <a href="http://www.cs.indiana.edu/~lkuper/">Lindsey Kuper</a>, one of
+the residents for next week, came by Hacker School! I spent some time
+a while ago trying to learn some Rust, but got discouraged by the
+scary pointers and ran away.</p>
+
+<p>But today she pointed out that Rust is for systems programming, and
+right now I <em>am</em> trying to write an operating system, and this would
+be the perfect time to pick it up again!</p>
+
+<p>So I started playing with
+<a href="https://github.com/charliesome/rustboot">rustboot</a>, which is a 32-bit
+kernel which turns the screen red and hangs. So far I&rsquo;ve made some
+minor changes &ndash; it now turns the screen <em>green</em> and hangs.</p>
+
+<p>But slightly more seriously, I also added a function to print
+characters to the screen!</p>
+
+<p><img src="/images/rustboot1.png"></p>
+
+<p>Here&rsquo;s the new code I added to do that:</p>
+
+<pre><code>unsafe fn putchar(x: u16, y: u16, c: u8) {
+    let idx : uint = (y * VGA_WIDTH * 2 + x) as uint;
+    // 0xb8000 is the VGA buffer
+    *((0xb8000 + idx) as *mut u16) = make_vgaentry(c, Black, Yellow);
+}
+
+fn make_vgaentry(c: u8, fg: Color, bg: Color) -&gt; u16 {
+    // Details of how VGA colours are stored
+    let color = fg as u16 | (bg as u16 &lt;&lt; 4);
+    return c as u16 | (color &lt;&lt; 8);
+}
+
+unsafe fn write(s: &amp;str, x: u16, y: u16) {
+    let bytes : &amp;[u8] = to_bytes(s);
+    let mut ix = x;
+    let mut iy = y;
+    let mut i = 0;
+    for b in core::slice::iter(bytes) {
+        putchar(ix, iy, *b);
+        if (ix &gt; VGA_WIDTH * 2) {
+            // line wrap
+            ix = ix - VGA_WIDTH * 2;
+            iy += 1;
+        }
+        i += 1;
+        ix += 2;
+    }
+}
+
+
+#[no_mangle]
+pub unsafe fn main() {
+    clear_screen(Green);
+    write(&quot;Hello!aaa&quot;, 2, 3);
+}
+</code></pre>
+
+<p>I like that I can write a loop like <code>for b in core::slice::iter(bytes)
+{</code>. I still don&rsquo;t know how string length is determined &ndash; it seems
+like instead of having null-terminated strings, Rust stores the size
+separately. I think.</p>
+
+<p>It&rsquo;s nice that I can write code like this without having an OS in the
+background. As I mentioned before, there were quite a few gotchas &ndash;
+for example, when I was trying to get the iterator to work, I got the
+cryptic error message <code>error: unreachable pattern</code>, which meant that I
+needed to add <code>use core::option::None</code>.</p>
+
+<p>In all to get iterators to work I need to add:</p>
+
+<pre><code>use core::mem::transmute; // for to_bytes()
+use core::slice::iter; // for the iterator
+use core::iter::Iterator; // for the loop
+use core::option::{Some, Option, None}; // for the loop
+mod core;
+</code></pre>
+
+<p>This small amount of accomplishment wouldn&rsquo;t have been remotely
+possible without the help of the lovely people on the #rust IRC
+channel &ndash; I had tons of issues using freestanding rust and rust-core,
+and the <a href="https://github.com/thestinger">rust-core maintainer</a> answered
+every single one of my questions. &lt;3.</p>
+
+<p>If you wanted to do this yourself, you could do something like:</p>
+
+<pre>
+sudo apt-get install qemu nasm
+git clone https://github.com/jvns/rustboot.git
+cd rustboot
+git checkout 1e0f2b02f45096e5300faf9e
+git clone https://github.com/thestinger/rust-core.git ~/rust-core
+ln -s ~/rust-core/core .
+make run
+</pre>
+
+<p>Oh! Also! That code prints 9 characters to the VGA buffer correctly,
+but if I try printing 10 characters, it doesn&rsquo;t work. I have no idea
+why. That will be for tomorrow.</p>
+]]></content>
+  </entry>
+  
+</feed>

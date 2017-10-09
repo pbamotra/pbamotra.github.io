@@ -1,0 +1,219 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>Weird unix thing: &#39;cd //&#39; - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="Weird unix thing: &#39;cd //&#39;">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2017/02/08/weird-unix-things-cd/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">Weird unix thing: &#39;cd //&#39;</h1>
+
+<div class="post-tags">
+  
+</div>
+<p class="meta">
+<time datetime="2017-02-08T23:37:12" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     
+
+<p>Today my friend Mat told me an interesting trivia fact about cd!</p>
+
+<p>Look at this interaction, where we try to <code>cd /tmp</code>, <code>cd //tmp</code>, and <code>cd ///tmp</code>, in bash and in fish.</p>
+
+<pre><code>bork@kiwi/&gt; bash
+bork@kiwi:/$ cd //tmp
+bork@kiwi://tmp$ echo $PWD
+//tmp
+bork@kiwi:/tmp$ cd ///tmp
+bork@kiwi:/tmp$ echo $PWD
+/tmp
+bork@kiwi://tmp$ fish
+Welcome to fish, the friendly interactive shell
+Type help for instructions on how to use fish
+bork@kiwi:/tmp&gt; cd //tmp
+bork@kiwi:/tmp&gt; echo $PWD
+/tmp
+</code></pre>
+
+<p>What is <code>//tmp</code>? What is happening? Why is <code>cd ///tmp</code> different from <code>cd //tmp</code>? Here&rsquo;s what we know so far:</p>
+
+<h3 id="are-and-the-same-file">are <code>/</code> and <code>//</code> the same file?</h3>
+
+<p>Yes. We can check this with <code>stat</code>. They both have the same inode number (256)
+so they are the same file.</p>
+
+<pre><code>bork@kiwi:~$ stat /
+  File: '/'
+  Size: 244       	Blocks: 0          IO Block: 4096   directory
+Device: 16h/22d	Inode: 256         Links: 1
+Access: (0755/drwxr-xr-x)  Uid: (    0/    root)   Gid: (    0/    root)
+Access: 2017-02-08 23:13:55.647187990 -0500
+Modify: 2017-01-10 13:01:30.987733887 -0500
+Change: 2017-01-10 13:01:30.987733887 -0500
+ Birth: -
+bork@kiwi:~$ stat //
+  File: '//'
+  Size: 244       	Blocks: 0          IO Block: 4096   directory
+Device: 16h/22d	Inode: 256         Links: 1
+Access: (0755/drwxr-xr-x)  Uid: (    0/    root)   Gid: (    0/    root)
+Access: 2017-02-08 23:13:55.647187990 -0500
+Modify: 2017-01-10 13:01:30.987733887 -0500
+Change: 2017-01-10 13:01:30.987733887 -0500
+ Birth: -
+</code></pre>
+
+<p>Cool. But what is <code>//</code>? Why doesn&rsquo;t bash just correct it to <code>/</code>?</p>
+
+<h3 id="the-specification">the specification</h3>
+
+<p>The specification for cd is <a href="http://pubs.opengroup.org/onlinepubs/9699919799/utilities/cd.html">here</a></p>
+
+<p>Here&rsquo;s the relevant section</p>
+
+<blockquote>
+<p>An implementation may further simplify curpath by removing any
+trailing &lt;slash&gt; characters that are not also leading &lt;slash&gt;
+characters, replacing multiple non-leading consecutive &lt;slash&gt;
+characters with a single &lt;slash&gt;, and replacing three or more leading
+&lt;slash&gt; characters with a single &lt;slash&gt;. If, as a result of this
+canonicalization, the curpath variable is null, no further steps shall
+be taken.</p>
+</blockquote>
+
+<p>So! We can replace &ldquo;three or more leading / characters with a single
+slash&rdquo;. That does not say anything about what to do when there are 2 <code>/</code>
+characters though, which presumably is why <code>cd //tmp</code> leaves you at
+<code>//tmp</code>.</p>
+
+<p>Why is this the specification? Mat pointed out there is a &ldquo;Rationale&rdquo;
+section in this spec, but it does not really explained.</p>
+
+<p>In another
+<a href="http://pubs.opengroup.org/onlinepubs/009604599/basedefs/xbd_chap04.html#tag_04_11">specification</a>, it says:</p>
+
+<blockquote>
+<p>A pathname that begins with two successive slashes may be interpreted
+in an implementation-defined manner</p>
+</blockquote>
+
+<p>So you can define <code>//tmp</code> to mean whatever you want? Like it could be different
+than <code>/tmp</code>? Why? Somebody on stack overflow said that this is related to the
+double slash in URLs (&ldquo;http://&ldquo;&hellip;) but didn&rsquo;t provide a citation. Is that
+true?</p>
+
+<p>If I find out, I will update this blog post with an answer.</p>
+
+<p><strong>update 1</strong>: there seems to be a pretty good answer in <a href="http://unix.stackexchange.com/questions/256497/on-what-systems-is-foo-bar-different-from-foo-bar/256569#256569">this stack overflow question</a></p>
+
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2017/02/08/weird-unix-things-cd/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2017/02/08/weird-unix-things-cd/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2017/02/12/neural-style/" title="Previous Post: How do these &#34;neural network style transfer&#34; tools work?">How do these &#34;neural network style transfer&#34; tools work?</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2017/02/07/mtu/" title="Next Post: How big can a packet get?">How big can a packet get?</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

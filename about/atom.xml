@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title><![CDATA[Julia Evans]]></title>
+  <link href="http://jvns.ca/atom.xml" rel="self"/>
+  <link href="http://jvns.ca"/>
+  <updated>0001-01-01T00:00:00+00:00</updated>
+  <id>http://jvns.ca</id>
+  <author>
+    <name><![CDATA[Julia Evans]]></name>
+  </author>
+  <generator uri="http://gohugo.io/">Hugo</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[About]]></title>
+    <link href="https://jvns.ca/about/"/>
+    <updated>0001-01-01T00:00:00+00:00</updated>
+    <id>https://jvns.ca/about/</id>
+    <content type="html"><![CDATA[
+
+<h3 id="about-this-blog">About this blog</h3>
+
+<p>This blog was once <a href="http://danluu.com/programming-blogs/">described</a> as</p>
+
+<blockquote>
+<p>AFAICT, the theme is “things Julia has learned recently”, which can be anything from <a href="http://jvns.ca/blog/2015/02/22/how-gzip-uses-huffman-coding/">Huffman coding</a> to how to be happy when working in a remote job. When the posts are on a topic I don’t already know, I learn something new. When they’re on a topic I know, they remind me that the topic is exciting and contains a lot of wonder and mystery.</p>
+
+<p>Many posts have more questions than answers, and are more of a live-blogged exploration of a topic than an explanation of the topic.</p>
+</blockquote>
+
+<p>This blog is about</p>
+
+<ul>
+<li>being delighted about programming.</li>
+<li>ZINES. well at least a little bit. I wrote <a href="http://jvns.ca/blog/2015/04/14/strace-zine/">a zine about strace</a> and if you read it, it would make my day.</li>
+<li>making technical topics easy to understand (<a href="http://jvns.ca/blog/2015/11/21/why-you-should-understand-a-little-about-tcp/">TCP!</a> <a href="http://jvns.ca/blog/2014/01/04/4-paths-to-being-a-kernel-hacker/">Kernel hacking!</a> <a href="http://jvns.ca/blog/2013/10/31/day-20-scapy-and-traceroute/">Traceroute!</a> <a href="http://jvns.ca/blog/2013/10/24/day-16-gzip-plus-poetry-equals-awesome/">gzip!</a> <a href="http://jvns.ca/blog/2014/09/27/how-does-sqlite-work-part-1-pages/">databases!</a>)</li>
+<li><a href="http://jvns.ca/blog/2014/06/13/asking-questions-is-a-superpower/">asking questions and getting better every day</a>.</li>
+<li>how being clear &amp; EXCITING is more important than sounding smart</li>
+<li>feelings, occasionally (<a href="http://jvns.ca/blog/2014/12/28/programming-doesnt-belong-to-men-it-belongs-to-me/">Programming doesn&rsquo;t belong to men (it belongs to me)</a>, <a href="http://jvns.ca/blog/2014/04/26/i-dont-feel-guilty-about-not-contributing-to-open-source/">why I don&rsquo;t feel guilty about not contributing to open source</a>)</li>
+<li>being a wizard. I wrote a guide to <a href="https://twitter.com/b0rk/status/638365065926811648">how to be a wizard programer</a>. it&rsquo;s like 3 steps but it takes probably 20 years.</li>
+</ul>
+
+<p>There&rsquo;s an occasionally-updated <a href="http://jvns.ca/blog/categories/favorite/">list of favorite posts</a>.</p>
+
+<p>If you want to comment on a blog post I write, I&rsquo;ll see it fastest if you <a href="https://twitter.com/b0rk">tweet at me</a>.</p>
+
+<p>Thank you for reading ❤.</p>
+
+<h3 id="about-me">About me</h3>
+
+<p>I live in Montreal. I work at Stripe, on infrastructure. I read all my email and try to respond. I sometimes give <a href="http://jvns.ca/talks">talks</a>.</p>
+
+<p>I have one main opinion about programming and it&rsquo;s &ndash; understanding the underlying systems you use (the kernel, the operating system, the network layers, your database, HTTP, whatever you&rsquo;re running on top of) is essential if you want to do amazing work and be able to fix hard problems. It&rsquo;s served me well so far.</p>
+
+<p>My happiest internet accomplishment to date is that someone gave out my strace zine to their operating systems class and tweeted a picture at me. omg.</p>
+
+<p>I spent the fall of 2013 at the <a href="http://recurse.com">Recurse Center</a>, which
+houses the best programming community I&rsquo;ve seen anywhere. I wrote down <a href="http://jvns.ca/categories/hackerschool/">what I
+did every day while there</a>, if you want to know what it&rsquo;s like.</p>
+
+<p>If you want to hire me and read &ldquo;thought, she lives in Montreal, too bad&rdquo;, you should probably go partner with the <a href="https://recurse.com/hire">Recurse Center</a> and hire someone amazing from there.</p>
+]]></content>
+  </entry>
+  
+</feed>

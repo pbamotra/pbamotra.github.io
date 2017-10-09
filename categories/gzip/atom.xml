@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title><![CDATA[Julia Evans]]></title>
+  <link href="http://jvns.ca/atom.xml" rel="self"/>
+  <link href="http://jvns.ca"/>
+  <updated>2013-10-24T00:00:00+00:00</updated>
+  <id>http://jvns.ca</id>
+  <author>
+    <name><![CDATA[Julia Evans]]></name>
+  </author>
+  <generator uri="http://gohugo.io/">Hugo</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[Day 16: gzip &#43; poetry = awesome]]></title>
+    <link href="https://jvns.ca/blog/2013/10/24/day-16-gzip-plus-poetry-equals-awesome/"/>
+    <updated>2013-10-24T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/10/24/day-16-gzip-plus-poetry-equals-awesome/</id>
+    <content type="html"><![CDATA[<p>Gzip compresses by replacing text with pointers to earlier parts of the text.
+Here&rsquo;s a visualization of what actually happens when you decompress &ldquo;The
+Raven&rdquo;. It highlights the bits of text that are copied from previously in the
+poem.</p>
+
+<p>I showed this as a Thursday talk at Hacker School today :) I really like how
+you can see the rhyming inside the poem like (rapping&hellip; tapping) come out in
+the compression algorithm.</p>
+
+<p>No sound, just gzip.</p>
+
+<p>You can try it out if you want by cloning
+<a href="https://github.com/jvns/gzip.jl">https://github.com/jvns/gzip.jl</a> and
+checking out the &lsquo;visualization&rsquo; branch.</p>
+
+<p><em>Edit:</em> Thanks to a suggestion in the comments, here&rsquo;s <a href="https://rawgithub.com/jvns/7155528/raw/ef9785f023fc68d78dc4f61e732007149eec1e69/raven.html">the whole poem</a> and <a href="http://rawgithub.com/jvns/7155528/raw/8b6e49a1fb99cb919a30a73262894d041e41ce91/hamlet-gzip.html">Hamlet</a>.</p>
+
+<iframe width="960" height="720" src="//www.youtube.com/embed/SWBkneyTyPU" frameborder="0" allowfullscreen></iframe>
+
+<p><em>Edit:</em> Some clarifications, for the interested:</p>
+
+<p>I implemented gunzip from scratch to learn how it works. This visualization is
+a small hack on top of that, just adding some print and sleep statements. You can
+see <a href="https://github.com/jvns/gzip.jl/blob/visualization/gzip.jl#L360">the source code</a>
+that produces it.</p>
+
+<p>This in fact shows how LZ77 compression works, which is the first step of gzip
+(or DEFLATE) compression. The second step is Huffman coding and isn&rsquo;t shown in
+the video at all :). If you want to know more,
+try this <a href="http://www.infinitepartitions.com/art001.html">excellent but very long page</a>.</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 13: Off by one errors]]></title>
+    <link href="https://jvns.ca/blog/2013/10/21/day-13-off-by-one-errors/"/>
+    <updated>2013-10-21T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/10/21/day-13-off-by-one-errors/</id>
+    <content type="html"><![CDATA[<p>Today I spent most of the day figuring out that</p>
+
+<pre><code>n_to_read = head.hlit + head.hdist + 257
+</code></pre>
+
+<p>should be</p>
+
+<pre><code>n_to_read = head.hlit + head.hdist + 258
+</code></pre>
+
+<p>And I still don&rsquo;t know why, exactly. In related news, I can now <em>almost</em>
+decompress gzipped files.</p>
+
+<p>I think the life lesson here is &ldquo;sometimes it takes forever to figure
+things out and it is no fun&rdquo; :)</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 11: How does gzip work?]]></title>
+    <link href="https://jvns.ca/blog/2013/10/16/day-11-how-does-gzip-work/"/>
+    <updated>2013-10-16T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/10/16/day-11-how-does-gzip-work/</id>
+    <content type="html"><![CDATA[<p>Spoiler: I don&rsquo;t really know yet, but there is a lot of mucking with bits.</p>
+
+<p>Yesterday I was flailing around a bit looking for projects. Today at
+lunch Kat helped me figure one out: writing a parallel version of
+<a href="http://en.wikipedia.org/wiki/Gzip">gzip</a> in
+<a href="http://julialang.org/">Julia</a>. Julia is a pretty good choice for this
+because it lets you do low-level bit-fiddling and write efficient
+algorithms, but still has lots of nice high-level features. It also looks
+a lot like Python!</p>
+
+<p>The document I&rsquo;m using to understand how gzip works is
+<a href="http://www.infinitepartitions.com/art001.html">this really detailed and wonderful page</a>.
+So if you actually want to know you should just read that.
+</p>
+
+<p>The basic idea behind gzip is</p>
+
+<ol>
+<li>use some not-so-complicated algorithms (Huffman coding, LZ77
+compression). These things <em>sound</em> like they would be the complicated
+part, but so far they don&rsquo;t seem to be too bad. Conceptually. I think.</li>
+<li>Do all kinds of bit fiddly things to actually make it efficient.</li>
+</ol>
+
+<p>Some choice things from the article (emphasis mine)</p>
+
+<ul>
+<li>&ldquo;hclen is the declaration of <em>four less than</em> how many 3-bit length
+codes follow&rdquo; (why four?!??)</li>
+<li>Everything is variable-length encoded, so instead of just having
+bytes, you have bit sequences of various lengths that you have to
+extract. Because efficiency. Huffman coding is what makes this
+variable-length encoding madness actually work.</li>
+<li>Every gzip file begins with the &ldquo;magic bytes&rdquo; <code>1F8B</code></li>
+</ul>
+
+<p>Here is a snippet of Julia code that I wrote to work on this! This code takes
+an array of 8 bits and converts it into a byte. By default Julia does some
+smart things like bounds checking, but you can make this even faster by
+preventing bounds checking with <code>@inbounds</code>.</p>
+
+<p>You can see that this kind of just looks like Python, except it is fast! (I
+promise)</p>
+
+<pre><code>function make_int(bv::BitVector)
+    num = 0x00
+    for i=1:length(bv)
+        num = (num &lt;&lt; 1) + bv[i]
+    end
+    return num
+end
+</code></pre>
+
+<p>That&rsquo;s it! Maybe tomorrow I will actually understand how gzip uses Huffman
+coding. So far I have <em>started</em> to decode the gzip header.</p>]]></content>
+  </entry>
+  
+</feed>

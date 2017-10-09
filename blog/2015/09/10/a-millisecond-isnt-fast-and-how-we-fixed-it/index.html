@@ -1,0 +1,225 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>A millisecond isn&#39;t fast (and how we made it 100x faster) - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="A millisecond isn&#39;t fast (and how we made it 100x faster)">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2015/09/10/a-millisecond-isnt-fast-and-how-we-fixed-it/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">A millisecond isn&#39;t fast (and how we made it 100x faster)</h1>
+
+<div class="post-tags">
+  
+  •
+  
+    <a class="post-tag" href="/categories/performance">performance</a> 	•
+  
+    <a class="post-tag" href="/categories/favorite">favorite</a> 	•
+  
+  
+</div>
+<p class="meta">
+<time datetime="2015-09-10T08:28:56" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     <p>Hi friends! For the first time today I&rsquo;m going to tell you about my DAY
+AT WORK (machine learning at Stripe) yesterday. =D. This is a
+collaboration with <a href="http://kamalmarhubi.com">Kamal Marhubi</a> who did this
+profiling with me after work because I was so mad about the performance.</p>
+
+<p>I used to think a millisecond was fast. At work, I have code that runs
+some VERY_LARGE_NUMBER of times. It&rsquo;s distributed and split up into
+tasks, and an individual task runs the code more than 6 million times.</p>
+
+<p>I wrote a benchmark for the Slow Code and found it could process
+~1000 records/s. This meant that processing 6 million things would take
+1.5 hours, which is Slow. The code is kind of complicated, so originally
+we all thought this was a reasonable amount of time. But my heart was
+sad.</p>
+
+<p>Yesterday <a href="https://twitter.com/avibryant">Avi</a> (who is the best) and I
+looked at why it was so damn slow (~1 millisecond/record) in some more
+depth. This code is open source so I can show it to you! We profiled using
+VisualVM and, after doing some optimizations, found out that it was
+spending all its time in <code>DenseHLL$x$6</code>. This is mystery Scala speak for
+this code block from Twitter&rsquo;s Algebird library that estimates the size of a HyperLogLog:</p>
+
+<pre><code class="language-scala">  lazy val (zeroCnt, z) = {
+    var count: Int = 0
+    var res: Double = 0
+
+    // goto while loop to avoid closure
+    val arr: Array[Byte] = v.array
+    val arrSize: Int = arr.size
+    var idx: Int = 0
+    while (idx &lt; arrSize) {
+      val mj = arr(idx)
+      if (mj == 0) {
+        count += 1
+        res += 1.0
+      } else {
+        res += java.lang.Math.pow(2.0, -mj)
+      }
+      idx += 1
+    }
+    (count, 1.0 / res)
+  }
+</code></pre>
+
+<p>from
+<a href="https://github.com/twitter/algebird/blob/c84d67836396757db881/algebird-core/src/main/scala/com/twitter/algebird/HyperLogLog.scala#L436-L455">HyperLogLog.scala</a></p>
+
+<p>This is a little inscrutable and I&rsquo;m not going to explain what this code
+does, but <code>arrSize</code> in my case is 4096. So basically, we have
+something like 10,000 floating point operations, and it takes about 1ms
+to do. I am still new to performance optimizations, but I discussed it
+with Kamal and we decided it was outrageous. Since this loop is <strong>hardly
+doing anything omg</strong>, the obvious target is <code>java.lang.Math.pow(2.0,
+-mj)</code>, because that looks like the hardest thing. (note: Java is pretty fast. if you are doing normal operations like adding and multiplying numbers it should go REALLY FAST. because <a href="http://jvns.ca/blog/2014/05/12/computers-are-fast/">computers are fast</a>)</p>
+
+<p>(note: <a href="https://gist.github.com/jboner/2841832">Latency Numbers Every Programmer Should Know</a> is great and useful in
+cases like this! Many CPU instructions take a nanosecond
+or something. so 10K of them should be on the order of 10 microseconds
+or so. Definitely not a millisecond.)</p>
+
+<p>Kamal and I tried two things: replacing <code>Math.pow(2, -mj)</code> with <code>1.0 / (1 &lt;&lt; mj)</code>, and writing a lookup table (since <code>mj</code> is a byte and has
+256 possible values, we can just calculate 2^(-mj) for every possible
+value up front).</p>
+
+<p>The final performance numbers on the benchmark we picked were:</p>
+
+<pre><code>math.pow:         0.8ms
+1.0 / (1 &lt;&lt; mj):  0.017ms (!)
+the lookup table: 0.008ms (!!!)
+</code></pre>
+
+<p>So we can literally make this code <strong>100 times faster</strong> by just changing
+one line. Avi simultaneously came to the same conclusions and
+made this pull request <a href="https://github.com/twitter/algebird/pull/491">Speed up HLL presentation by 100x</a>. Hooray!</p>
+
+<p>I&rsquo;m learning intuitions for when code is slower than it should be and it
+is THE BEST. Being able to say &ldquo;this code should not take 10s to process
+10,000 records&rdquo; is amazing. It is even more amazing when you can
+actually fix it.</p>
+
+<p><small>
+If you&rsquo;re interested in the rest of my day at work for some reason, I
+</small></p>
+
+<ul>
+<li><small>worked with someone on understanding which of our machine learning models are doing the most work for us</small></li>
+<li><small>wrote 2 SQL queries to help someone on the Risk team find accounts with suspicious activity</small></li>
+<li><small>wrangled Scala performance (this) so that we can generate training sets for our machine learning models without tearing our hair out</small></li>
+</ul>
+
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2015/09/10/a-millisecond-isnt-fast-and-how-we-fixed-it/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2015/09/10/a-millisecond-isnt-fast-and-how-we-fixed-it/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2015/10/31/papers-are-amazing-profiling-threaded-programs-with-coz/" title="Previous Post: PAPERS ARE AMAZING: Profiling threaded programs with Coz">PAPERS ARE AMAZING: Profiling threaded programs with Coz</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2015/09/06/is-machine-learning-safe-to-use/" title="Next Post: Is machine learning safe to use?">Is machine learning safe to use?</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

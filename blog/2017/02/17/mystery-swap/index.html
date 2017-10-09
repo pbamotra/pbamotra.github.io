@@ -1,0 +1,232 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>Swapping, memory limits, and cgroups - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="Swapping, memory limits, and cgroups">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2017/02/17/mystery-swap/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">Swapping, memory limits, and cgroups</h1>
+
+<div class="post-tags">
+  
+</div>
+<p class="meta">
+<time datetime="2017-02-17T19:47:27" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     
+
+<p>This week there was a bug at work, and I learned something new about
+memory &amp; swap &amp; cgroups!</p>
+
+<p>Understanding how memory usage works has been an ongoing project for a while &ndash; back in December, I
+wrote <a href="/blog/2016/12/03/how-much-memory-is-my-process-using-/">How much memory is my process using?</a>
+which explains how memory works on Linux.</p>
+
+<p>So I felt surprised and worried yesterday when something was happening
+with memory on Linux that I didn&rsquo;t understand! Here&rsquo;s the situation and
+why I was confused:</p>
+
+<p>We had some machines running builds. They were swapping. They had say
+30GB of RAM in total. 15GB was being used by some processes and 15GB by the
+filesystem cache. I was really confused about why these machines were
+swapping, because &ndash; I know about memory! If 15GB of memory is being
+used by the filesystem cache, the OS can always free that memory!
+There&rsquo;s no reason to swap!</p>
+
+<p>I then learned about the &ldquo;swappiness&rdquo; setting, and that if &ldquo;swappiness&rdquo;
+is high, then the OS is more likely to swap, even if it doesn&rsquo;t
+absolutely need to. We tried setting <code>sysctl vm.swappiness=1</code>, which
+lets you tell the operating system &ldquo;no, really, please don&rsquo;t swap, just
+take memory away from the filesystem cache instead&rdquo;. The machine
+continued to swap. I was confused.</p>
+
+<p>After a while, we turned off swap and things got worse. Some processes
+started being OOM killed. (the OOM killer on Linux will kill processes
+if you run out of memory) But why? The boxes had free memory, didn&rsquo;t
+they? In my head I had an axiom &ldquo;if a computer has free memory, there is
+no reason the processes on it should get OOM killed&rdquo;. Obviously there
+was something I did not understand.</p>
+
+<p>I finally looked at the output of <code>dmesg</code> (which is how you see messages the Linux
+kernel prints about what it&rsquo;s up to) to understand why the
+processes were being OOM killed. And then there was this magic word:
+<code>cgroups</code>. Everything became clear pretty quickly:</p>
+
+<ul>
+<li>the processes that were being killed were in a cgroup (which we talked
+about back in this <a href="http://jvns.ca/blog/2016/10/10/what-even-is-a-container/">namespaces &amp; groups</a> post)</li>
+<li>cgroups can have <strong>memory limits</strong>, which are like &ldquo;you are only
+allowed to use 15GB of memory otherwise your processes will get
+killed by the OOM killer&rdquo;</li>
+<li>and this memory limit was the reason the processes were being killed
+even though there was free memory!</li>
+</ul>
+
+<h3 id="swap-cgroup-memory-limits-a-little-surprising">swap + cgroup memory limits = a little surprising</h3>
+
+<p>My model of memory limits on cgroups was always &ldquo;if you use more than X
+memory, you will get killed right away&rdquo;. It turns out that that
+assumptions was wrong! If you use more than X memory, you can still use
+swap!</p>
+
+<p>And apparently some kernels also support setting separate swap limits.
+So you could set your memory limit to X and your swap limit to 0, which
+would give you more predictable behavior. Swapping is weird and
+confusing.</p>
+
+<p>Anyway, we found out through all this that the processes in question had
+recently started using much more memory for very understandable reasons,
+and rolled back that change, and everything made sense again.</p>
+
+<p>And more importantly than everything making sense, the build system was
+happy again.</p>
+
+<h3 id="does-swap-even-make-sense">does swap even make sense?</h3>
+
+<p>It&rsquo;s not completely clear to me under what circumstances having swap on
+a computer at all even makes sense. It seems like swap has some role on
+desktop computers.</p>
+
+<p>I am not sure though if any of the servers we operate benefit by having
+swap enabled? This seems like it would be a good thing to understand.</p>
+
+<p>Like I hear the advice &ldquo;no, just always turn off swap, it will be better
+overall&rdquo; a lot and maybe that is the right thing! I think the reason
+that swap is considered bad in production systems is that it has
+weird/unpredictable effects and predictability is good.</p>
+
+<p>Somewhat relately, this <a href="https://blog.jcole.us/2010/09/28/mysql-swap-insanity-and-the-numa-architecture/">swap insanity</a> article looks really interesting.</p>
+
+<h3 id="understanding-memory-models-is-cool">understanding memory models is cool</h3>
+
+<p>I learned</p>
+
+<ul>
+<li>the vm.swappiness exists and you can use it to make a machine more or
+less likely to swap</li>
+<li>that when Linux OOM kills a process in a cgroup (&ldquo;container&rdquo;), it
+actually prints a bunch of very useful stuff about the memory usage of
+everything else in the cgroup at the time. I should remember to look
+at dmesg earlier on!</li>
+</ul>
+
+<p>It&rsquo;s really important to me to understand what&rsquo;s happening on the
+computers that I work with &ndash; when something happens like &ldquo;this computer
+is swapping and I don&rsquo;t know WHY&rdquo; it bothers me a lot.</p>
+
+<p>Now if I ever see a process mysteriously swapping hopefully I will remember
+about memory limits!</p>
+
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2017/02/17/mystery-swap/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2017/02/17/mystery-swap/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/so-you-want-to-be-a-wizard/" title="Previous Post: So you want to be a wizard">So you want to be a wizard</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2017/02/16/hiring---opportunity/" title="Next Post: Hiring &amp; opportunity">Hiring &amp; opportunity</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

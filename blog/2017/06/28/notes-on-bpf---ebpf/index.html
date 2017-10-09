@@ -1,0 +1,285 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>Notes on BPF &amp; eBPF - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="Notes on BPF &amp; eBPF">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2017/06/28/notes-on-bpf---ebpf/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">Notes on BPF &amp; eBPF</h1>
+
+<div class="post-tags">
+  
+</div>
+<p class="meta">
+<time datetime="2017-06-28T23:47:21" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     
+
+<p>Today it was Papers We Love, my favorite meetup! Today <a href="http://suchakra.in/">Suchakra Sharma</a> (<a href="https://twitter.com/tuxology">@tuxology</a> on twitter/github)
+gave a GREAT talk about the original BPF paper and recent work in Linux on
+eBPF. It really made me want to go write eBPF programs!</p>
+
+<p>The paper is <a href="http://www.vodun.org/papers/net-papers/van_jacobson_the_bpf_packet_filter.pdf">The BSD Packet Filter: A New Architecture for User-level Packet Capture</a></p>
+
+<p>I wanted to write some notes on the talk here because I thought it was super
+super good.</p>
+
+<p>To start, here are the
+<a href="https://speakerdeck.com/tuxology/the-bsd-packet-filter">slides</a> and a
+<a href="http://step.polymtl.ca/~suchakra/PWL-Jun28-MTL.pdf">pdf</a>. The pdf is good
+because there are links at the end and in the PDF you can click the links.</p>
+
+<script async class="speakerdeck-embed" data-id="130bc7df16db4556a55105af45cdf3ba" data-ratio="1.33333333333333" src="//speakerdeck.com/assets/embed.js"></script>
+
+<h3 id="what-s-bpf">what&rsquo;s BPF?</h3>
+
+<p>Before BPF, if you wanted to do packet filtering you had to copy all the
+packets into userspace and then filter them there (with &ldquo;tap&rdquo;).</p>
+
+<p>this had 2 problems:</p>
+
+<ol>
+<li>if you filter in userspace, it means you have to copy all the packets into userspace, copying data is expensive</li>
+<li>the filtering algorithms people were using were inefficient</li>
+</ol>
+
+<p>The solution to problem #1 seems sort of obvious, move the filtering logic into
+the kernel somehow. Okay. (though the details of how that&rsquo;s done isn&rsquo;t obvious,
+we&rsquo;ll talk about that in a second)</p>
+
+<p>But why were the filtering algorithms inefficient! Well!!</p>
+
+<p>If you run <code>tcpdump host foo</code> it actually runs a relatively complicated query,
+which you could represent with this tree:</p>
+
+<div align="center">
+<img src="https://jvns.ca/images/bpf-1.png">
+</div>
+
+<p>Evaluating this tree is kind of expensive. so the first insight is that you can
+actually represent this tree in a simpler way, like this:</p>
+
+<div align="center">
+<img src="https://jvns.ca/images/bpf-2.png">
+</div>
+
+<p>Then if you have <code>ether.type = IP</code> and <code>ip.src = foo</code> you automatically know
+that the packet matches <code>host foo</code>, you don&rsquo;t need to check anything else. So
+this data structure (they call it a &ldquo;control flow graph&rdquo; or &ldquo;CFG&rdquo;) is a way
+better representation of the program you actually want to execute to check
+matches than the tree we started with.</p>
+
+<h3 id="how-bpf-works-in-the-kernel">How BPF works in the kernel</h3>
+
+<p>The main important here is that packets are just arrays of bytes. BPF programs
+run on these arrays of bytes. They&rsquo;re not allowed to have loops but they <em>can</em>
+have smart stuff to figure out the length of the IP header (IPv6 &amp; IPv4 are
+different lengths!) and then find the TCP port based on that length</p>
+
+<pre><code>x = ip_header_length
+port = *(packet_start + x + port_offset) 
+</code></pre>
+
+<p>(it looks different from that but it&rsquo;s basically the same). There&rsquo;s a nice
+description of the virtual machine in the paper/slides so I won&rsquo;t explain it.</p>
+
+<p>When you run <code>tcpdump host foo</code> this is what happens, as far as I understand</p>
+
+<ol>
+<li>convert <code>host foo</code> into an efficient DAG of the rules</li>
+<li>convert that DAG into a BPF program (in BPF bytecode) for the BPF virtual machine</li>
+<li>Send the BPF bytecode to the Linux kernel, which verifies it</li>
+<li>compile the BPF bytecode program into native code. For example <a href="https://github.com/torvalds/linux/blob/v4.10/arch/arm/net/bpf_jit_32.c#L512">here&rsquo;s the JIT code for ARM</a> and for <a href="https://github.com/torvalds/linux/blob/v3.18/arch/x86/net/bpf_jit_comp.c#L189">x86</a></li>
+<li>when packets come in, Linux runs the native code to decide if that packet should be filtered or not. It&rsquo;l often run only 100-200 CPU instructions for each packet that needs to be processed, which is super fast!</li>
+</ol>
+
+<h3 id="the-present-ebpf">the present: eBPF</h3>
+
+<p>But BPF has been around for a long time! Now we live in the EXCITING FUTURE
+which is eBPF. I&rsquo;d heard about eBPF a bunch before but I felt like this helped
+me put the pieces together a little better. (i wrote this <a href="https://jvns.ca/blog/2017/04/07/xdp-bpf-tutorial/">XDP &amp; eBPF post</a> back in April when I was at netdev)</p>
+
+<p>some facts about eBPF:</p>
+
+<ul>
+<li>eBPF programs have their own bytecode language, and are compiled from that
+bytecode language into native code in the kernel, just like BPF programs</li>
+<li>eBPF programs run in the kernel</li>
+<li>eBPF programs can&rsquo;t access arbitrary kernel memory. Instead the kernel
+provides functions to get at some restricted subset of things.</li>
+<li>they <em>can</em> communicate with userspace programs through BPF maps</li>
+<li>there&rsquo;s a <code>bpf</code> syscall as of Linux 3.18</li>
+</ul>
+
+<h3 id="kprobes-ebpf">kprobes &amp; eBPF</h3>
+
+<p>You can pick a function (any function!) in the Linux kernel and execute a
+program that you write every time that function happens. This seems really
+amazing and magical.</p>
+
+<p>For example! There&rsquo;s this <a href="https://github.com/iovisor/bcc/blob/0c8c179fc1283600887efa46fe428022efc4151b/examples/tracing/disksnoop.py">BPF program called disksnoop</a> which tracks when you start/finish writing a block to disk.
+Here&rsquo;s a snippet from the code:</p>
+
+<pre><code>BPF_HASH(start, struct request *);
+void trace_start(struct pt_regs *ctx, struct request *req) {
+	// stash start timestamp by request ptr
+	u64 ts = bpf_ktime_get_ns();
+	start.update(&amp;req, &amp;ts);
+}
+...
+b.attach_kprobe(event=&quot;blk_start_request&quot;, fn_name=&quot;trace_start&quot;)
+b.attach_kprobe(event=&quot;blk_mq_start_request&quot;, fn_name=&quot;trace_start&quot;)
+</code></pre>
+
+<p>This basically declares a BPF hash (which the program uses to keep track of
+when the request starts / finishes), a
+function called <code>trace_start</code> which is going to be compiled into BPF bytecode,
+and attaches <code>trace_start</code> to the <code>blk_start_request</code> kernel function.</p>
+
+<p>This is all using the <code>bcc</code> framework which lets you write Python-ish programs
+that generate BPF code. You can find it (it has tons of example programs) at
+<a href="https://github.com/iovisor/bcc">https://github.com/iovisor/bcc</a></p>
+
+<h3 id="uprobes-ebpf">uprobes &amp; eBPF</h3>
+
+<p>So I sort of knew you could attach eBPF programs to kernel functions, but I
+didn&rsquo;t realize you could attach eBPF programs to userspace functions! That&rsquo;s
+really exciting. Here&rsquo;s
+<a href="https://github.com/iovisor/bcc/blob/00f662dbea87a071714913e5c7382687fef6a508/tests/lua/test_uprobes.lua">an example of counting malloc calls in Python using an eBPF program</a>.</p>
+
+<h3 id="things-you-can-attach-ebpf-programs-to">things you can attach eBPF programs to</h3>
+
+<ul>
+<li>network cards, with XDP (which I wrote about a while back)</li>
+<li>tc egress/ingress (in the network stack)</li>
+<li>kprobes (any kernel function)</li>
+<li>uprobes (any userspace function apparently ?? like in any C program with
+symbols.)</li>
+<li>probes that were built for dtrace called &ldquo;USDT probes&rdquo; (like <a href="https://dev.mysql.com/doc/refman/5.7/en/dba-dtrace-ref-query.html">these mysql probes</a>).
+Here&rsquo;s an <a href="https://github.com/iovisor/bcc/blob/master/examples/tracing/mysqld_query.py">example program using dtrace probes</a></li>
+<li><a href="http://blogs.microsoft.co.il/sasha/2016/03/31/probing-the-jvm-with-bpfbcc/">the JVM</a></li>
+<li>tracepoints (not sure what that is yet)</li>
+<li>seccomp / landlock security things</li>
+<li>a bunch more things</li>
+</ul>
+
+<h3 id="this-talk-was-super-cool">this talk was super cool</h3>
+
+<p>There are a bunch of great links in the slides and in
+<a href="https://github.com/iovisor/bcc/blob/master/LINKS.md">LINKS.md</a> in the iovisor
+repository. It is late now but soon I want to actually write my first eBPF
+program!</p>
+
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2017/06/28/notes-on-bpf---ebpf/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2017/06/28/notes-on-bpf---ebpf/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2017/07/05/linux-tracing-systems/" title="Previous Post: Linux tracing systems &amp; how they fit together">Linux tracing systems &amp; how they fit together</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2017/06/26/3-screencasts/" title="Next Post: 3 short screencasts (/proc, tcpdump, strace)">3 short screencasts (/proc, tcpdump, strace)</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

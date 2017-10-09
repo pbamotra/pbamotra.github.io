@@ -1,0 +1,491 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>netdev conference, day 1 - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="netdev conference, day 1">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2017/04/06/netdev-2-1/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">netdev conference, day 1</h1>
+
+<div class="post-tags">
+  
+  •
+  
+    <a class="post-tag" href="/categories/netdev">netdev</a> 	•
+  
+  
+</div>
+<p class="meta">
+<time datetime="2017-04-06T11:25:09" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     
+
+<p>Today I am at netdev, a conference about Linux networking. I promised my
+coworkers notes so you all get notes too :)</p>
+
+<p>This is a different conference for me than usual &ndash; I think I&rsquo;m learning more at
+this conference than most conferences I&rsquo;ve been at in the last
+few years. A lot of it goes above my head (a lot of the presenters/attendees
+work on networking subsystems in the Linux kernel), but I kind of like that! It means
+there are a lot of new ideas and terminology.</p>
+
+<p>Here are some notes from today&rsquo;s talks. They&rsquo;re relatively
+stream-of-consciousness but if I&rsquo;m going to have notes for this conference
+at all that&rsquo;s how it&rsquo;s gonna have to be. There are gonna be a bunch of mistakes
+in here.</p>
+
+<h3 id="xdp-in-practice-integrating-xdp-in-our-ddos-mitigation-pipeline">XDP in practice: integrating XDP in our DDoS mitigation pipeline</h3>
+
+<p>by <a href="https://blog.cloudflare.com/author/gilberto-bertin/">Gilberto Bertin</a> from
+Cloudflare.</p>
+
+<p>This talk was from Cloudflare! They&rsquo;re a CDN, and one of the services they
+provide is DDOS mitigation. So if you&rsquo;re being DDOSed, they&rsquo;ll figure out which
+network traffic is an attack and absorb the malicious traffic themselves
+instead of passing.</p>
+
+<p><strong>how do you figure out whether traffic is malicious or not?</strong></p>
+
+<p>To block malicious traffic, first you need to figure out that that it&rsquo;s
+malicious! When you&rsquo;re doing DDOS mitigation manually (which is slow), you look
+for a pattern that the malicious traffic matches, and then write code to block
+traffic that matches that pattern. They&rsquo;re doing the same thing, except
+automatically</p>
+
+<p>They do this by</p>
+
+<ol>
+<li>sampling some small percentage of traffic at every edge server</li>
+<li>encoding that traffic with &ldquo;sFlow&rdquo; (<a href="https://en.wikipedia.org/wiki/SFlow">wikipedia article</a> and sending it by UDP to some central servers that do packet analysis</li>
+<li>The central servers come up with &ldquo;patterns&rdquo; that should be blocked</li>
+<li>for example, those central servers might notice that there are a ton of suspicious-looking packets that are all from the same IP address</li>
+</ol>
+
+<p><strong>how do you block the malicious traffic?</strong></p>
+
+<p>They compile their malicious-traffic-patterns into BPF rules. Cloudflare has
+some software called <a href="https://github.com/cloudflare/bpftools">bpftools</a> that
+lets you take a pattern and compile it into code that the kernel can run to
+filter packets.</p>
+
+<p>For example <code>./bpfgen dns -- *.www.example.uk</code> will create a BPF filter for DNS
+packets matching <code>*.www.example.uk</code>.</p>
+
+<p>Okay, so suppose you have BPF bytecode that matches the traffic that you want
+to block! How do you actually</p>
+
+<p><strong>way 1</strong>: iptables</p>
+
+<p>He said that they started out using IPtables to filter traffic. This made sense
+because iptables is the only way I know to filter traffic :)</p>
+
+<p>The problem with this was that there were &ldquo;IRQ storms&rdquo;. I&rsquo;m not totally sure
+what this means, but I think that it means that in the Linux networking stack
+there are a lot of interrupts, and interrupts at some point are kind of
+expensive, using iptables to filter really high packet volumes eventually goes
+badly.</p>
+
+<p><strong>way 2</strong> userspace offload</p>
+
+<p>Okay, so doing networking in the kernel is going slowly. Let&rsquo;s do it in
+userspace! He said they used <a href="http://www.solarflare.com/">solarflare</a> which is
+a proprietary userspace networking stack. (and they also sell hardware?)</p>
+
+<p>There were 2 problems with this but the one I understood was that &ldquo;getting
+packets back into the kernel networking stack is expensive&rdquo;</p>
+
+<p><strong>way 3</strong>: XDP</p>
+
+<p>this talk was about XDP so obviously they ended up using it. here are some
+links about XDP:</p>
+
+<ul>
+<li>a nice introduction on LWN: <a href="https://lwn.net/Articles/708087/">Debating the value of XDP</a></li>
+<li><a href="https://www.iovisor.org/technology/xdp">https://www.iovisor.org/technology/xdp</a></li>
+<li><a href="https://prototype-kernel.readthedocs.io/en/latest/networking/XDP/introduction.html#what-is-xdp">https://prototype-kernel.readthedocs.io/en/latest/networking/XDP/introduction.html#what-is-xdp</a></li>
+</ul>
+
+<p>What I understand about XDP so far: there are a lot of steps in the Linux
+networking stack (see <a href="https://blog.packagecloud.io/eng/2016/06/22/monitoring-tuning-linux-networking-stack-receiving-data/">Monitoring and Tuning the Linux Networking Stack: Receiving Data </a>).</p>
+
+<p>If you want to filter out packets very quickly, you don&rsquo;t want to go through
+all those steps! You want to just read packets off the network card, be like
+&ldquo;NOPE not that one!&rdquo;, and move on really quickly.</p>
+
+<p>It seems like XDP is a pretty new system (at the end of this talk, someone
+commented &ldquo;congratulations on using such new technology!), and they
+started using it at Cloudflare to do packet filtering. A few notes from this
+section of the talk:</p>
+
+<ul>
+<li>&ldquo;ebpftools generates XDP programs&rdquo;</li>
+<li>XDP programs are C programs, which are compiled by clang, which then become
+eBPF bytecode</li>
+<li>the eBPF uses maps (hashmaps? unclear) that are shared with userspace. I
+didn&rsquo;t catch what the userspace code that those maps are shared with does.</li>
+<li>Also, he mentioned a tool called <a href="http://lcamtuf.coredump.cx/p0f3/">p0f</a>,
+<a href="https://en.wikipedia.org/wiki/P0f">wikipedia</a>
+that can do OS fingerprinting of network traffic.</li>
+<li>their BPF bytecode generation tool supports p0f signatures</li>
+<li>XDP requires at least a 4.8 kernel. They use 4.9 because they want to be
+using an LTS release</li>
+<li>XDP doesn&rsquo;t support all network cards</li>
+</ul>
+
+<p>There was some discussion at the end of this talk about how you can mark
+packets in XDP. I didn&rsquo;t totally understand why you would want to mark packets,
+but here are some things I learned.</p>
+
+<ul>
+<li>the fundamental data structure in the linux networking stack is the skb or
+<a href="http://vger.kernel.org/~davem/skb.html">socket buffer</a></li>
+</ul>
+
+<p>this was a really good talk and I learned a lot</p>
+
+<h3 id="xdp-at-facebook">XDP at Facebook</h3>
+
+<p>by Huapeng Zhou, Doug Porter, Ryan Tierney, Nikita Shirokov from Facebook
+(though only one of them spoke)</p>
+
+<p>This talk was about how Facebook uses XDP for 2 different things:</p>
+
+<ul>
+<li>to implement an L4 load balancer</li>
+<li>for DDOS mitigation</li>
+</ul>
+
+<p>He said they have an L4 load balancer (called &ldquo;SHIV&rdquo;?) which forwards traffic
+to downstream L7 load balancers. This is the frontend for Facebook, I think &ndash;
+like the first servers your requests hit when you go to facebook.com.</p>
+
+<p>There&rsquo;s another talk about load balancing at Facebook from SRECon a while back:
+<a href="https://www.usenix.org/conference/srecon15europe/program/presentation/shuff">Building A Billion User Load Balancer</a></p>
+
+<p>He said that before they were using something called &ldquo;IPVS&rdquo;. At work we use
+HAProxy to do load balancing. It seems like <a href="https://en.wikipedia.org/wiki/IP_Virtual_Server">IPVS</a> is a load balancer that is
+inside of the Linux kernel? I found this <a href="https://blog.codeship.com/kernel-load-balancing-for-docker-containers-using-ipvs/">blog post about IPVS which has more
+information</a>.</p>
+
+<p>Anyway, so they stopped using IPVS for some reason and decided to use XDP
+instead. At the end of this talk they said that XDP is 10x faster.</p>
+
+<p>This talk didn&rsquo;t talk about how you configure the load balancer
+(how do you tell it which backends to use for which requests? does it do
+healthchecks to figure out if some backend is temporarily down? Are the
+healthchecks done in userspace? How do the results from the healthchecks get
+back into the XDP program running in the kernel?)</p>
+
+<p>The interesting thing in this talk is that they made some progress on debugging
+XDP programs: debugging XDP programs seems kind of hard (is that because they run on
+the eBPF virtual machine? all this ebpf stuff is still a little unclear to me).</p>
+
+<p>eBPF seems to support putting events into perf events via
+<code>bpf_perf_event_output</code>, which is cool because <code>perf_events</code> is an existing
+framework.</p>
+
+<h3 id="linux-networking-for-the-enterprise">Linux Networking for the Enterprise</h3>
+
+<p>by Shrijeet Mukherjee from Cumulus</p>
+
+<p>This talk seemed to be about what networking features enterprise customers care
+about. I learned from this talk that people in the enterprise have a lot of
+ethernet cables, and that ethtool is (or should be?) a good tool for figuring
+out if your ethernet cables are working.</p>
+
+<p>He also talked about how multicast is not that popular anymore, but a lot of
+enterprises care about multicast, so you need to have multicast support.</p>
+
+<h3 id="lunch">lunch</h3>
+
+<p>At lunch there was a vegetarian table which was a cool way to mix people who
+might not otherwise sit together :)</p>
+
+<p>Everyone was really nice and let me ask a bunch of questions. Here are a few
+things I learned at lunch:</p>
+
+<p><strong>sharing a network card between the Linux kernel and userspace</strong></p>
+
+<p>Usually on Linux people use the Linux kernel to do networking. But sometimes
+you want to do networking in userspace! (for performance reasons, or
+something). I wanted to know if the Linux kernel can share access to the
+network card with a userspace program. It turns out that it can!</p>
+
+<p>The person I was talking to mentioned that there are &ldquo;many RX queues&rdquo;. I took
+that hint and Googled after lunch, and found <a href="https://blog.cloudflare.com/single-rx-queue-kernel-bypass-with-netmap/">this great blog post from Cloudflare</a>.</p>
+
+<p>So! It turns out that the first step in receiving a network packet is for the
+network card to put data in an &ldquo;RX ring&rdquo; or &ldquo;RX queue&rdquo;, which is an area in
+memory. two facts:</p>
+
+<ol>
+<li>there can be more than one of these queues</li>
+<li>you can program the network card to only put certain packets in certain
+queues (&ldquo;put all UDP packets from port 53 into queue 4&rdquo;)</li>
+<li>different applications can use different queues</li>
+</ol>
+
+<p>So if you want Linux to share, you can have Linux handle most of the RX queues,
+but make your userspace program handle one of them. That&rsquo;s cool!</p>
+
+<p><strong>more about tc</strong></p>
+
+<p>I wrote the other day about how to <a href="/blog/2017/04/01/slow-down-your-internet-with-tc/">make your internet slow with tc</a>.
+It turns out that tc can do a lot more things than make your internet slow!</p>
+
+<p>For example! I used to share my internet connection with my cousin upstairs,
+and I run a Linux router. I could use <code>tc</code> to program my router to limit
+traffic from my cousin&rsquo;s computer (by filtering + ratelimiting traffic from her
+MAC Address or something). There&rsquo;s more about how to do that on <a href="https://wiki.openwrt.org/doc/howto/packet.scheduler/packet.scheduler">OpenWRT&rsquo;s site</a></p>
+
+<p>Another thing apparently tc can do is <strong>hardware offload</strong>. Basically as far as
+I understand it &ndash; a lot of network cards have super fancy
+features. They can do a lot of the packet processing that usually your kernel
+would do (like checksums, and more). <code>tc</code> knows how to program your network
+card to do fancy packet processing.</p>
+
+<p>There is a lot more but those were the two easiest things for me to understand.</p>
+
+<h3 id="networking-performance-workshop">networking performance workshop</h3>
+
+<p>chaired by Alex Duyck, I didn&rsquo;t manage to take notes of all the speakers.</p>
+
+<p>This was a workshop about new developments in networking performance (by people
+from Intel, Mellanox, and somewhere else).</p>
+
+<p>My notes here are pretty sparse because I didn&rsquo;t understand most of it, but
+they were all around &ldquo;how do you make networking faster?&rdquo;</p>
+
+<p><strong>Page based receive + page reuse</strong></p>
+
+<p>The premise for here seemed to be</p>
+
+<ul>
+<li>the usual size of a page on Linux is 4kb</li>
+<li>the usual MTU for a packet (&ldquo;maximum transmission unit&rdquo;, or basically the
+packet size) is 1500 bytes</li>
+<li>making new pages is expensive (though I didn&rsquo;t 100% understand this)</li>
+<li>but a page is more than twice as big as a packet, so somehow you can put two
+packets in one page</li>
+<li>and there are a bunch of complications</li>
+</ul>
+
+<p>Interesting thing: the speaker mentioned that in their network drivers, a lot
+of people use &ldquo;memory barriers&rdquo; that are too strong. But wait, what&rsquo;s a memory
+barrier? By Googling I found
+<a href="https://www.kernel.org/doc/Documentation/memory-barriers.txt">https://www.kernel.org/doc/Documentation/memory-barriers.txt</a> about memory
+barriers people use in the Linux kernel which seems pretty readable. So that
+goes on my to-read list :)</p>
+
+<p>I think he suggested using the <code>dma_rmb</code>/<code>dma_wmb</code> memory barriers instead of
+<code>rmb</code>/<code>wmb</code>.</p>
+
+<p><strong>memory bottlenecks</strong></p>
+
+<p>The second talk was about a pretty similar topic &ndash; the idea is that memory
+allocator performance is limiting how fast you can process packets with XDP.</p>
+
+<p>They said that if you use bigger pages (like 64k), then you don&rsquo;t have to
+allocate as much memory (which is good), but the problem is that if you put
+many packets/fragments into the same large page, then you have to wait for all
+those fragments to be processed before you can free the page. So there&rsquo;s a
+tradeoff there.</p>
+
+<p><strong>AF_PACKETv4</strong></p>
+
+<p>Okay, this is a different thing! This thing is a work in progress and they
+haven&rsquo;t even written the code that would go in the kernel yet. The motivation
+for this work as far as I understood it was to make tcpdump (and tools like
+tcpdump) run faster.</p>
+
+<p>I think the idea here is:</p>
+
+<ul>
+<li>when you use tcpdump, it reads raw packets from the network interface and
+parses them</li>
+<li>but it has to copy those packets into its memory (in userspace) and copying
+takes time</li>
+<li>so it would be better if tcpdump could get the packets without having to copy
+them</li>
+</ul>
+
+<p>I think the idea here is that you could open a socket in mode <code>AF_PACKET_v4</code>
+or something, and then you would get access to packets from a network interface
+without then being copied at all.</p>
+
+<p>I like tcpdump a lot so anything that could make tcpdump faster is something I
+am excited about! I would like to understand this better.</p>
+
+<p>When I was looking up stuff about this I found this cool blog post from
+Marek at Cloudflare about how tcpdump works: <a href="https://blog.cloudflare.com/bpf-the-forgotten-bytecode/">BPF: the forgotten bytecode</a></p>
+
+<h3 id="a-talk-from-oracle">a talk from Oracle</h3>
+
+<p>by Sowmini Varadhan, Tushar Dave</p>
+
+<p>I missed the first half of this talk so I can&rsquo;t tell you
+what it was about but she said something interesting!</p>
+
+<p>She showed 4 graphs of latency vs throughput. In all the graphs:</p>
+
+<ul>
+<li>they started out flat (so you could do 10,000 reqs/s with 1000ms latency,
+50,000 reqs/s with 1000ms latency)</li>
+<li>at some point they hit a throughput &ldquo;cliff&rdquo; &ndash; like, the system just would
+not process more than 100,000 reqs/s at all, and as you put more requests
+into it the latency would just keep going up</li>
+</ul>
+
+<p>I know that there&rsquo;s a tradeoff between latency and throughput for any system (if you want
+<em>fast</em> replies, you have to send less requests), and it was nice to see graphs
+of that tradeoff. And it was interesting to see such an abrupt throughput cliff.</p>
+
+<h3 id="evolution-of-network-i-o-virtualization">evolution of network i/o virtualization</h3>
+
+<p>by: Anjali Jain, Alexander Duyck, Parthasarathy Sarangam, Nrupal Jani</p>
+
+<p>This one was about the past/present/future of how network virtualization
+works. By people from Intel.</p>
+
+<p>What I learned:</p>
+
+<ul>
+<li>SR-IOV is a way of doing network virtualization</li>
+<li>they spent most of their time talking about SR-IOV so it must be important?
+maybe it&rsquo;s someting Intel invests in a lot?</li>
+<li>an &ldquo;IOMMU&rdquo; is an important thing</li>
+<li>in SR-IOV, you can only have 2^16 virtual machines at a time (16 bits)</li>
+<li>&ldquo;east-west&rdquo; is traffic between VMs on the same machines, and &ldquo;north-south&rdquo;
+is traffic between VMs on different boxes</li>
+<li>there are performance problems with VMs on the same host talking (&ldquo;east-west
+traffic&rdquo;). this is because &ldquo;it&rsquo;s bottlenecked by the PCI bus&rdquo;. what is the
+PCI bus though and why does it cause bottlenecks?</li>
+</ul>
+
+<p>They spent a long time in this talk talking about live migration of VMs here and how it
+interacts with network virtualization. Live migration means that you take a
+virtual machine and move it to another computer while it&rsquo;s running. I thought
+it was interesting that they talked about it like it&rsquo;s a normal thing because I
+think of it as like.. something totally magical that doesn&rsquo;t exist in real
+life.</p>
+
+<p>But I guess if you&rsquo;re building the networking hardware we&rsquo;re going to be using
+5-10 years in the future, you need to be thinking ahead!</p>
+
+<h3 id="that-s-all-for-today">that&rsquo;s all for today</h3>
+
+<p>more tomorrow, hopefully.</p>
+
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2017/04/06/netdev-2-1/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2017/04/06/netdev-2-1/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2017/04/07/xdp-bpf-tutorial/" title="Previous Post: How to filter packets super fast: XDP &amp; eBPF!">How to filter packets super fast: XDP &amp; eBPF!</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2017/04/01/slow-down-your-internet-with-tc/" title="Next Post: Slow down your internet with tc">Slow down your internet with tc</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

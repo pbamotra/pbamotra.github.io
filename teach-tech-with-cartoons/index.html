@@ -1,0 +1,545 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>How to teach technical concepts with cartoons - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="How to teach technical concepts with cartoons">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/teach-tech-with-cartoons/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">How to teach technical concepts with cartoons</h1>
+
+<div class="post-tags">
+  
+</div>
+<p class="meta">
+<time datetime="2017-09-28T23:09:48" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     
+
+<style>
+.small {
+    width: 400px
+}
+@media only screen and (max-width: 500px) {
+    width: 100%
+}
+</style>
+
+<p>People sometimes tell me these days &ldquo;wow julia, you are so good at drawing, it is so cool!&rdquo;</p>
+
+<p>I think this is kind of funny because, this is what happens when I try to draw animals.</p>
+
+<div align="center">
+<a href="https://jvns.ca/images/illustrations/animal.png">
+<img src="https://jvns.ca/images/illustrations/animal.png" class="small">
+</a>
+</div>
+
+<p>But! There actually <strong>is</strong> a skill to explaining technical concepts to people with drawings. And I
+think I&rsquo;ve become pretty good at that skill! It is just a different skill than like &ldquo;drawing an
+elephant that looks like an elephant&rdquo;</p>
+
+<p>This post is about a few patterns I use when illustrating ideas about computers. If you are
+interested in using drawings to teach people about your very favorite computer topics, hopefully
+this will help you!</p>
+
+<p>Let&rsquo;s talk about how to structure cartoons and how to translate computer concepts into pictures!</p>
+
+<h3 id="cartooning-isn-t-about-drawing-skills">cartooning isn&rsquo;t about drawing skills</h3>
+
+<p>Just to emphasize it again &ndash; this is basically the entire visual vocabulary I use.</p>
+
+<div align="center">
+<a href="https://jvns.ca/images/illustrations/artistic-range.jpg">
+<img src="https://jvns.ca/images/illustrations/artistic-range.jpg">
+</a>
+</div>
+
+<p>I think of tech cartooning as being about cartooning skills! I need to be good at:</p>
+
+<ul>
+<li>using a very small number of words to express an idea (for example <a href="https://drawings.jvns.ca/mutexes/">this mutexes cartoon</a> has maybe 60 words in it)</li>
+<li>breaking something down into simple concepts (&ldquo;what are the key ideas you need to understand DNS?&rdquo;)</li>
+<li>staging relevant scenarios (&ldquo;what&rsquo;s a good example to use to show how a mutex works?&rdquo;)</li>
+</ul>
+
+<p>Here are some tactics I like to use when drawing!</p>
+
+<h3 id="personify-the-characters">personify the characters</h3>
+
+<p>I do a lot of personification/anthropomorphization &ndash; I&rsquo;ll take a system and turn it into a cast of
+characters who talk to each other. For example, here&rsquo;s a scene from Kubernetes: the kubelet
+component is talking to the API server</p>
+
+<div align="center">
+<a href="https://jvns.ca/images/illustrations/personify1.png">
+<img src="https://jvns.ca/images/illustrations/personify1.png" class="small">
+</a>
+</div>
+
+<p>This is useful because</p>
+
+<ol>
+<li>it emphasizes that the &ldquo;kubelet&rdquo; and the &ldquo;api server&rdquo; (whatever those are) are important concepts
+in Kubernetes</li>
+<li>it shows you that those two components communicate with each other</li>
+<li>it&rsquo;s more fun than reading a paragraph saying the same thing</li>
+</ol>
+
+<p>Here&rsquo;s part of the cast of characters from my networking zine: (a laptop! a router! an operating
+system! a program!)</p>
+
+<div align="center">
+<a href="https://jvns.ca/images/illustrations/personify2.png">
+<img src="https://jvns.ca/images/illustrations/personify2.png" class="small">
+</a>
+</div>
+
+<p>Taking a complicated computer system and breaking down &ldquo;ok, these are 3 main important characters in
+this system&rdquo; is incredibly useful.</p>
+
+<h3 id="show-a-scene">show a scene</h3>
+
+<p>The next step after just making your characters is to put them into scenes and make them interact
+with each other! So once you&rsquo;ve established &ldquo;the important characters here are the laptop, the DNS
+server, and the HTTP server&rdquo;, you can show how they actually work together in real life.</p>
+
+<p>Here&rsquo;s a scene with two humans talking:</p>
+
+<div align="center">
+<a href="https://jvns.ca/images/illustrations/scene1.png">
+<img src="https://jvns.ca/images/illustrations/scene1.png" class="small">
+</a>
+</div>
+
+<p>and one with two programs who are both using the same mutex:</p>
+
+<div align="center">
+<a href="https://jvns.ca/images/illustrations/scene2.png">
+<img src="https://jvns.ca/images/illustrations/scene2.png" width=300px>
+</a>
+</div>
+
+<p>I think this scene (with program 2 thinking &ldquo;not my turn yet&rdquo;) is a pretty clear way to explain what
+happens when a mutex is in use, and I think it&rsquo;s faster to understand what&rsquo;s going on than if you
+read a paragraph explaining the same thing.</p>
+
+<h3 id="make-a-list">make a list</h3>
+
+<p>I make a LOT of lists (for example, this post itself is a &ldquo;list of things I&rsquo;ve learned about making comics
+:)&ldquo;). A few examples:</p>
+
+<p>Here&rsquo;s part of a list of networking tools and what they&rsquo;re for</p>
+
+<div align="center">
+<a href="https://jvns.ca/images/illustrations/list1.png">
+<img src="https://jvns.ca/images/illustrations/list1.png" class="small">
+</a>
+</div>
+
+<p>a list of attributes of a Unix process</p>
+
+<div align="center">
+<a href="https://jvns.ca/images/illustrations/list2.png">
+<img src="https://jvns.ca/images/illustrations/list2.png" class="small">
+</a>
+</div>
+
+<p>and a list of strategies for asking good questions</p>
+
+<div align="center">
+<a href="https://jvns.ca/images/illustrations/list3.png">
+<img src="https://jvns.ca/images/illustrations/list3.png" class="small">
+</a>
+</div>
+
+<p>A few things I love about making lists:</p>
+
+<ul>
+<li>you can make a list of steps (step 1! step 2! step 3!)</li>
+<li>it&rsquo;s a really clear structure and so they&rsquo;re easy to understand</li>
+<li>it&rsquo;s a nice way to teach someone something new (maybe you list 10 interesting things, and they
+only knew about 7 of them!)</li>
+<li>none of them claim to be exhaustive (I didn&rsquo;t say those were <em>all</em> the attributes of a process!)</li>
+<li>sometimes I learn surprising things while making them. For example I started listing Linux
+networking tools and I was really surprised by how <strong>many</strong> of them there were (I ended up listing
+24 of them!) (<a href="https://twitter.com/b0rk/status/851652231862595584">here&rsquo;s the whole list</a>)</li>
+</ul>
+
+<h3 id="make-a-diagram">make a diagram</h3>
+
+<p>A big part of the joy of hand drawing comics is that I can really easy make diagrams to explain what
+I mean! No fiddling with LaTeX or graphviz or anything.</p>
+
+<p>Here&rsquo;s part of a diagram I made to illustrate memory fragmentation:</p>
+
+<div align="center">
+<a href="https://jvns.ca/images/illustrations/diagram1.png">
+<img src="https://jvns.ca/images/illustrations/diagram1.png" class="small">
+</a>
+</div>
+
+<p>and a slightly more involved diagram showing the structure of a UDP packet:</p>
+
+<div align="center">
+<a href="https://jvns.ca/images/illustrations/diagram2.png">
+<img src="https://jvns.ca/images/illustrations/diagram2.png" class="small">
+</a>
+</div>
+
+<p>I love that I can use arrows / colours to emphasize things I think are important or give extra
+information. Like in this UDP packet diagram I greyed out fields that I thought were less important
+(like the &ldquo;fragment offset&rdquo;, which is definitely less important to understand than the source IP
+address).</p>
+
+<h3 id="make-a-joke">make a joke</h3>
+
+<p>Computers are often really confusing and surprising. This can be kind of frustrating (&ldquo;what is my
+program even doing?!!?!&ldquo;) and also kind of funny! I think all the weird stuff that happens is part of
+the joy of computers! So sometimes I try to make jokes.</p>
+
+<p>Here&rsquo;s the Kubernetes scheduler all worried because it noticed a pod that it hasn&rsquo;t been scheduled.
+(scheduler: &ldquo;OH NO! I was supposed to have done that already! julia will be mad!&rdquo;)</p>
+
+<div align="center">
+<a href="https://jvns.ca/images/illustrations/joke1.png">
+<img src="https://jvns.ca/images/illustrations/joke1.png" width=300px>
+</a>
+</div>
+
+<p>and a silly &ldquo;C is for linearizable&rdquo; joke (because the C in &ldquo;CAP theorem&rdquo; stand for &ldquo;consistent&rdquo;. But
+&ldquo;consistent&rdquo; is a pretty unclear term, so it&rsquo;s more precise to say that it sounds for linearizable.
+So confusing!&ldquo;)</p>
+
+<div align="center">
+<a href="https://jvns.ca/images/illustrations/joke2.png">
+<img src="https://jvns.ca/images/illustrations/joke2.png" width=300px>
+</a>
+</div>
+
+<h3 id="just-write-some-text">just write some text</h3>
+
+<p>I like using cartoons but sometimes I&rsquo;ll just write a paragraph.  Here&rsquo;s the start of a page about
+dstat:</p>
+
+<div align="center">
+<a href="https://jvns.ca/images/illustrations/dstat.png">
+<img src="https://jvns.ca/images/illustrations/dstat.png" class="small">
+</a>
+</div>
+
+<p>This basically just says &ldquo;every second, dstat prints out how much network &amp; disk your computer used
+that second&rdquo;. I could have typed that! But I think writing it by hand emphasizes like &ldquo;no, this is
+something I really love, I love it so much  I wrote it out by hand and made a picture to show you!&rdquo;</p>
+
+<h3 id="paste-some-computer-output">paste some computer output</h3>
+
+<p>Sometimes I want to paste and discuss some output you might see on a computer.  For example, when I
+made my strace zine I realized that a lot of strace output is really confusing. I wanted to paste
+some actual strace output to talk about!</p>
+
+<p>Luckily that is really easy to do in a drawing, because you can just put anything you want in it!</p>
+
+<div align="center">
+<a href="https://jvns.ca/images/illustrations/strace.png">
+<img src="https://jvns.ca/images/illustrations/strace.png" class="small">
+</a>
+</div>
+
+<h3 id="trace-icons-logos">trace icons/logos</h3>
+
+<p>At the beginning I said &ldquo;I can&rsquo;t draw well&rdquo;, which is true! But I <strong>can</strong> trace things. It&rsquo;s a fun
+way to make up for my lack of drawing skills.</p>
+
+<p>It&rsquo;s useful sometimes to include logos / icons! For example here are versions I traced of the
+Kubernetes logo, the Recurse Center logo, Tux (the linux penguin), and a cat. The cat isn&rsquo;t
+anybody&rsquo;s logo as far as I know.</p>
+
+<div align="center">
+<a href="https://jvns.ca/images/illustrations/icons.png">
+<img src="https://jvns.ca/images/illustrations/icons.png" class="small">
+</a>
+</div>
+
+<p>The hand-traced versions of these logos are kind of wobbly and imprecise in a way that is pretty
+satisfying to me, I think they look cool.</p>
+
+<h3 id="designing-your-comics">designing your comics</h3>
+
+<p>You have a blank sheet of paper in front you, and some information you want to convey! How do you do
+it? Having a few structure patterns really helps. Here are some examples:</p>
+
+<p>Here&rsquo;s one way of making a list:</p>
+
+<div align="center">
+<a href="https://jvns.ca/images/illustrations/structure1.png">
+<img src="https://jvns.ca/images/illustrations/structure1.png" class="small">
+</a>
+</div>
+
+<p>A list of many small things:</p>
+
+<div align="center">
+<a href="https://jvns.ca/images/illustrations/structure2.png">
+<img src="https://jvns.ca/images/illustrations/structure2.png" class="small">
+</a>
+</div>
+
+<p>and yet another list, here a list of steps. This one is organized into numbered panels!</p>
+
+<div align="center">
+<a href="https://jvns.ca/images/illustrations/structure3.png">
+<img src="https://jvns.ca/images/illustrations/structure3.png" class="small">
+</a>
+</div>
+
+<p>This one is more of a normal comic and less of a list &ndash; it&rsquo;s visually laid out with
+squares/rectangles like a comic, and tells a bit of a story.</p>
+
+<div align="center">
+<a href="https://jvns.ca/images/illustrations/structure4.png">
+<img src="https://jvns.ca/images/illustrations/structure4.png" class="small">
+</a>
+</div>
+
+<p>And finally this one is pretty unstructured. Personally I find this one a bit hard to to
+read/follow, I think having more structure than this is easier.</p>
+
+<div align="center">
+<a href="https://jvns.ca/images/illustrations/structure5.png">
+<img src="https://jvns.ca/images/illustrations/structure5.png" class="small">
+</a>
+</div>
+
+<p>I think <strong>panels</strong> are a popular way of structuring comics for a reason, they help split up your
+drawing and make it clear what order the comic should be read in.</p>
+
+<h3 id="just-making-something-a-cartoon-doesn-t-necessarily-mean-it-teaches-what-people-need-to-know">just making something a cartoon doesn&rsquo;t necessarily mean it teaches what people need to know</h3>
+
+<p>I&rsquo;m going to pick on another cartoon a bit here which I don&rsquo;t really like to do but I need an
+example :).</p>
+
+<p>There&rsquo;s an extremely adorable guide to Kubernetes called <a href="https://deis.com/blog/2016/kubernetes-illustrated-guide/">The Children&rsquo;s Illustrated Guide to Kubernetes</a>.</p>
+
+<p>I think this cartoon is cool and introduces a lot of important ideas. But for me personally I
+couldn&rsquo;t understand how Kubernetes worked at all until I understood the role of etcd in Kubernetes
+(all the Kubernetes state is stored in etcd and every other Kubernetes component is stateless). And
+this cartoon doesn&rsquo;t mention etcd even once! So I don&rsquo;t think this cartoon would really have helped
+me understand Kubernetes.</p>
+
+<p>I think there are kind of 2 ways to use drawings to teach:</p>
+
+<ol>
+<li>draw diagrams / cartoons that make what you&rsquo;re teaching more <strong>clear</strong></li>
+<li>use drawings to make what you&rsquo;re teaching more <strong>fun</strong></li>
+</ol>
+
+<p>Making concepts more clear and more fun are both great goals! Making things fun can be a good way to
+make people pay attention and make hard concepts seem less intimidating!</p>
+
+<p>But when I&rsquo;m working on illustrations I find it useful to think about whether my drawings are
+actually helping explain the concept or whether they&rsquo;re just fun (like drawing a picture of a shark
+when talking about Wireshark!).</p>
+
+<p>In this children&rsquo;s illustrated guide to kubernetes, I think the drawings mostly serve to make the
+content seem more <strong>fun</strong> &ndash; almost all the actual content is in the text. I think if you removed
+all the giraffe drawings the document would contain basically the same information! This is not a
+bad thing necessarily but I usually like to have more informational content in my drawings.</p>
+
+<h3 id="tools-that-make-it-easy">tools that make it easy</h3>
+
+<p>The tools I use today to make these are (see <a href="https://usesthis.com/interviews/julia.evans/">this interview for more</a>)</p>
+
+<ul>
+<li>a Samsung Chromebook Plus (though any samsung tablet with an S-pen will work. Or an ipad with the
+apple pencil!)</li>
+<li>the Squid app for Android (goodnotes for ipad is good too!)</li>
+<li>that&rsquo;s it!</li>
+</ul>
+
+<p>Having a tablet I can draw on means I can really quickly draw something, click &ldquo;share on Twitter&rdquo;
+and immediately show it to the world. I definitely produce way more drawings with it than I did when
+I was working with pen and paper. And they look way better :)</p>
+
+<h3 id="drawings-don-t-have-to-be-beautiful-to-be-awesome">drawings don&rsquo;t have to be beautiful to be awesome</h3>
+
+<p>I started out by drawing things on paper with a pen / Sharpie and just taking pictures. They all
+looked way less good than everything I&rsquo;ve posted above, but they were still really cool!!</p>
+
+<p>For example here&rsquo;s a very early drawing that I drew in pen on paper and posted to Twitter. Today I
+find this kind of janky &amp; illegible but honestly when I posted it I got TONS of positive comments
+(<a href="https://twitter.com/b0rk/status/638365065926811648">evidence</a>).
+<div align="center">
+<a href="https://jvns.ca/images/illustrations/wizard-programmer-handwritten.jpg">
+<img src="https://jvns.ca/images/illustrations/wizard-programmer-handwritten.jpg">
+</a>
+</div></p>
+
+<p>So drawings do not have to be beautiful and clean! They can be a sketchy thing you wrote on paper
+and that is okay.</p>
+
+<h3 id="how-do-you-decide-what-s-a-good-subject-for-a-tech-cartoon">how do you decide what&rsquo;s a good subject for a tech cartoon?</h3>
+
+<p>Let&rsquo;s take this comic on floating point I made last year! For that one, the steps were:</p>
+
+<ol>
+<li>Remember that I was really confused about floating key point until I learned a few key insights
+from Stefan Karpinksi. When I learned these things my mind was totally blown and it was so
+exciting!!!
+
+<ul>
+<li>a double is 64 bits. That means there are only 2^64 floating point numbers!!!</li>
+<li>The smallest double after 2^52 is 2^52 + 1 (so 2^52 + 0.2 = 2^52).</li>
+<li>This means you can&rsquo;t have integers above 2^53 in Javascript</li>
+</ul></li>
+<li>Think &ldquo;well, those three things are really simple, I could put them in a comic&rdquo;</li>
+<li>Figure out how to organize them into panels of a comic!!</li>
+<li>Don&rsquo;t draw more than one page.</li>
+</ol>
+
+<p>Here&rsquo;s the final floating point comic I came up with in this example</p>
+
+<div align="center">
+<a href="https://drawings.jvns.ca/drawings/float.png">
+<img src="https://drawings.jvns.ca/drawings/float.png">
+</a>
+</div>
+
+<p>I organize a lot of my comics about some key insight / fact / surprising thing that it took me a
+ long time to learn and was really useful to me.</p>
+
+<p>Another example of this is this &ldquo;how Unix permissions work&rdquo; comic &ndash; like if you don&rsquo;t know that
+&lsquo;0644&rsquo; is a number in octal and why it maps to <code>rw-r--r--</code>, it&rsquo;s hard to understand how permissions
+work. Here&rsquo;s the <a href="https://drawings.jvns.ca/permissions/">comic about unix permissions</a>.</p>
+
+<h3 id="you-could-make-tech-illustrations-too">you could make tech illustrations too</h3>
+
+<p>If you are interested in drawing tech cartoons, I hope this blog post gives you some ideas about how
+to do that!  I&rsquo;ve seen a lot of people making great illustrations about tech:</p>
+
+<p>If you&rsquo;re interested in making cartoons I&rsquo;d really recommend the book <a href="https://en.wikipedia.org/wiki/Understanding_Comics">Understanding Comics</a>, by Scott McCloud, it&rsquo;s a really
+incredible explanation of how comics work. I learned a ton from reading it.</p>
+
+<p>A few other people who are doing great work in tech comics:</p>
+
+<ul>
+<li>Lin Clark <a href="https://code-cartoons.com/">https://code-cartoons.com/</a> (a lot of React cartoons). She also has some awesome posts about
+Firefox internals like <a href="https://hacks.mozilla.org/2017/08/inside-a-super-fast-css-engine-quantum-css-aka-stylo/">Inside a super fast CSS engine: Quantum CSS (aka Stylo)</a></li>
+<li>Amy Wibowo <a href="https://bubblesort-zines.myshopify.com">https://bubblesort-zines.myshopify.com</a> (computer science zines!). I previously wrote an
+extended <a href="https://jvns.ca/blog/2017/05/02/like-zines-about-computers--you-might-love-bubblesort-zines/">fan post about how great I think her work is</a>.</li>
+<li>Mariko Kosaka <a href="https://twitter.com/kosamari">https://twitter.com/kosamari</a> tweets cool drawings! like <a href="https://twitter.com/kosamari/status/859958929484337152">this one about HTML1.x vs 2.x</a></li>
+<li>Vaidehi Joshi has been making awesome CS comics at <a href="https://medium.com/basecs">https://medium.com/basecs</a></li>
+</ul>
+
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/teach-tech-with-cartoons/" data-via="b0rk" data-counturl="https://jvns.ca/teach-tech-with-cartoons/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2017/10/05/reasons-kubernetes-is-cool/" title="Previous Post: Reasons Kubernetes is cool">Reasons Kubernetes is cool</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2017/09/24/profiling-go-with-pprof/" title="Next Post: Profiling Go programs with pprof">Profiling Go programs with pprof</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

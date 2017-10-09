@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title><![CDATA[Julia Evans]]></title>
+  <link href="http://jvns.ca/atom.xml" rel="self"/>
+  <link href="http://jvns.ca"/>
+  <updated>2015-04-12T08:24:15+00:00</updated>
+  <id>http://jvns.ca</id>
+  <author>
+    <name><![CDATA[Julia Evans]]></name>
+  </author>
+  <generator uri="http://gohugo.io/">Hugo</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[Learning at open source sprints (no preparation required)]]></title>
+    <link href="https://jvns.ca/blog/2015/04/12/learning-at-open-source-sprints/"/>
+    <updated>2015-04-12T08:24:15+00:00</updated>
+    <id>https://jvns.ca/blog/2015/04/12/learning-at-open-source-sprints/</id>
+    <content type="html"><![CDATA[<p>I&rsquo;m someone who isn&rsquo;t heavily involved in contributing code to OSS, and
+normally go to sprints just to learn something new, and not with any
+particular goals. This has never worked out that well for me, but I had
+a new idea yesterday! Maybe if you&rsquo;re like me it will help you.</p>
+
+<p>I was talking to someone yesterday about contributing to a relatively
+complicated open source project during the sprints. And we worked out
+that they were super super interested in learning about the project&rsquo;s
+internals, and didn&rsquo;t necessarily need to contribute to the project!</p>
+
+<p>Contributing to a project for the first time is hard. There&rsquo;s a lot
+you need to know! And the area of the project you&rsquo;re interested in might
+not necessarily need contributions right now! Or you might not be able
+to make the contribution you&rsquo;re interested in on your first 3 days.</p>
+
+<p>So we came up with an AWESOME IDEA. Instead of trying to write a
+contribution, change the goals! The next time I go to a sprint, I think
+I&rsquo;ll just</p>
+
+<ol>
+<li>pick a project I&rsquo;m interested in</li>
+<li>decide on a thing I&rsquo;d like to learn about that project</li>
+<li>start digging into the project, running code, and learn about that
+thing</li>
+<li>not worry about contributing</li>
+</ol>
+
+<p>For me, I think this could be way more fun and that I&rsquo;d learn a lot
+more. And it would be fun to do this stuff near the team who works on
+the project, regardless of whether or not they have time to help me :)</p>
+
+<p>And maybe, while exploring with no particular goal, I&rsquo;d find a change
+that needs making! :) Or if I wanted to contribute to the project 6
+months down the road, I&rsquo;d be a little more prepared to do that.</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Don&#39;t feel guilty about not contributing to open source]]></title>
+    <link href="https://jvns.ca/blog/2014/04/26/i-dont-feel-guilty-about-not-contributing-to-open-source/"/>
+    <updated>2014-04-26T08:56:33+00:00</updated>
+    <id>https://jvns.ca/blog/2014/04/26/i-dont-feel-guilty-about-not-contributing-to-open-source/</id>
+    <content type="html"><![CDATA[<p>For a long time I had a vague feeling that I <em>should</em> be contributing
+to open source more, and that it was in some way a Good Thing. And I
+felt a little bit guilty about not doing it enough.</p>
+
+<p>I used to have this dialog with myself pretty often:</p>
+
+<ul>
+<li>Okay, Julia, open source is good!</li>
+<li>Yeah, I should go do some open source</li>
+<li>What project? I don&rsquo;t know. huh.</li>
+<li>I use <a href="https://www.pidgin.im/">Pidgin</a>! Maybe that</li>
+<li><em>go look at pidgin</em></li>
+<li>so many issues! I don&rsquo;t even know where to start</li>
+<li>and it&rsquo;s in C! so many code! how do I even!</li>
+<li>Give up, feel vaguely guilty</li>
+</ul>
+
+<p></p>
+
+<p>I&rsquo;m trying to stop feeling guilty. Now if I&rsquo;m going to contribute to a
+project, it needs to be something that I&rsquo;m motivated to do.
+<a href="http://blog.melchua.com/">Mel Chua</a> gave a great talk at Hacker
+School where she said motivation is made up of <em>competence</em> (I know
+how to do this!), <em>autonomy</em> (I can make my own decisions!), and
+<em>relatedness</em> (I know why I&rsquo;m doing this!).</p>
+
+<p>In open source there&rsquo;s pretty high autonomy &ndash; nobody&rsquo;s ever going to
+force you to work on anything. So what&rsquo;s usually missing is
+<em>relatedness</em> and <em>competence</em>.</p>
+
+<p>For relatedness, I&rsquo;ll ask myself:</p>
+
+<p><strong>&ldquo;What do I hope to get out of contributing to this project?</strong></p>
+
+<ul>
+<li>I want to know how it works! (contributing to Linux could be super
+fun for this reason! Operating systems are amazing! My
+<a href="https://github.com/jvns/gzip.jl">gunzip in julia</a> is a project
+where I learned a ton.)</li>
+<li>I found a bug and I want to fix it! I want to add a feature!</li>
+<li>I want to build up a portfolio of programming work to get better
+jobs!</li>
+<li>I think this project is doing important work and I&rsquo;d like to advance
+it! (Kelsey Gilmore-Innis&rsquo;s work on the
+<a href="http://antievictionmappingproject.net/">Anti-Eviction Mapping Project</a>
+is a great example)</li>
+<li>I like spending time with the people who work on this project! (When
+I went to Drupal conferences, all the Drupal devs were totally
+lovely people and really made me want to contribute to Drupal)</li>
+</ul>
+
+<p>For competence, I&rsquo;ll ask:</p>
+
+<p><strong>Is there anything that will stop me from getting work done?</strong></p>
+
+<ul>
+<li>Do I know the language this is written in? Is it easy to learn?</li>
+<li>Can I set up a dev environment easily on my computer?</li>
+<li>How complex is the codebase? Is it approachable? Is the
+documentation good?</li>
+<li>If I don&rsquo;t know something I need to know, will the community answer
+my questions? Will they be jerks? Is the mailing list active?</li>
+</ul>
+
+<h2 id="why-i-don-t">why I don&rsquo;t</h2>
+
+<p>I usually don&rsquo;t contribute to open source because of <em>relatedness</em> &ndash;
+I don&rsquo;t know what I&rsquo;ll get out of it! A super great example of this is
+Drupal. <a href="https://drupal.org/">Drupal</a> is a tremendously important
+project. I&rsquo;ve contributed to it before! I could do it again! The
+community is extraordinarily welcoming! But it&rsquo;s missing <em>relatedness</em>
+for me right now &ndash; I&rsquo;m not developing websites anymore.</p>
+
+<p>Most open source projects fails relatedness &ndash; if I don&rsquo;t use it,
+don&rsquo;t want to learn about it right now, don&rsquo;t know anyone who works on
+it, and/or don&rsquo;t believe strongly in its mission, I probably don&rsquo;t
+want to contribute! This is TOTALLY OKAY. There are tons of people who
+are contributing to those projects! They will be okay without me =)</p>
+
+<p>A great example of a project that fails competence is Pidgin, above &ndash;
+I might have had some issue with my chat client that I wanted to fix,
+but the barrier to entry seemed too high at the time.</p>
+
+<h2 id="why-i-do">why I do!</h2>
+
+<p>Here are some open source-y projects I have worked on and why:</p>
+
+<ul>
+<li><a href="https://github.com/ipython/ipython">IPython</a>, because there was a
+feature I wanted it to have that it didn&rsquo;t! Now it does! One of my
+PRs got merged into IPython and it is SUPER COOL.</li>
+<li>A <a href="https://github.com/jvns/pandas-cookbook">pandas cookbook</a>,
+because when I learned pandas there weren&rsquo;t as many practical
+materials as I wanted! Now there&rsquo;s one more! People are learning
+more about pandas because I wrote a thing! THE BEST.</li>
+<li><a href="https://github.com/jvns/gzip.jl">gzip in julia</a>, to learn how gzip
+worked. Now I know! AWESOME.</li>
+</ul>
+
+<p>Working on open source projects can be super fun! Yay!</p>
+
+<h2 id="don-t-feel-guilty">don&rsquo;t feel guilty</h2>
+
+<p>There are so many things you could be doing. If it takes 30 hours of
+your time over 3 weeks to fix a network card issue, maybe that&rsquo;s
+worthwhile because you learned a lot and your hardware works better!
+Or maybe you would rather spend that time with your family or friends
+or volunteering or playing soccer or watching movies or working to pay
+your rent.</p>
+
+<p>I sometimes hear people say &ldquo;you should write open source software!&rdquo;
+like it&rsquo;s a universal good. Don&rsquo;t. Do it if it makes sense for you! Do
+it if you know what you&rsquo;ll get out of it, and you feel that it&rsquo;s worth
+your time! If not, do other things instead!</p>]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 8: Julia writes Julia! And remembers that open source is hard.]]></title>
+    <link href="https://jvns.ca/blog/2013/10/12/day-8-julia-writes-julia-and-open-source/"/>
+    <updated>2013-10-12T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/10/12/day-8-julia-writes-julia-and-open-source/</id>
+    <content type="html"><![CDATA[<p>At Hacker School this batch there is a wonderful thing called the
+<a href="https://www.hackerschool.com/blog/23-announcing-the-hacker-school-maintainers-program">maintainers program</a>.
+This means that lovely open source project maintainers come help Hacker
+Schoolers contribute to their projects!</p>
+
+<p>Yesterday <a href="http://karpinski.org/">Stefan Karpinski</a> came to talk about
+<a href="http://julialang.org">Julia</a>. Some reasons I&rsquo;m excited about working on
+Julia:</p>
+
+<ul>
+<li>The potential for &ldquo;Julia works on Julia in Julia&rdquo;</li>
+<li>Much of the code for Julia is written in Julia, unlike in Python where
+if you want to write fast code you have to write it in C. This seems
+pretty huge to me.</li>
+<li>The community seems really nice</li>
+<li>I&rsquo;m into scientific computing &amp; data science, and that&rsquo;s what it&rsquo;s for</li>
+<li>There&rsquo;s a <a href="http://juliastats.github.com/DataFrames.jl">DataFrames</a>
+library for Julia, which I&rsquo;ve already contributed a tiny bit to!</li>
+<li>I love the IPython Notebook to death, and Julia has a backend for it
+so that there&rsquo;s an IJulia Notebook! &lt;3 &lt;3 &lt;3
+</li>
+</ul>
+
+<p>However:</p>
+
+<p>The thing I forgot about open source is that open source (for me!) is
+<em>scary</em> and <em>hard</em>.  Discussing bugs on mailing lists and issue trackers
+and submitting pull requests is <em>terrifying</em>. I have gone to awesome
+code sprints with really lovely supportive people and gone home and
+cried because being new to a project and trying to get work done is
+sometimes <em>so frustrating</em>. Like you can spend 12 hours trying to fix a
+tiny bug and get <em>nowhere</em>. And say ALL OF THE THINGS THAT ARE CONFUSED
+AND WRONG. IN PUBLIC.</p>
+
+<p>HOWEVER!</p>
+
+<p>This is <em>why I&rsquo;m at Hacker School</em>. And I&rsquo;m going to work on lots of
+open source anyway and write code and make pull requests and then it
+will not be terrifying. I think Julia is a pretty good place to do this.
+And pairing with people makes doing this stuff way easier.</p>
+
+<p>AND I MADE PULL REQUESTS TODAY.
+<a href="https://github.com/JuliaStats/DataFrames.jl/commits?author=jvns">merged</a>,
+<a href="https://github.com/JuliaStats/DataFrames.jl/pull/376#issuecomment-26179926">not merged yet</a>.</p>]]></content>
+  </entry>
+  
+</feed>

@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title><![CDATA[Julia Evans]]></title>
+  <link href="http://jvns.ca/atom.xml" rel="self"/>
+  <link href="http://jvns.ca"/>
+  <updated>0001-01-01T00:00:00+00:00</updated>
+  <id>http://jvns.ca</id>
+  <author>
+    <name><![CDATA[Julia Evans]]></name>
+  </author>
+  <generator uri="http://gohugo.io/">Hugo</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[Clojure]]></title>
+    <link href="https://jvns.ca/categories/clojure/"/>
+    <updated>2013-11-25T00:00:00+00:00</updated>
+    <id>https://jvns.ca/categories/clojure/</id>
+    <content type="html"><![CDATA[]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Conference]]></title>
+    <link href="https://jvns.ca/categories/conference/"/>
+    <updated>2015-12-07T20:22:29+00:00</updated>
+    <id>https://jvns.ca/categories/conference/</id>
+    <content type="html"><![CDATA[]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Containers]]></title>
+    <link href="https://jvns.ca/categories/containers/"/>
+    <updated>2016-11-03T22:45:16+00:00</updated>
+    <id>https://jvns.ca/categories/containers/</id>
+    <content type="html"><![CDATA[]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Culture]]></title>
+    <link href="https://jvns.ca/categories/culture/"/>
+    <updated>2015-12-31T07:05:40+00:00</updated>
+    <id>https://jvns.ca/categories/culture/</id>
+    <content type="html"><![CDATA[]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Favorite]]></title>
+    <link href="https://jvns.ca/categories/favorite/"/>
+    <updated>2016-10-04T20:07:01+00:00</updated>
+    <id>https://jvns.ca/categories/favorite/</id>
+    <content type="html"><![CDATA[]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Gzip]]></title>
+    <link href="https://jvns.ca/categories/gzip/"/>
+    <updated>2013-10-24T00:00:00+00:00</updated>
+    <id>https://jvns.ca/categories/gzip/</id>
+    <content type="html"><![CDATA[]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Hackerschool]]></title>
+    <link href="https://jvns.ca/categories/hackerschool/"/>
+    <updated>2014-08-12T08:52:30+00:00</updated>
+    <id>https://jvns.ca/categories/hackerschool/</id>
+    <content type="html"><![CDATA[]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[How Things Work]]></title>
+    <link href="https://jvns.ca/categories/how-things-work/"/>
+    <updated>2015-12-24T07:35:31+00:00</updated>
+    <id>https://jvns.ca/categories/how-things-work/</id>
+    <content type="html"><![CDATA[]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Interviewing]]></title>
+    <link href="https://jvns.ca/categories/interviewing/"/>
+    <updated>2014-02-03T00:00:00+00:00</updated>
+    <id>https://jvns.ca/categories/interviewing/</id>
+    <content type="html"><![CDATA[]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Julia]]></title>
+    <link href="https://jvns.ca/categories/julia/"/>
+    <updated>2013-10-24T00:00:00+00:00</updated>
+    <id>https://jvns.ca/categories/julia/</id>
+    <content type="html"><![CDATA[]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Kernel]]></title>
+    <link href="https://jvns.ca/categories/kernel/"/>
+    <updated>2016-01-23T09:17:14+00:00</updated>
+    <id>https://jvns.ca/categories/kernel/</id>
+    <content type="html"><![CDATA[]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Kubernetes]]></title>
+    <link href="https://jvns.ca/categories/kubernetes/"/>
+    <updated>2017-10-05T21:23:46+00:00</updated>
+    <id>https://jvns.ca/categories/kubernetes/</id>
+    <content type="html"><![CDATA[]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Linkers]]></title>
+    <link href="https://jvns.ca/categories/linkers/"/>
+    <updated>2013-12-12T00:00:00+00:00</updated>
+    <id>https://jvns.ca/categories/linkers/</id>
+    <content type="html"><![CDATA[]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Linux]]></title>
+    <link href="https://jvns.ca/categories/linux/"/>
+    <updated>2016-03-12T11:09:40+00:00</updated>
+    <id>https://jvns.ca/categories/linux/</id>
+    <content type="html"><![CDATA[]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Machinelearning]]></title>
+    <link href="https://jvns.ca/categories/machinelearning/"/>
+    <updated>2015-12-24T07:35:31+00:00</updated>
+    <id>https://jvns.ca/categories/machinelearning/</id>
+    <content type="html"><![CDATA[]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Music]]></title>
+    <link href="https://jvns.ca/categories/music/"/>
+    <updated>2013-11-25T00:00:00+00:00</updated>
+    <id>https://jvns.ca/categories/music/</id>
+    <content type="html"><![CDATA[]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Netdev]]></title>
+    <link href="https://jvns.ca/categories/netdev/"/>
+    <updated>2017-04-08T14:39:11+00:00</updated>
+    <id>https://jvns.ca/categories/netdev/</id>
+    <content type="html"><![CDATA[]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Networking]]></title>
+    <link href="https://jvns.ca/categories/networking/"/>
+    <updated>2016-08-24T18:53:10+00:00</updated>
+    <id>https://jvns.ca/categories/networking/</id>
+    <content type="html"><![CDATA[]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Opensource]]></title>
+    <link href="https://jvns.ca/categories/opensource/"/>
+    <updated>2015-04-12T08:24:15+00:00</updated>
+    <id>https://jvns.ca/categories/opensource/</id>
+    <content type="html"><![CDATA[]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Pairing]]></title>
+    <link href="https://jvns.ca/categories/pairing/"/>
+    <updated>2014-08-05T19:22:54+00:00</updated>
+    <id>https://jvns.ca/categories/pairing/</id>
+    <content type="html"><![CDATA[]]></content>
+  </entry>
+  
+</feed>

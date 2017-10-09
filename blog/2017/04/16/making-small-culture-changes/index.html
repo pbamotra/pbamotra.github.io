@@ -1,0 +1,304 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>Making small culture changes - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="Making small culture changes">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2017/04/16/making-small-culture-changes/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">Making small culture changes</h1>
+
+<div class="post-tags">
+  
+</div>
+<p class="meta">
+<time datetime="2017-04-16T15:52:21" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     
+
+<p>A lot of the time we say that &ldquo;culture comes from the top&rdquo; and talk about the
+responsibility of CEOs / executives / managers to set the culture. I think this
+is super true, but I am not a CEO or manager or anything. I work as a software
+engineer.</p>
+
+<p>It&rsquo;s also true though that individual software engineers have some power! So I
+want to talk about a few positive experiences me and my partner have had making
+tiny changes at work! It turns out I&rsquo;ve mostly worked on interviewing /
+recruiting in engineering.</p>
+
+<p>Here are a few examples of things my partner and I have tried to make a little
+different at our jobs over the years.</p>
+
+<h3 id="fairer-interviews">fairer interviews</h3>
+
+<p>When I started doing phone interviews (a few years ago now), I wasn&rsquo;t given any
+clear standards to evaluate the people I was interviewing. And I didn&rsquo;t feel
+like I was doing as good of job as I should be, so I asked some friends for
+advice! One of my amazing friends suggested that I write down a rubric (a set
+of clear guidelines to determine whether the candidate passed the interview or
+not) for myself to use. So I did! I found some other rubrics we were using
+internally, and wrote &ldquo;Julia&rsquo;s phone screen rubric&rdquo;. I put it in a public
+document and said other people could use it if they wanted too.</p>
+
+<p>Eventually some colleagues gave me some suggestions about things to add to my
+rubric, a few people started using it for themselves, and I made some changes.
+Then one day people decided to standardize how we evaluated phone screens, it
+got adopted as the standards everyone in engineering was going to use to
+evaluate phone screens, and a few more changes were made to make it even
+better.</p>
+
+<p>It turns out that having consistent standards is really cool! There are a ton
+of different possible things to care about in interviews (do they test their
+code? How are their debugging skills? Do they write ‘idiomatic&rsquo; code? how
+charismatic is the person?). Having a clear rubric helps make sure that.</p>
+
+<p>I definitely didn&rsquo;t change this by myself (in particular, somebody else made
+the decision that all interviewers should use consistent standards, and many
+many other people contributed) but I think I helped a little bit and that made
+me happy!</p>
+
+<p>Also I think this is an interesting example of how the best way to make change
+changes over time &ndash; like, today if I wanted to change our interview rubrics I
+probably wouldn&rsquo;t just announce &ldquo;hey, I&rsquo;m changing how I do it!&rdquo; because we
+have an existing process and I think it&rsquo;s important to respect that. But back
+then I think that was a totally fine thing to do, because there wasn&rsquo;t a
+consistent standard anyway so introducing a new standard didn&rsquo;t cause any
+conflict.</p>
+
+<h3 id="building-postmortem-culture">building postmortem culture</h3>
+
+<p>My partner <a href="https://kamalmarhubi.com/blog/">Kamal</a> started at an (awesome) new job recently, that he really likes.
+They&rsquo;re still relatively small, and hadn&rsquo;t built a habit of regularly writing
+postmortems for every incident yet. After the first incident he worked on, he
+wrote a very detailed postmortem about what happened.</p>
+
+<p>A few weeks later, he told me &ldquo;huh, other people have started regularly writing
+postmortems for their incidents too! It looks like we have a culture of
+regularly writing postmortems for incidents now!&ldquo;.</p>
+
+<p>I thought this was really cool because it&rsquo;s an example of how doing something
+yourself once or twice can make it way easier for people to do the same! It&rsquo;s
+way easier to write a postmortem for an incident if you have an existing
+template to work with that your coworker wrote last week.</p>
+
+<h3 id="what-to-expect-in-interviews">what to expect in interviews</h3>
+
+<p>A few years ago my awesome coworker Kiran and I were talking about how a lot of candidates don&rsquo;t know what to expect when interviewing at our company. We basically wanted to write down the same tips we&rsquo;d give to a friend about how to prepare for the interview, except, well, just put them on the website and give them to everyone. There are a lot of basic things that aren&rsquo;t obvious like:</p>
+
+<ul>
+<li>Should I bring a computer?</li>
+<li>What should I wear?</li>
+<li>One of the interviews involves the basics of the HTTP protocol so it&rsquo;s important to be familiar with that!</li>
+<li>We expect people to code on their computer so it&rsquo;s useful to set up some common project boilerplate in advance</li>
+<li>We really like it when people bring questions to ask their interviewers!</li>
+</ul>
+
+<p>I thought this was important because when I interviewed for jobs last, the
+interviews and what kind of preparation people expected were often quite
+different from company to company, and as a candidate (and especially as a
+candidate who doesn&rsquo;t already have a friend there!) it can be unnecessarily
+stressful.</p>
+
+<p>So we wrote up a &ldquo;what to expect when interviewing&rdquo;
+<a href="https://stripe.com/jobs/engineering-onsite.pdf">document</a>, someone else made
+it into a pretty PDF, and we put it on the website!</p>
+
+<p>I just googled (&ldquo;what to expect stripe&rdquo;) and found out that today we publish 6
+different &ldquo;what to expect&rdquo; documents for different jobs, and that there have
+been a lot of changes to the original document to improve it / keep it up to
+date as our interview process has changed. So cool!!</p>
+
+<h3 id="a-more-welcoming-job-description">a more welcoming job description</h3>
+
+<p>A bunch of our job descriptions got revamped recently. One thing I sometimes
+see in job descriptions is &ldquo;you should have experience in
+$EXACT_THING_YOU_WILL_BE_DOING&rdquo;. I always find that frustrating because, well
+&ndash; lots of the best people I konw didn&rsquo;t have any experience with the specific
+technologies we work with before they started here (including me!) so why
+should it be a requirement?</p>
+
+<p>So I was like &ldquo;I know! I will write a job description that I think is a
+fair description of what we need!&ldquo;. I wrote a job description for the <a href="https://stripe.com/jobs/positions/infrastructure-engineer">job I have</a>. In
+particular I added a new &ldquo;Projects you could work on&rdquo; section with specific
+examples of projects so that people could see what they might actually work on.
+And then I got the appropriate people to review it, we made some changes, and
+it got posted! This was a pretty small thing but I think it is a good job
+description.</p>
+
+<p>And last week a manager on another team asked me for advice about how to make
+their job description more clear about what the job is and sound more
+inclusive and I told them what I thought!</p>
+
+<p>For this one my manager at the time helped me a lot &ndash; I said &ldquo;hey, I want to
+write a job description for our org&rdquo;, and he told me &ldquo;awesome, here&rsquo;s who I you
+need to talk to to get that done!&rdquo; and gave me some useful advice. It didn&rsquo;t
+matter that I&rsquo;m not a manager or team lead or anything which I thought was
+cool.</p>
+
+<h3 id="better-documentation">better documentation</h3>
+
+<p>Until recently my team didn&rsquo;t have that much documentation for the infrastructure /
+tooling we maintain. There were a lot of things that lots of people knew, and
+that if you asked someone they would definitely explain to you, but just
+weren&rsquo;t… written down anywhere. I made it one of my personal goals this quarter
+to improve our documentation a lot. So I&rsquo;ve written a bunch of documentation
+myself, sometimes I&rsquo;ll pair with someone to document a system that needs
+it, and other people have been writing new docs too. I&rsquo;m excited about it and I
+think it&rsquo;s easier for a new person to come in and start reading to learn how
+our systems work than it was 6 months ago.</p>
+
+<p>As an example of something that <em>didn&rsquo;t</em> work that well: when I joined, I
+wanted to make our documentation better, but I think I tried to make changes / ask people to make changes
+kind of all over the place and it was too scattered. Doing it in a more focused
+way (&ldquo;I&rsquo;m just going to document stuff on my team&rdquo;) has been a lot better.</p>
+
+<h3 id="some-changes-are-too-big-though">some changes are too big, though!</h3>
+
+<p>I spent some time last year advocating for us having concrete goals around
+making the engineering team more diverse. We did end up setting some goals, but
+I don&rsquo;t know whether I made a difference at all &ndash; some things really do need
+someone higher up to decide them. (I actually think the approach they came up
+with is pretty cool, but it is not my thing to write about here)</p>
+
+<p>So while there are lots of changes you can make by leading by example and from
+the bottom up, this approach definitely doesn&rsquo;t work for everything.</p>
+
+<h3 id="you-can-make-changes-maybe">you can make changes, maybe</h3>
+
+<p>Not all of the changes I&rsquo;ve tried have worked (and I&rsquo;ve left out the things that
+haven&rsquo;t worked :)), so this is a pretty optimistic view. But I really do
+think that software engineers at tech companies sometimes have a bunch of
+influence, and if I do the work to help make the change happen, sometimes
+things can be a little bit different! I see a lot of other individual software
+engineers making changes to make things on their teams a little better and I
+think it&rsquo;s awesome. All companies are a work in progress and things cannot be
+good unless we make them that way together :)</p>
+
+<p>Some things that have helped me:</p>
+
+<ul>
+<li>Work on one thing at a time. I have a regular engineering job to do, so I only do one &ldquo;side project&rdquo; like this at once. So if I&rsquo;m working on organizing an event, I&rsquo;m not allowed to write a job description.</li>
+<li>Doing the work myself to start is easier than asking somebody else to change how they&rsquo;re doing something.</li>
+<li>Trying small changes first. Even if what I want is for all of our interviews to have standard evaluation guidelines (today that&rsquo;s true!!), I can&rsquo;t make that happen all at once, it&rsquo;s easier to say &ldquo;ok, I&rsquo;m just going to make some guidelines for myself to use&rdquo;.</li>
+<li>Work with other people!</li>
+<li>Remember my coworkers are probably on the same side as me :)</li>
+</ul>
+
+<p>Some other examples of making this kind of change:</p>
+
+<ul>
+<li>Sumana Harihareswara&rsquo;s great post <a href="https://www.harihareswara.net/sumana/2014/10/08/0">Implementing the Friendly Space Policy for Wikimedia Foundation technical events</a></li>
+</ul>
+
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2017/04/16/making-small-culture-changes/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2017/04/16/making-small-culture-changes/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2017/04/17/statistics-for-programmers/" title="Previous Post: Some good &#34;Statistics for programmers&#34; resources">Some good &#34;Statistics for programmers&#34; resources</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2017/04/08/netdev-conference-day-3/" title="Next Post: netdev conference, day 3">netdev conference, day 3</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

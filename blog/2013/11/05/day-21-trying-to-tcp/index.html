@@ -1,0 +1,193 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>Day 21: Trying to TCP - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="Day 21: Trying to TCP">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2013/11/05/day-21-trying-to-tcp/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">Day 21: Trying to TCP</h1>
+
+<div class="post-tags">
+  
+  •
+  
+    <a class="post-tag" href="/categories/hackerschool">hackerschool</a> 	•
+  
+  
+</div>
+<p class="meta">
+<time datetime="2013-11-05T00:00:00" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     <p>Today I started trying to write a TCP stack. In Python. We will see if
+this is a good idea.</p>
+
+<p>I&rsquo;m using <a href="http://www.secdev.org/projects/scapy/">scapy</a>. I talked
+about scapy on
+<a href="http://jvns.ca/blog/2013/10/31/day-20-scapy-and-traceroute/">Thursday</a>
+&ndash; it&rsquo;s a great tool for playing with low-level networking stuff in
+Python.</p>
+
+<p>So. I&rsquo;ve gotten a TCP handshake working. The way this goes is you send a
+SYN, then get back a SYN-ACK, then send an ACK.</p>
+
+<p>I tried this TCP handshake code first:</p>
+
+<pre><code>dest = &quot;google.com&quot;
+source_port += 1 # We need to set a different source port every time
+ip_header = IP(dst=dest)
+ans = sr1(ip_header / TCP(dport=80, flags=&quot;S&quot;, seq=random.randint(0, 1000))) # Send SYN, receive SYN-ACK
+reply = ip_header / TCP(dport=80, seq=ans.ack, ack = ans.seq + 1, flags=&quot;A&quot;) # ACK
+send(reply) # Send ACK
+</code></pre>
+
+<p>This did NOT WORK. Upon inspecting Wireshark, it turned out that <em>my</em> machine
+was the problem: it was sending out a RST (reset) packet after I got a SYN-ACK
+packet back from Google. What&rsquo;s up with that?</p>
+
+<p>Well, I already have a network stack on my machine, and it was like &ldquo;what&rsquo;s
+this SYN-ACK packet? I didn&rsquo;t ask for this!&ldquo;. So it would just reset the
+connection.</p>
+
+<p>Jari (who is amazing) suggested a workaround: set up a fake IP address and
+tell the router using ARP
+(<a href="http://jvns.ca/blog/2013/10/29/day-18-in-ur-connection/">previously</a>) that
+I am the person with that IP address. Here&rsquo;s the fixed version:</p>
+
+<p>I think I could also use iptables here to tell the kernel to ignore those
+packets. But I&rsquo;m currently afraid of iptables. So. This code worked much
+better!</p>
+
+<pre><code># Set port &amp; MAC address
+FAKE_IP = &quot;10.0.4.4&quot; # Use something that nobody else is going to have
+MAC_ADDR = &quot;60:67:20:eb:7b:bc&quot; # My actual MAC address
+
+# Broadcast our fake IP address
+srp(Ether(dst=&quot;ff:ff:ff:ff:ff:ff&quot;)/ARP(psrc=FAKE_IP, hwsrc=MAC_ADDR))
+
+source_port += 1
+ip_header = IP(dst=dest, src=FAKE_IP) # Set the source port to 
+ans = sr1(ip_header / TCP(dport=80, sport=source_port,  flags=&quot;S&quot;, seq=random.randint(0, 1000))) # SYN
+# ans is the SYN-ACK
+reply = ip_header / TCP(dport=80, sport=source_port, seq=ans.ack, ack = ans.seq + 1, flags=&quot;A&quot;) # ACK
+send(reply) # Send ACK
+pkt = ip_header / TCP(dport=80, sport=source_port, seq=reply.seq, flags=&quot;AP&quot;) / &quot;GET / HTTP/1.1\r\n\r\n&quot; # Send our real packet
+send(pkt)
+</code></pre>
+
+<p>That is my small amount of code for the day. I also spend a ton of time reading
+<a href="https://github.com/denghuancong/4.4BSD-Lite/blob/master/usr/src/sys/netinet/udp_usrreq.c?source=cc">the UDP handling code from the 4.4BSD network stack</a>.
+I do not yet have anything intelligent to say about that, but it&rsquo;s pretty interesting.</p>
+
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2013/11/05/day-21-trying-to-tcp/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2013/11/05/day-21-trying-to-tcp/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2013/11/06/nyc-python-talk-slides/" title="Previous Post: NYC Python talk">NYC Python talk</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2013/10/31/day-19-i-might-understand-why-networking-is-hard/" title="Next Post: Day 19: A few reasons why networking is hard">Day 19: A few reasons why networking is hard</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

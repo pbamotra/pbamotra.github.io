@@ -1,0 +1,331 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>a tiny whack-a-mole game - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="a tiny whack-a-mole game">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2017/06/26/vue-js-fun/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">a tiny whack-a-mole game</h1>
+
+<div class="post-tags">
+  
+</div>
+<p class="meta">
+<time datetime="2017-06-26T20:51:03" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     
+
+<script src="https://unpkg.com/vue"></script>
+
+<p>Hello! The other day I was learning about <a href="https://vuejs.org/">vue.js</a> and I
+thought it was kind of fun so I made this whack-a-mole game
+(<a href="https://jsfiddle.net/e3fj6dzb/">jsfiddle</a>).  (if you&rsquo;re reading this in RSS /
+email you should maybe click on the post to see the game).</p>
+
+<p><strong>Rules</strong>:</p>
+
+<ul>
+<li>moles are orange. click them to whack them</li>
+<li>if you whack all the moles you win</li>
+</ul>
+
+<p>Here, you can play it:</p>
+
+<div align="center">
+<div id="app">
+  <h2 style="color: orange" v-if="won()">
+     YOU WIN!!!
+  </h2>
+  <table v-if="!won()">
+    <tr v-for="(array, x_coord) in mole_grid">
+      <td v-for="(value, y_coord) in array">
+        <div class="circle" v-on:click="squash(x_coord, y_coord)"
+v-bind:style="{ background: value ? 'orange' : 'black'}"></div>
+      </td>
+    </tr>
+  </table>
+</div>
+</div>
+
+<p>To make this game work I needed to:</p>
+
+<ol>
+<li>make event handlers that whack the mole when I click on an orange mole</li>
+<li>make the game disappear when the player wins</li>
+<li>automatically add new moles every 0.5 seconds to be whacked</li>
+</ol>
+
+<p>Usually when I write Javascript I use jQuery and make a lot of callbacks and
+the code I write is sort of a disaster.</p>
+
+<p>I&rsquo;m excited about vue.js right now because it feels like an easier way to make
+tiny interactive javascript programs like this one.</p>
+
+<p>Here is the display logic for this game! It is pretty simple! There is some
+HTML and it only displays the table if the game is still going (<code>!won()</code>).</p>
+
+<p>The thing I like about this is &ndash; I just need to define a data structure for my
+game state (<code>mole_grid</code>). Each entry in that grid is 1 if there&rsquo;s a mole there
+an 0 if there&rsquo;s no mole. Vue.js automatically takes care of updating the HTML
+when my game state updates. This is also how React works but vue seems less
+complicated to me than React and I only want to do simple things anyway.</p>
+
+<p><xmp>
+<div id="app">
+  <h2 v-if="won()">
+     YOU WIN!!!
+  </h2>
+  <table v-if="!won()">
+    <tr v-for="(array, x_coord) in mole_grid">
+      <td v-for="(value, y_coord) in array">
+        <div class="circle" v-on:click="squash(x_coord, y_coord)"
+v-bind:style="{ background: value ? 'orange' : 'black'}"></div>
+      </td>
+    </tr>
+  </table>
+<!-- and some css to make the circles -->
+<style type="text/css">
+.circle {
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  /* width and height can be anything, as long as they&rsquo;re equal */
+}
+</xmp></p>
+
+<h3 id="javascript">javascript</h3>
+
+<p>Okay, but the app needs, like, callbacks and Javascript and stuff. Here&rsquo;s all
+the javascript! It has a <code>squash</code> function and a <code>won</code> function. It feels about
+as simple as the code for a whack-a-mole game should be which is.. pretty
+simple.</p>
+
+<pre><code class="language-javascript">var app = new Vue({
+  el: '#app',
+  data: {
+    mole_grid: [ // this is the initial grid, with 2 moles on it
+                 // all the game state is here basically!
+      [0, 1, 0],
+      [0, 0, 0],
+      [1, 0, 1]
+    ],
+    has_won: false, // also store if the player won yet
+  },
+  methods: {
+    set_mole: function(x_coord, y_coord, value) {
+      this.mole_grid[x_coord][y_coord] = value;
+      Vue.set(this.mole_grid, x_coord, this.mole_grid[x_coord]);
+    },
+    squash: function(x_coord, y_coord) {
+      this.set_mole(x_coord, y_coord, 0);
+    },
+    // check if we won yet
+    won: function () {
+    	if (this.has_won) {
+      	return true
+      }
+      var sum = 0;
+      for (var i in this.mole_grid) {
+      	for (var j in this.mole_grid[i]) {
+        	sum += parseInt(this.mole_grid[i][j]);
+        }
+      }
+      if (sum == 0) {
+      	this.has_won = true;
+      }
+      return this.has_won;
+    }
+  }
+})
+
+function getRandomInt(min, max) {
+  return Math.floor(Math.random() * (max - min)) + min;
+}
+
+// add a new mole to squash every 500ms
+setInterval(function() {
+console.log(app.won());
+  app.set_mole(getRandomInt(0, app.mole_grid.length), getRandomInt(0, app.mole_grid[0].length), 1)
+}, 500);
+
+</code></pre>
+
+<script type="text/javascript">
+
+var app = new Vue({
+  el: '#app',
+  data: {
+    mole_grid: [
+      [0, 1, 0],
+      [0, 0, 0],
+      [1, 0, 1]
+    ],
+    has_won: false,
+  },
+  methods: {
+    set_mole: function(x_coord, y_coord, value) {
+      this.mole_grid[x_coord][y_coord] = value;
+      Vue.set(this.mole_grid, x_coord, this.mole_grid[x_coord]);
+    },
+    squash: function(x_coord, y_coord) {
+      this.set_mole(x_coord, y_coord, 0);
+    },
+    won: function () {
+        if (this.has_won) {
+        return true
+      }
+        var sum = 0;
+      for (var i in this.mole_grid) {
+        for (var j in this.mole_grid[i]) {
+            sum += parseInt(this.mole_grid[i][j]);
+        }
+      }
+      if (sum == 0) {
+        this.has_won = true;
+      }
+      return this.has_won;
+    }
+  }
+})
+
+function getRandomInt(min, max) {
+  return Math.floor(Math.random() * (max - min)) + min;
+}
+
+setInterval(function() {
+console.log(app.won());
+  app.set_mole(getRandomInt(0, app.mole_grid.length), getRandomInt(0, app.mole_grid[0].length), 1)
+}, 500);
+
+app.squash(0, 1)
+</script>
+
+<style type="text/css">
+.circle {
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  /* width and height can be anything, as long as they're equal */
+}
+</style>
+
+<h3 id="that-s-all">that&rsquo;s all</h3>
+
+<p>I don&rsquo;t have a lot of opinions about javascript libraries (my local npm
+installation is definitely broken), but I do like to make tiny interactive
+webpages on the internet occasionally and this seems like a nice way to do
+that.</p>
+
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2017/06/26/vue-js-fun/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2017/06/26/vue-js-fun/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2017/06/26/3-screencasts/" title="Previous Post: 3 short screencasts (/proc, tcpdump, strace)">3 short screencasts (/proc, tcpdump, strace)</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2017/06/18/operate-your-software/" title="Next Post: What can developers learn from being on call?">What can developers learn from being on call?</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

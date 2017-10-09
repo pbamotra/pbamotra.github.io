@@ -1,0 +1,653 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>You can be a kernel hacker! - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="You can be a kernel hacker!">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2014/09/18/you-can-be-a-kernel-hacker/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">You can be a kernel hacker!</h1>
+
+<div class="post-tags">
+  
+  •
+  
+    <a class="post-tag" href="/categories/kernel">kernel</a> 	•
+  
+  
+</div>
+<p class="meta">
+<time datetime="2014-09-18T14:20:56" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     <p><small> This blog post is adapted from a talk I gave at Strange Loop
+2014 with the same title. <a href="https://www.youtube.com/watch?v=0IQlpFWTFbM">Watch the video!</a> </small></p>
+
+<p>When I started <a href="https://hackerschool.com">Hacker School</a>, I wanted to
+learn how the Linux kernel works. I&rsquo;d been using Linux for ten years,
+but I still didn&rsquo;t understand very well what my kernel did. While
+there, I found out that:</p>
+
+<ul>
+<li>the Linux kernel source code isn&rsquo;t all totally impossible to
+understand</li>
+<li>kernel programming is not just for wizards, it can also be for me!</li>
+<li>systems programming is REALLY INTERESTING</li>
+<li>I could write toy kernel modules, for fun!</li>
+<li>and, most surprisingly of all, all of this stuff was <em>useful</em>.</li>
+</ul>
+
+<p>I hadn&rsquo;t been doing low level programming at all &ndash; I&rsquo;d written a
+little bit of C in university, and otherwise had been doing web
+development and machine learning. But it turned out that my newfound
+operating systems knowledge helped me solve regular programming tasks
+more easily.</p>
+
+<p>I also now feel like if I were to be put on <em>Survivor: fix a bug in my
+kernel&rsquo;s USB driver</em>, I&rsquo;d stand a chance of not being immediately
+kicked off the island.</p>
+
+<p></p>
+
+<p>This is all going to be about Linux, but a lot of the same concepts
+apply to OS X. We&rsquo;ll talk about</p>
+
+<ul>
+<li>what even is a kernel?</li>
+<li>why bother learning about this stuff?</li>
+<li>A few strategies for understanding the Linux kernel better, on your own
+terms:
+
+<ul>
+<li>strace all the things!</li>
+<li>Read some kernel code!</li>
+<li>Write a fun kernel module!</li>
+<li>Write an operating system!</li>
+<li>Try the Eudyptula challenge</li>
+<li>Do an internship.</li>
+</ul></li>
+</ul>
+
+<h3 id="what-even-is-a-kernel">What even is a kernel?</h3>
+
+<p>In a few words:</p>
+
+<p><strong>A kernel is a bunch of code that knows how to interact with your hardware</strong>.</p>
+
+<p>Linux is mostly written in C, with bit of assembly. Let&rsquo;s say you go
+to <a href="http://google.com">http://google.com</a> in your browser. That requires typing, sending
+data over a network, allocating some memory, and maybe writing some
+cache files. Your kernel has code that</p>
+
+<ul>
+<li>interprets your keypresses every time you press a key</li>
+<li>speaks the TCP/IP protocol, for sending information over the network
+to Google</li>
+<li>communicates with your hard drive to write bytes to it</li>
+<li>understands how your filesystem is implemented (what do the bytes on
+the hard drive even mean?!)</li>
+<li>gives CPU time to all the different processes that might be running</li>
+<li>speaks to your graphics card to display the page</li>
+<li>keeps track of all the memory that&rsquo;s been allocated</li>
+</ul>
+
+<p>and much, much more. All of that code is running all the time you&rsquo;re
+using your computer!</p>
+
+<p>This is a lot to handle all at once! The only concept I want to you to
+understand for the rest of this post is *<em>system calls</em>. System calls
+are your kernel&rsquo;s API &ndash; regular programs that you write can interact
+with your computer&rsquo;s hardware using system calls. A few example system
+calls:</p>
+
+<ul>
+<li><code>open</code> opens files</li>
+<li><code>sendto</code> and <code>recvfrom</code> send and receive network data</li>
+<li><code>write</code> writes to disk</li>
+<li><code>chmod</code> changes the permissions of a file</li>
+<li><code>brk</code> and <code>sbrk</code> allocate memory</li>
+</ul>
+
+<p>So when you call the <code>open()</code> function in Python, somewhere down the
+stack that eventually uses the <code>open</code> system call.</p>
+
+<p>That&rsquo;s all you need to know about the kernel for now! It&rsquo;s a bunch of
+C code that&rsquo;s running all the time on your computer, and you interact
+with it using system calls.</p>
+
+<h3 id="why-learn-about-the-linux-kernel-anyway">Why learn about the Linux kernel, anyway?</h3>
+
+<p>There are some obvious reasons: it&rsquo;s really fun! Not everyone knows
+about it! Saying you wrote a kernel module for fun is cool!</p>
+
+<p>But there&rsquo;s a more serious reason: learning about the interface
+between your operating system and your programs will <strong>make you a
+better programmer</strong>. Let&rsquo;s see how!</p>
+
+<h4 id="reason-1-strace">Reason 1: strace</h4>
+
+<p>Imagine that you&rsquo;re writing a Python program, and it&rsquo;s meant to be
+reading some data from a file <code>/user/bork/awesome.txt</code>. But it&rsquo;s not
+working!</p>
+
+<p>A pretty basic question is: is your program even opening the right
+file? You could start using your regular debugging techniques to
+investigate (print some things out! use a debugger!). But the amazing
+thing is that on Linux, the <em>only way</em> to open a file is with the
+<code>open</code> system call. You can get a list of all of these calls to <code>open</code>
+(and therefore every file your program has opened) with a tool called
+strace.</p>
+
+<p>Let&rsquo;s do a quick example! Let&rsquo;s imagine I want to know what files
+Chrome has opened!</p>
+
+<pre><code>$ strace -e open google-chrome
+[... lots of output omitted ...]
+open(&quot;/home/bork/.config/google-chrome/Consent To Send Stats&quot;, O_RDONLY) = 36
+open(&quot;/proc/meminfo&quot;, O_RDONLY|O_CLOEXEC) = 36
+open(&quot;/etc/opt/chrome/policies/managed/lastpass_policy.json&quot;, O_RDONLY) = 36
+</code></pre>
+
+<p>This is a really powerful tool for observing the <em>behavior</em> for a
+program that we wouldn&rsquo;t have if we didn&rsquo;t understand some basics
+about system calls. I use strace to:</p>
+
+<ul>
+<li>see if the file I <em>think</em> my program is opening is what it&rsquo;s
+<em>really</em> opening (system call: <code>read</code>)</li>
+<li>find out what log file my misbehaving poorly documented program is
+writing to (though I could also use <code>lsof</code>) (system call: <code>write</code>)</li>
+<li>spy on what data my program is sending over the network (system
+calls: <code>sendto</code> and <code>recvfrom</code>)</li>
+<li>find out every time my program opens a network connection (system
+call: <code>socket</code>)</li>
+</ul>
+
+<p>I love strace so much I gave a lightning talk about just strace:
+<a href="https://www.youtube.com/watch?v=4pEHfGKB-OE">Spying on your programs with strace</a>.</p>
+
+<h4 id="reason-2-proc">Reason 2: <code>/proc</code></h4>
+
+<p><code>/proc</code> lets you <strong>recover your deleted files</strong>, and is a great
+example of how understanding your operating system a little better is
+an amazing programming tool.</p>
+
+<p>How does it do that? Let&rsquo;s imagine that we&rsquo;ve written a program
+<a href="https://gist.github.com/jvns/a5c1ac3c141a6a6e782f">smile.c</a>, and
+we&rsquo;re in the middle of running it. But then we accidentally delete the
+binary!</p>
+
+<p>The PID of that process right now is <code>8604</code>. I can find the
+executable for that process at <code>/proc/8604/exe</code>:</p>
+
+<pre><code> /proc/8604/exe -&gt; /home/bork/work/talks/2014-09-strangeloop/smile (deleted)
+</code></pre>
+
+<p>It&rsquo;s <code>(deleted)</code>, but we can still look at it!
+<code>cat /proc/8604/exe &gt; recovered_smile</code> will recover our executable. Wow.</p>
+
+<p>There&rsquo;s also a ton of other really useful information about processes
+in <code>/proc</code>. (like which files they have open &ndash; try <code>ls -l/proc/&lt;pid&gt;/fd</code>)</p>
+
+<p>You can find out more with <code>man proc</code>.</p>
+
+<h4 id="reason-3-ftrace">Reason 3: ftrace</h4>
+
+<p>ftrace is totally different from strace. strace traces <strong>system
+calls</strong> and ftrace traces <strong>kernel functions</strong>.</p>
+
+<p>I honestly haven&rsquo;t had occasion to do this yet but it is REALLY COOL
+so I am telling you about it. Imagine that you&rsquo;re having some problems
+with TCP, and you&rsquo;re seeing a lot of TCP retransmits. ftrace can give
+you information about every time the TCP retransmit function in the
+kernel is called!</p>
+
+<p>To see how to actually do this, read Brendan Gregg&rsquo;s post
+<a href="http://www.brendangregg.com/blog/2014-09-06/linux-ftrace-tcp-retransmit-tracing.html">Linux ftrace TCP Retransmit Tracing</a>.</p>
+
+<p>There also appear to be some articles about ftrace on
+<a href="https://www.google.ca/search?q=lwn+ftrace">Linux Weekly News!</a></p>
+
+<p>I dream of one day actually investigating this :)</p>
+
+<h4 id="reason-4-perf">Reason 4: perf</h4>
+
+<p>Your CPU has a whole bunch of different levels of caching (L1! L2!)
+that can have really significant impacts on performance. <code>perf</code> is a
+great tool that can tell you</p>
+
+<ul>
+<li>how often the different caches are being used (how many L1 cache
+misses are there?)</li>
+<li>how many CPU cycles your program used (!!)</li>
+<li>profiling information (how much time was spent in each function?)</li>
+</ul>
+
+<p>and a whole bunch of other insanely useful performance information.</p>
+
+<p>If you want to know more about awesome CPU cycle tracking, I wrote
+about it in
+<a href="http://jvns.ca/blog/2014/05/13/profiling-with-perf/">I can spy on my CPU cycles with perf!</a>.</p>
+
+<h4 id="convinced-yet">Convinced yet?</h4>
+
+<p>Understanding your operating system better is <em>super useful</em> and will
+make you a better programmer, even if you write Python. The most
+useful tools for high-level programming I&rsquo;ve found <code>strace</code> and
+<code>/proc</code>. As far as I can tell ftrace and perf are mostly useful for
+lower-level programming. There&rsquo;s also <code>tcpdump</code> and <code>lsof</code> and
+<code>netstat</code> and all kinds of things I won&rsquo;t go into here.</p>
+
+<p>Now you&rsquo;re hopefully convinced that learning more about Linux is worth
+your time. Let&rsquo;s go over some strategies for understanding Linux
+better!</p>
+
+<h3 id="strategy-1-strace-all-the-things">Strategy 1: strace all the things!</h3>
+
+<p>I mentioned <code>strace</code> before briefly. <code>strace</code> is literally my favorite
+program in the universe. A great way to get a better sense for what
+your kernel is doing is &ndash; take a simple program that you understand
+well (like <code>ls</code>), and run <code>strace</code> on it.</p>
+
+<p>This will show you at what points the program is communicating with
+your kernel. I took a 13 hour train ride from Montreal to New York
+once and
+<a href="http://jvns.ca/blog/2013/12/22/fun-with-strace/">straced killall</a> and
+it was REALLY FUN. Let&rsquo;s try <code>ls</code>!</p>
+
+<p>I ran <code>strace -o out ls</code> to save the output to a file. strace will
+output a
+<a href="https://gist.github.com/jvns/291a4de261cb326585c7">WHOLE BUNCH OF CRAP</a>.
+It turns out that starting up a program is pretty complicated, and in
+this case most of the system calls have to do with that. There&rsquo;s a lot
+of</p>
+
+<ul>
+<li>opening libraries: <code>open(&quot;/lib/x86_64-linux-gnu/libc.so.6&quot;,
+O_RDONLY|O_CLOEXEC)</code></li>
+<li>putting those libraries into memory: <code>mmap(NULL, 2126312,
+PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_DENYWRITE, 3, 0) = 0x7faf507fc000
+</code></li>
+</ul>
+
+<p>and a bunch of other things I don&rsquo;t really understand. My main
+strategy when stracing for fun is to ignore all the crap at the
+beginning, and just focus on what I understand. It turns out that <code>ls</code>
+doesn&rsquo;t need to do a lot!</p>
+
+<pre><code>openat(AT_FDCWD, &quot;.&quot;, O_RDONLY|O_NONBLOCK|O_DIRECTORY|O_CLOEXEC) = 3
+getdents(3, /* 5 entries */, 32768)     = 136
+getdents(3, /* 0 entries */, 32768)     = 0
+close(3)                                = 0
+fstat(1, {st_mode=S_IFCHR|0620, st_rdev=makedev(136, 12), ...}) = 0
+mmap(NULL, 4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7faf5104a000
+write(1, &quot;giraffe  out  penguin\n&quot;, 22) = 22
+close(1)                                = 0
+munmap(0x7faf5104a000, 4096)            = 0
+close(2)                                = 0
+exit_group(0)                           = ?
+</code></pre>
+
+<p>This is awesome! Here&rsquo;s what it needed to do:</p>
+
+<ol>
+<li>Open the current directory: <code>openat(AT_FDCWD, &quot;.&quot;,
+O_RDONLY|O_NONBLOCK|O_DIRECTORY|O_CLOEXEC)</code></li>
+<li>Get the contents of that directory: <code>getdents(3, /* 5 entries */,
+32768) = 136</code>. Looks like it was 136 bytes of stuff!</li>
+<li>Close the directory: <code>close(3)</code></li>
+<li>Write the files to standard out: <code>write(1, &quot;giraffe out penguin\n&quot;,
+22) = 22</code></li>
+<li>Close a bunch of things to clean up.</li>
+</ol>
+
+<p>That was really simple, and we already learned a new system call! That
+mmap in the middle there? No idea what that does. But it&rsquo;s totally
+fine! STRACE IS THE BEST.</p>
+
+<p>So! Running strace on random processes and looking up the
+documentation for system calls you don&rsquo;t recognize is an easy way to
+learn a ton!</p>
+
+<p><strong><span style='color:red'>Warning</span></strong>: <strong>Don&rsquo;t</strong> strace processes
+that you actually need to run efficiently! strace is like putting a
+huge stopsign in front of your process every time you use a system
+call, which is <strong>all the time</strong>. Brendan Gregg has a
+<a href="http://www.brendangregg.com/blog/2014-05-11/strace-wow-much-syscall.html">great post about strace which you should read</a>.
+Also you should probably read everything he writes.</p>
+
+<h3 id="strategy-2-read-some-kernel-code">Strategy 2: Read some kernel code!</h3>
+
+<p>Okay, let&rsquo;s imagine that we&rsquo;ve gotten interested in <code>getdents</code> (the
+system call to list the contents of a directory), and we want to
+understand better what it actually does. There&rsquo;s this fantastic tool
+called <a href="http://livegrep.com">livegrep</a> that lets you search through
+kernel code. It&rsquo;s by <a href="http://twitter.com/nelhage">Nelson Elhage</a> who
+is pretty great.</p>
+
+<p>So let&rsquo;s use it to find the source for <code>getdents</code>, which lists all the
+entries in a directory! I searched for it
+using livegrep, and found
+<a href="https://github.com/torvalds/linux/blob/v3.13/fs/readdir.c#L192-L223">the source</a>.</p>
+
+<p>On line 211, it calls <code>iterate_dir</code>. So let&rsquo;s look that up! It&rsquo;s
+<a href="https://github.com/torvalds/linux/blob/v3.13/fs/readdir.c#L23-L48">here</a>.
+Honestly this code makes no sense to me (maybe <code>res =
+file-&gt;f_op-&gt;iterate(file, ctx)</code> is what&rsquo;s iterating over the directory?).</p>
+
+<p>But it&rsquo;s neat that we can look at it!</p>
+
+<p>If you want to know about current Linux kernel development,
+<a href="http://lwn.net/">Linux Weekly News</a> is a great resource. For example,
+here&rsquo;s an interesting article about the
+<a href="http://lwn.net/Articles/342892/">btrfs filesystem!</a></p>
+
+<h3 id="strategy-3-write-a-fun-kernel-module">Strategy 3: Write a fun kernel module!</h3>
+
+<p>Kernel modules sound intimidating but they&rsquo;re actually really
+approachable! All a kernel module is fundamentally is</p>
+
+<ol>
+<li>An <code>init</code> function to run when the module is loaded</li>
+<li>A <code>cleanup</code> function to run when the module is unloaded</li>
+</ol>
+
+<p>You load kernel modules with <code>insmod</code> and unload them with <code>rmmod</code>.
+Here&rsquo;s a working &ldquo;Hello world&rdquo; kernel module!</p>
+
+<pre><code>#include &lt;linux/module.h&gt;    // included for all kernel modules
+#include &lt;linux/kernel.h&gt;    // included for KERN_INFO
+#include &lt;linux/init.h&gt;      // included for __init and __exit macros
+
+static int __init hello_init(void)
+{
+    printk(KERN_INFO &quot;WOW I AM A KERNEL HACKERl!!!\n&quot;);
+    return 0;    // Non-zero return means that the module couldn't be loaded.
+}
+
+static void __exit hello_cleanup(void)
+{
+  printk(KERN_INFO &quot;I am dead.\n&quot;);
+}
+
+module_init(hello_init);
+module_exit(hello_cleanup);
+</code></pre>
+
+<p>That&rsquo;s it! <code>printk</code> writes to the system log, and if you run <code>dmesg</code>,
+you&rsquo;ll see what it printed!</p>
+
+<p>Let&rsquo;s look at another fun kernel module! I gave a talk about kernel
+hacing at <a href="http://2014.cusec.net">CUSEC</a> in January, and I needed a
+fun example. My friend <a href="https://twitter.com/tavarm">Tavish</a> suggested
+&ldquo;hey julia! What if you made a kernel module that rick rolls you every
+time you open a file?&rdquo; And my awesome partner
+<a href="https://twitter.com/kamalmarhubi">Kamal</a> said &ldquo;that sounds like fun!&rdquo;
+and inside a weekend he&rsquo;d totally done it!</p>
+
+<p>You can see the <em>extremely</em> well-commented source here:
+<a href="https://github.com/jvns/kernel-module-fun/blob/master/rickroll.c">rickroll.c</a>.
+Basically what it needs to do when loaded is</p>
+
+<ul>
+<li>find the system call table (it turns out this is not trivial!)</li>
+<li>Disable write protection so that we&rsquo;re actually allowed to modify it
+(!!)</li>
+<li>Save the old <code>open</code> so we can put it back</li>
+<li>Replace the <code>open</code> system call with our own <code>rickroll_open</code> system
+call</li>
+</ul>
+
+<p>That&rsquo;s it!</p>
+
+<p>Here&rsquo;s the relevant code:</p>
+
+<pre><code>sys_call_table = find_sys_call_table();
+DISABLE_WRITE_PROTECTION;
+original_sys_open = (void *) sys_call_table[__NR_open];
+sys_call_table[__NR_open] = (unsigned long *) rickroll_open;
+ENABLE_WRITE_PROTECTION;
+printk(KERN_INFO &quot;Never gonna give you up!\n&quot;);
+</code></pre>
+
+<p>The <code>rickroll_open</code> function is also pretty understandable. Here&rsquo;s a
+sketch of it, though I&rsquo;ve left out some important implementation
+details that you should totally read: <a href="https://github.com/jvns/blob/master/rickroll.c">rickroll.c</a></p>
+
+<pre><code>static char *rickroll_filename = &quot;/home/bork/media/music/Rick Astley - Never Gonna Give You Up.mp3&quot;;
+asmlinkage long rickroll_open(const char __user *filename, int flags, umode_t mode) {
+    if(strcmp(filename + len - 4, &quot;.mp3&quot;)) {
+        /* Just pass through to the real sys_open if the extension isn't .mp3 */
+        return (*original_sys_open)(filename, flags, mode);
+    } else {
+        /* Otherwise we're going to hijack the open */ fd =
+        (*original_sys_open)(rickroll_filename, flags, mode); return
+        fd; } }
+</code></pre>
+
+<p>SO FUN RIGHT. The source is super well documented and interesting and
+you should
+<a href="https://github.com/jvns/kernel-module-fun/blob/master/rickroll.c">go read it</a>.
+And if you think &ldquo;but Kamal must be a kernel hacking wizard! I could
+never do that!&ldquo;, it is not so! Kamal is pretty great, but he had never
+written kernel code before that weekend. I understand that he googled
+things like &ldquo;how to hijack system call table linux&rdquo;. You could do the
+same!</p>
+
+<p>Kernel modules are an especially nice way to start because writing toy
+kernel modules plays nicely into writing real kernel modules like
+hardware drivers. Or you could start out writing drivers right away!
+Whatever floats your boat :) The reference for learning about writing
+drivers is called <a href="http://lwn.net/Kernel/LDD3/">Linux Device Drivers</a>
+or &ldquo;LDD3&rdquo;. The fabulous
+<a href="http://web.mit.edu/jesstess/www/">Jessica McKellar</a> is writing the
+new version, LDD4.</p>
+
+<h3 id="strategy-4-write-an-operating-system">Strategy 4: Write an operating system!</h3>
+
+<p>This sounds really unapproachable! And writing a full-featured
+operating system from scratch is a <strong>ton</strong> of work. But the great
+thing about operating systems is that yours don&rsquo;t need to be full-featured!</p>
+
+<p>I wrote a <a href="https://github.com/jvns/puddle">small operating system</a>
+that basically only has a keyboard driver. And doesn&rsquo;t compile for
+anyone except me. It was 3 weeks of work, and I learned SO MUCH.
+There&rsquo;s a <a href="http://wiki.osdev.org/Main_Page">super great wiki</a> with
+lots of information about making operating system.</p>
+
+<p>A few of the blog posts that I wrote while working on it:</p>
+
+<ul>
+<li><a href="http://jvns.ca/blog/2014/03/12/the-rust-os-story/">Writing an OS in Rust in tiny steps</a></li>
+<li><a href="http://jvns.ca/blog/2013/12/04/day-37-how-a-keyboard-works/">After 5 days, my OS doesn’t crash when I press a key</a></li>
+<li><a href="http://jvns.ca/blog/2013/12/16/day-43-hopefully-the-last-day-spent-fixing-linker-problems/">SOMETHING IS ERASING MY PROGRAM WHILE IT’S RUNNING (oh wait oops)</a></li>
+</ul>
+
+<p>I learned about linkers and bootloaders and interrupts and memory
+management and how executing a program works and so many more things!
+And I&rsquo;ll never finish it,
+<a href="http://jvns.ca/blog/2014/03/21/my-rust-os-will-never-be-finished/">and that&rsquo;s okay</a>.</p>
+
+<h3 id="strategy-5-do-the-eudyptula-challenge">Strategy 5: Do the Eudyptula challenge</h3>
+
+<p>If you don&rsquo;t have an infinite number of ideas for hilarious kernel
+module pranks to play on your friends (I certainly don&rsquo;t!), the
+<a href="http://eudyptula-challenge.org/">Eudyptula Challenge</a> is specifically
+built to help you get started with kernel programming, with
+progressively harder steps. The first one is to just write a
+&ldquo;hello world&rdquo; kernel module, which is pretty straightforward!</p>
+
+<p>They&rsquo;re pretty strict about the way you send email (helping you
+practice for the linux kernel mailing list, maybe!). I haven&rsquo;t tried
+it myself yet, but <a href="http://nullspace.io">Alex Clemmer</a> tells me that
+it is hard but possible. Try it out!</p>
+
+<h3 id="strategy-6-do-an-internship">Strategy 6: Do an internship</h3>
+
+<p>If you&rsquo;re really serious about all this, there are a couple of
+programs I know of:</p>
+
+<ul>
+<li>Google Summer of Code, for students</li>
+<li>The GNOME outreach program for women</li>
+</ul>
+
+<p>The GNOME outreach program for women (OPW) is a great program that
+provides mentorship and a 3-month paid internship for women who would
+like to contribute to the Linux kernel.
+<a href="http://sarah.thesharps.us/2014/08/27/2014-kernel-internship-report-opw/">More than 1000 patches</a>
+from OPW interns and alumni have been accepted into the kernel.</p>
+
+<p>In the application you submit a simple patch to the kernel (!!), and
+it&rsquo;s very well documented. You don&rsquo;t need to be an expert, though you
+do need to know some C.</p>
+
+<p><strong>You can apply now!</strong> The application deadline for the current round
+is October 31, 2014, and you can find more information on the
+<a href="http://kernelnewbies.org/OPWIntro">kernel OPW website</a>.</p>
+
+<h3 id="resources">Resources</h3>
+
+<p>To recap, here are a few super useful resources for learning that I&rsquo;ve
+mentioned:</p>
+
+<ul>
+<li>Previous writing:
+<a href="http://jvns.ca/blog/2014/01/04/4-paths-to-being-a-kernel-hacker/">4 paths to being a kernel hacker</a>,
+everything I&rsquo;ve written about <a href="http://jvns.ca/blog/categories/kernel/">kernels</a></li>
+<li>I learned all of this at <a href="https://www.hackerschool.com/">Hacker School</a></li>
+<li><a href="http://lxr.linux.no/linux+v3.12.6/">LXR</a> and
+<a href="http://livegrep.com/search/linux">http://livegrep.com/</a> are great
+for searching the Linux kernel</li>
+<li><a href="http://lwn.net/Kernel/LDD3/">Linux Device Drivers 3</a> is available
+free online.</li>
+<li>The <a href="http://kernelnewbies.org/OPWIntro">OPW internship for the Linux kernel</a></li>
+<li>Linux Weekly News
+(<a href="http://lwn.net/Archives/GuestIndex/">here&rsquo;s an index</a>)</li>
+<li><a href="http://brendangregg.com/">Brendan Gregg</a> has a ton of extremely
+useful writing about performance analysis tools like <code>perf</code> and
+<code>ftrace</code> on Linux.</li>
+</ul>
+
+<h3 id="you-can-be-a-kernel-hacker">You can be a kernel hacker</h3>
+
+<p>I&rsquo;m not a kernel hacker, really. But now when I look at awesome actual
+kernel hackers like <a href="http://valerieaurora.org/">Valerie Aurora</a> or
+<a href="http://sarah.thesharps.us/">Sarah Sharp</a>, I no longer think that
+they&rsquo;re wizards. I now think those are people who worked really hard
+on becoming better at kernel programming, and did it for a long time!
+And if I spent a lot of time working on learning more, I could be a
+kernel hacker too.</p>
+
+<p>And so could you.</p>
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2014/09/18/you-can-be-a-kernel-hacker/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2014/09/18/you-can-be-a-kernel-hacker/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2014/09/20/strange-loop-2014/" title="Previous Post: Strange Loop 2014">Strange Loop 2014</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2014/09/06/how-to-read-an-executable/" title="Next Post: How is a binary executable organized? Let&#39;s explore it!">How is a binary executable organized? Let&#39;s explore it!</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

@@ -1,0 +1,276 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>Log-structured storage - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="Log-structured storage">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2017/06/11/log-structured-storage/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">Log-structured storage</h1>
+
+<div class="post-tags">
+  
+</div>
+<p class="meta">
+<time datetime="2017-06-11T10:41:48" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     
+
+<p>This morning I&rsquo;m reading <a href="http://dataintensive.net/">Designing data-intensive applications</a> by Martin Kleppmann.</p>
+
+<p>I&rsquo;m only a couple chapters in, but it&rsquo;s already definitely the best
+thing about databases I&rsquo;ve ever read. It&rsquo;s doing an amazing job of</p>
+
+<ul>
+<li>introducing totally new-to-me concepts (like &ldquo;log-structured storage&rdquo;)</li>
+<li>explaining what terms like &ldquo;ACID&rdquo; mean in a rigorous and clear way
+(turns out that the &ldquo;C&rdquo; in ACID stands for &ldquo;consistency&rdquo;, but has
+nothing to do with either linearizability or &ldquo;eventual consistency&rdquo;,
+it&rsquo;s actually about maintaining application-level invariants.
+It&rsquo;s really helpful to know that there are actually 5 completely
+unrelated uses of the word &ldquo;consistency&rdquo; when talking about
+databases). He&rsquo;s also very up front about &ldquo;this word is used
+very inconsistently in practice, be careful!&rdquo;</li>
+<li>explaining how the concepts in the book relate to real-world databases
+like PostgreSQL, MySQL, Redis, Cassandra, and many many more</li>
+<li>giving references (just the first chapter on storage engines has 65
+amazing-looking references), if you want to learn more and go deeper</li>
+</ul>
+
+<p>I often find blog posts/papers on databases difficult because there&rsquo;s so
+much terminology+concepts, and this book introduces concepts in a way that I can
+relate back to my actual experiences with using databases in practice.
+Now I feel more like I can use this to read database documentation and
+understand what&rsquo;s going on!</p>
+
+<p>For example here&rsquo;s a comic summary of the explanation of ACID he gives
+(which I loved, I seriously thought atomicity in databases was the same
+idea as atomicity in concurrent programs like an &ldquo;atomic instruction&rdquo;
+and it&rsquo;s a TOTALLY DIFFERENT THING).</p>
+
+<div align="center">
+<a href="https://drawings.jvns.ca/drawings/acid.svg">
+<img src="https://drawings.jvns.ca/drawings/acid.png">
+</a>
+</div>
+
+<p>But! Raving about this book aside (for now), let&rsquo;s talk about a new idea
+I learned this morning from it, log-structured storage!</p>
+
+<h3 id="log-structured-storage-the-simplest-database">log-structured storage: the simplest database</h3>
+
+<p>This chapter starts by describing the &ldquo;world&rsquo;s simplest database&rdquo;: these
+2 bash functions (save it to a file <code>db.sh</code> and run <code>source db.sh</code> to
+install it!)</p>
+
+<pre><code>#!/bin/bash
+
+db_set() {
+    echo &quot;$1,$2&quot; &gt;&gt; database
+}
+
+db_get() {
+    grep &quot;^$1,&quot; database | sed -e &quot;s/^$1,//&quot; | tail -n 1
+}
+</code></pre>
+
+<p>Basically this appends to a text file (called <code>database</code>) every time you
+write, and greps that text file for the latest update every time you
+read. I tried it! This is a totally functional database :)</p>
+
+<h3 id="2-kinds-of-database-storage">2 kinds of database storage</h3>
+
+<p>There are a lot of ways to segment databases &ndash; &ldquo;SQL vs not-SQL&rdquo;,
+&ldquo;replicated vs not replicated&rdquo;, and, er, a lot more. This storage
+chapter started by saying that there are 2 basic ways to do database
+storage (which I hadn&rsquo;t heard before!)</p>
+
+<ul>
+<li>log-structured storage engines (like &ldquo;log-structured merge trees&rdquo;)</li>
+<li>page-oriented storage engines (like b-trees)</li>
+</ul>
+
+<p>A log-structured storage engine is a little like our Bash script &ndash; you write new
+stuff to the end of the log, and then query for the latest update to
+read. The idea here is that this way you don&rsquo;t need to make random disk
+writes &ndash; you can just write to the end, and so writes can be a lot
+faster. Unlike our bash script, you don&rsquo;t just grep to query (that would
+be way too slow!!). One thing you can do (a &ldquo;SSTable&rdquo;) is write the new
+data to a red-black tree in memory, and then periodically (every few megabytes,
+maybe?) write the tree to disk.</p>
+
+<p>When you want to write a page-oriented database, you need to search for
+the right page (4k of data or so) that contains your data and update it. I wrote a blog post about <a href="https://jvns.ca/blog/2014/10/02/how-does-sqlite-work-part-2-btrees/">sqlite and  btrees</a> a while back.</p>
+
+<p>PostgreSQL, MySQL, etcd, and sqlite all use page-oriented storage engines.</p>
+
+<p>I was googling for what MongoDB uses, and it turns out that MongoDB&rsquo;s
+new WiredTiger storage engine actually supports both a log-structured
+backend and a btree backend! There&rsquo;s a <a href="https://github.com/wiredtiger/wiredtiger/wiki/Btree-vs-LSM">Btree vs LSM</a>
+benchmark in the MongoDB wiki, and it shows that in that benchmark, the
+BTree table has higher read throughput and lower write throughout, and
+the LSM table has higher write throughput and lower read throughput.</p>
+
+<p>Leveldb, Rocksdb, and Cassandra all use log-structured storage.</p>
+
+<h3 id="the-write-ahead-log">the write-ahead log</h3>
+
+<p>This chapter also helped me understand what&rsquo;s going on with write-ahead
+logs better! Write-ahead logs are different from log-structured storage,
+both kinds of storage engines can use write-ahead logs.</p>
+
+<p>Recently at work the team that maintains Splunk wrote a post called
+&ldquo;Splunk is not a write-ahead log&rdquo;. I thought this was interesting
+because I had never heard the term &ldquo;write-ahead log&rdquo; before!</p>
+
+<p>Here&rsquo;s what I think the deal is now.</p>
+
+<p>Writing to disk is expensive. Because of that, databases will often just
+do writes to memory, and then save their state to disk later. This is
+smart and efficient!</p>
+
+<p>But if you crash, then you can lose data. Losing data is bad. To avoid
+losing data, you can just log all your writes to disk by appending to a
+file (just like our &ldquo;simplest database ever&rdquo;). Most of the time you
+don&rsquo;t use this log at all (you don&rsquo;t use it to query!). But if you crash
+or something goes wrong, you can go back and use the log to recover. You
+can see that <a href="https://www.postgresql.org/docs/9.1/static/wal-intro.html">Postgres does this in its doc</a>.</p>
+
+<p>From the Postgres docs:</p>
+
+<blockquote>
+<p>If we follow this procedure, we do not need to flush data pages to
+disk on every transaction commit, because we know that in the event of
+a crash we will be able to recover the database using the log: any
+changes that have not been applied to the data pages can be redone
+from the log records. (This is roll-forward recovery, also known as
+REDO.)</p>
+</blockquote>
+
+<p>There&rsquo;s a nice post about how <a href="https://sqlite.org/wal.html">SQLite uses a WAL</a> on its site.
+I think in practice a WAL can actually mean a few different things &ndash;
+for example SQLite is an embedded database and I think its WAL implementation
+doesn&rsquo;t involve holding data in memory at all, it has different goals.</p>
+
+<h3 id="more-things-i-m-excited-to-understand-from-this-book">more things I&rsquo;m excited to understand from this book</h3>
+
+<ul>
+<li>raft &amp; consensus algorithms (I&rsquo;m using etcd now and I don&rsquo;t really
+understand what&rsquo;s going on with Raft yet)</li>
+<li>how different database systems handle replications</li>
+<li>and partitioning!</li>
+<li>and more</li>
+</ul>
+
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2017/06/11/log-structured-storage/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2017/06/11/log-structured-storage/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2017/06/17/allison-parrish/" title="Previous Post: Awesome NLP tutorials by Allison Parrish">Awesome NLP tutorials by Allison Parrish</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2017/06/07/iptables-basics/" title="Next Post: Iptables basics">Iptables basics</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

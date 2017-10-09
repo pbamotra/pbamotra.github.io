@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title><![CDATA[Julia Evans]]></title>
+  <link href="http://jvns.ca/atom.xml" rel="self"/>
+  <link href="http://jvns.ca"/>
+  <updated>2013-10-24T00:00:00+00:00</updated>
+  <id>http://jvns.ca</id>
+  <author>
+    <name><![CDATA[Julia Evans]]></name>
+  </author>
+  <generator uri="http://gohugo.io/">Hugo</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[Day 16: gzip &#43; poetry = awesome]]></title>
+    <link href="https://jvns.ca/blog/2013/10/24/day-16-gzip-plus-poetry-equals-awesome/"/>
+    <updated>2013-10-24T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/10/24/day-16-gzip-plus-poetry-equals-awesome/</id>
+    <content type="html"><![CDATA[<p>Gzip compresses by replacing text with pointers to earlier parts of the text.
+Here&rsquo;s a visualization of what actually happens when you decompress &ldquo;The
+Raven&rdquo;. It highlights the bits of text that are copied from previously in the
+poem.</p>
+
+<p>I showed this as a Thursday talk at Hacker School today :) I really like how
+you can see the rhyming inside the poem like (rapping&hellip; tapping) come out in
+the compression algorithm.</p>
+
+<p>No sound, just gzip.</p>
+
+<p>You can try it out if you want by cloning
+<a href="https://github.com/jvns/gzip.jl">https://github.com/jvns/gzip.jl</a> and
+checking out the &lsquo;visualization&rsquo; branch.</p>
+
+<p><em>Edit:</em> Thanks to a suggestion in the comments, here&rsquo;s <a href="https://rawgithub.com/jvns/7155528/raw/ef9785f023fc68d78dc4f61e732007149eec1e69/raven.html">the whole poem</a> and <a href="http://rawgithub.com/jvns/7155528/raw/8b6e49a1fb99cb919a30a73262894d041e41ce91/hamlet-gzip.html">Hamlet</a>.</p>
+
+<iframe width="960" height="720" src="//www.youtube.com/embed/SWBkneyTyPU" frameborder="0" allowfullscreen></iframe>
+
+<p><em>Edit:</em> Some clarifications, for the interested:</p>
+
+<p>I implemented gunzip from scratch to learn how it works. This visualization is
+a small hack on top of that, just adding some print and sleep statements. You can
+see <a href="https://github.com/jvns/gzip.jl/blob/visualization/gzip.jl#L360">the source code</a>
+that produces it.</p>
+
+<p>This in fact shows how LZ77 compression works, which is the first step of gzip
+(or DEFLATE) compression. The second step is Huffman coding and isn&rsquo;t shown in
+the video at all :). If you want to know more,
+try this <a href="http://www.infinitepartitions.com/art001.html">excellent but very long page</a>.</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 12: Why Julia likes Julia]]></title>
+    <link href="https://jvns.ca/blog/2013/10/17/day-12-julia-reflects-on-julia/"/>
+    <updated>2013-10-17T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/10/17/day-12-julia-reflects-on-julia/</id>
+    <content type="html"><![CDATA[<p>Firstly, I will never get tired of the fact that Julia is called Julia.
+It is the best. It however makes it <em>really</em> hard to search for email
+with &ldquo;Julia&rdquo; in them in my inbox.</p>
+
+<p>But! We have Serious Coding Business to discuss.</p>
+
+<p>According to <a href="http://julialang.org">http://julialang.org</a>, Julia is a
+&ldquo;high-level, high-performance dynamic programming language for
+technical computing&rdquo;. If you want actual explanations  of what Julia is
+and how it works, there is pretty good documentation there.
+</p>
+
+<p>I&rsquo;ve been programming in Julia for about a week now. So now is a good
+time to share my Extreme Julia Expertise. Hopefully someone will correct
+me if I&rsquo;ve said anything terribly wrong here.</p>
+
+<h3 id="things-i-like-about-julia">Things I like about Julia</h3>
+
+<h4 id="1-it-s-like-python">1) It&rsquo;s like Python</h4>
+
+<p>The syntax is like Python&rsquo;s syntax. It&rsquo;s dynamic. It&rsquo;s fun to write.</p>
+
+<h4 id="2-it-lets-me-use-the-ipython-notebook-via-ijulia-http-github-com-julialang-ijulia-jl">2) It lets me use the IPython notebook (via <a href="http://github.com/JuliaLang/IJulia.jl">IJulia</a>)</h4>
+
+<p>This is <em>huge</em> for me. Over the last year, the IPython notebook has
+become one of my main programming environments. I find the ability to
+quickly change and run code without having to switch contexts really
+useful.</p>
+
+<h4 id="3-the-community-seems-lovely">3) The community seems lovely.</h4>
+
+<p>So I&rsquo;m partly biased here because Stefan, one of the creators of Julia,
+has been at Hacker School all week and he is a lovely guy. But I&rsquo;ve been
+spending some one in the Julia issue queue as well and all those people
+are lovely as well.</p>
+
+<h4 id="4-it-s-like-c">4) It&rsquo;s like C</h4>
+
+<p>This is kind of the opposite of &ldquo;it&rsquo;s like Python&rdquo;. In Julia when you
+make a type declaration</p>
+
+<pre><code>type Range
+    start::Int64
+    end::Int64
+end
+</code></pre>
+
+<p>{:lang=&lsquo;julia&rsquo;}</p>
+
+<p>it really only takes up 2 Int64s worth of space! It also means that I
+can write code that is C-like &ndash; I&rsquo;ve been working from a gzip tutorial
+which has lots of C code examples, and they&rsquo;re pretty straightforward
+to port into Julia.</p>
+
+<h4 id="5-you-can-look-at-the-llvm-code-for-your-functions">5) You can look at the LLVM code for your functions!</h4>
+
+<p>So far this is more &lsquo;cool&rsquo; than &lsquo;useful&rsquo; for me, but it is so cool!</p>
+
+<p>So you can see this is just 2 LLVM instructions!</p>
+
+<pre><code>julia&gt; function blah(x)
+           x+2
+       end
+blah (generic function with 1 method)
+julia&gt; code_llvm(blah, (Int64,))
+
+define i64 @julia_blah(i64) {
+top:
+  %1 = add i64 %0, 2, !dbg !3829
+  ret i64 %1, !dbg !3829
+}
+</code></pre>
+
+<h4 id="6-a-lot-of-julia-is-written-in-julia">6) A lot of Julia is written in Julia</h4>
+
+<p>So if you want to add to the standard library or improve Julia&rsquo;s type
+inference, you can do it in Julia! I think this is a pretty huge selling
+point, because having to switch to a different language to make your fast is
+no fun.</p>
+
+<p>Multiple dispatch is also pretty neat. I may write more about it later,
+because I&rsquo;m not able to articulate yet why it gives me nice programming
+patterns.</p>
+
+<h3 id="things-i-don-t-like-about-julia">Things I don&rsquo;t like about Julia</h3>
+
+<p>The REPL starts pretty slowly &ndash; it takes about 2 seconds. I think that
+right now all my frustrations with Julia are actually around the REPL
+&ndash; there are a few things that possible to do in programs but impossible
+in the REPL.</p>
+
+<p>I also often redefine functions many many times while iterating on some
+code, and sometimes that makes Julia get confused and I need to restart my
+session.</p>
+
+<p>That is a pretty small thing, though!</p>]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 8: Julia writes Julia! And remembers that open source is hard.]]></title>
+    <link href="https://jvns.ca/blog/2013/10/12/day-8-julia-writes-julia-and-open-source/"/>
+    <updated>2013-10-12T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/10/12/day-8-julia-writes-julia-and-open-source/</id>
+    <content type="html"><![CDATA[<p>At Hacker School this batch there is a wonderful thing called the
+<a href="https://www.hackerschool.com/blog/23-announcing-the-hacker-school-maintainers-program">maintainers program</a>.
+This means that lovely open source project maintainers come help Hacker
+Schoolers contribute to their projects!</p>
+
+<p>Yesterday <a href="http://karpinski.org/">Stefan Karpinski</a> came to talk about
+<a href="http://julialang.org">Julia</a>. Some reasons I&rsquo;m excited about working on
+Julia:</p>
+
+<ul>
+<li>The potential for &ldquo;Julia works on Julia in Julia&rdquo;</li>
+<li>Much of the code for Julia is written in Julia, unlike in Python where
+if you want to write fast code you have to write it in C. This seems
+pretty huge to me.</li>
+<li>The community seems really nice</li>
+<li>I&rsquo;m into scientific computing &amp; data science, and that&rsquo;s what it&rsquo;s for</li>
+<li>There&rsquo;s a <a href="http://juliastats.github.com/DataFrames.jl">DataFrames</a>
+library for Julia, which I&rsquo;ve already contributed a tiny bit to!</li>
+<li>I love the IPython Notebook to death, and Julia has a backend for it
+so that there&rsquo;s an IJulia Notebook! &lt;3 &lt;3 &lt;3
+</li>
+</ul>
+
+<p>However:</p>
+
+<p>The thing I forgot about open source is that open source (for me!) is
+<em>scary</em> and <em>hard</em>.  Discussing bugs on mailing lists and issue trackers
+and submitting pull requests is <em>terrifying</em>. I have gone to awesome
+code sprints with really lovely supportive people and gone home and
+cried because being new to a project and trying to get work done is
+sometimes <em>so frustrating</em>. Like you can spend 12 hours trying to fix a
+tiny bug and get <em>nowhere</em>. And say ALL OF THE THINGS THAT ARE CONFUSED
+AND WRONG. IN PUBLIC.</p>
+
+<p>HOWEVER!</p>
+
+<p>This is <em>why I&rsquo;m at Hacker School</em>. And I&rsquo;m going to work on lots of
+open source anyway and write code and make pull requests and then it
+will not be terrifying. I think Julia is a pretty good place to do this.
+And pairing with people makes doing this stuff way easier.</p>
+
+<p>AND I MADE PULL REQUESTS TODAY.
+<a href="https://github.com/JuliaStats/DataFrames.jl/commits?author=jvns">merged</a>,
+<a href="https://github.com/JuliaStats/DataFrames.jl/pull/376#issuecomment-26179926">not merged yet</a>.</p>]]></content>
+  </entry>
+  
+</feed>

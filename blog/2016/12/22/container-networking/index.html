@@ -1,0 +1,494 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>A container networking overview - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="A container networking overview">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2016/12/22/container-networking/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">A container networking overview</h1>
+
+<div class="post-tags">
+  
+  •
+  
+    <a class="post-tag" href="/categories/kubernetes">kubernetes</a> 	•
+  
+  
+</div>
+<p class="meta">
+<time datetime="2016-12-22T16:50:42" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     
+
+<p>I&rsquo;ve been talking about container things a bunch on this blog, mostly
+because I&rsquo;ve been looking at them at work.</p>
+
+<p>One of the hardest things to understand about all this newfangled
+container stuff is &ndash; what is even going <em>on</em> with the networking?!</p>
+
+<p>There are a lot of different ways you can network containers together,
+and the documentation on the internet about how it works is often pretty bad. I
+got really confused about all of this, so I&rsquo;m going to try to explain what it
+all is in laymen&rsquo;s terms.</p>
+
+<p>(I don&rsquo;t like to rant here, but I really have been frustrated with the state of
+the documentation on this networking stuff.)</p>
+
+<h3 id="what-even-is-container-networking">what even is container networking?</h3>
+
+<p>When you run a program in a container, you have two main options:</p>
+
+<ul>
+<li>run the program in the host network namespace. This is normal networking &ndash; if you run a program on port 8282, it will run on port 8282 on the computer. No surprises.</li>
+<li>run the program in its <em>own</em> network namespace</li>
+</ul>
+
+<p>If you have a program running in its own network namespace (let&rsquo;s say on port
+9382), other programs on other computers need to be able to make
+network connections to that program.</p>
+
+<p>At first I thought &ldquo;how complicated can that be? connecting
+programs together is simple, right?&rdquo; Like, there&rsquo;s probably only one way to do
+it? It turns out that this problem of how to connect two programs in containers
+together has a ton of different solutions. Let&rsquo;s learn what those solutions
+are!</p>
+
+<h3 id="every-container-gets-an-ip">&ldquo;every container gets an IP&rdquo;</h3>
+
+<p>If you are a container nerd these days, you have probably heard of
+<a href="http://kubernetes.io/">Kubernetes</a>. Kubernetes is a system that will take a container and
+automatically decide which computer your container should run on. (among
+other things)</p>
+
+<p>One of Kubernetes&rsquo; core requirements (for you to even start using it) is
+that <strong>every</strong> container has to have an IP address, and that any other
+program inside you cluster can talk to your container <strong>just using that
+IP address</strong>. So this might mean that on one computer you might have
+containers with hundreds or thousands of IP addresses (instead of just
+one IP address and many ports).</p>
+
+<p>When I first heard of this &ldquo;every container gets an IP&rdquo; concept I was
+really confused and kind of concerned. How would this even work?! My
+computer only has one IP address! This sounds like weird confusing
+magic! Luckily it turns out that, as with most computer things, this is
+actually totally possible to understand.</p>
+
+<p>This &ldquo;every container gets an IP&rdquo; problem is what I&rsquo;m going to explain
+in this blog post. There are other ways to network containers, but it&rsquo;s
+going to take long enough already to just explain this one :)</p>
+
+<p>I&rsquo;m also going to restrict myself to mostly talking about how to make this work
+on <strong>AWS</strong>. If you have your own physical datacenter there are more options.</p>
+
+<h3 id="our-goal">Our goal</h3>
+
+<p>You have a  computer (AWS instance). That computer has an IP address (like
+172.9.9.9).</p>
+
+<p>You want your <strong>container</strong> to also have an IP address (like 10.4.4.4).</p>
+
+<p>We&rsquo;re going to learn how to get a packet sent to 10.4.4.4 on the computer
+172.9.9.9.</p>
+
+<p>On AWS this can actually be super easy &ndash; there are these things called
+&ldquo;VPC Route Tables&rdquo;, and you can just say &ldquo;send packets for 10.4.4.* to
+172.9.9.9 please&rdquo; and AWS will make it work for you. The catch is you can
+only have 50 of these rules, so if you want to have a cluster of more
+than 50 instances, you need to go back to being confused about
+networking.</p>
+
+<h3 id="some-networking-basics-ip-addresses-mac-addresses-local-networks">some networking basics: IP addresses, MAC addresses, local networks</h3>
+
+<p>In order to understand how you can have hundreds of IP addresses on one
+single machine, we need to understand a few basic things about
+networking.</p>
+
+<p>I&rsquo;m going to take for granted that you know:</p>
+
+<ul>
+<li>In computer networking, programs send <strong>packets</strong> to each other</li>
+<li>Every packet (for the most part) has an <strong>IP address</strong> on it</li>
+<li>On Linux, the kernel is responsible for implementing most networking
+protocols</li>
+<li>a little bit about <strong>subnets</strong>: the subnet 10.4.4.0/24 means &ldquo;every IP
+from 10.4.4.0 to 10.4.4.255&rdquo;. I&rsquo;ll sometimes write 10.4.4.* to mean this.</li>
+</ul>
+
+<p>I&rsquo;ll do my best to explain the rest.</p>
+
+<p><strong>Thing 0: parts of a network packet</strong></p>
+
+<p>A network packet has a bunch of different parts (often called &ldquo;layers&rdquo;). There
+are a lot of different kinds of network packets, but let&rsquo;s just talk about a
+normal HTTP request (like <code>GET /</code>). The parts are:</p>
+
+<ol>
+<li>the MAC address this packet should go to (&ldquo;Layer 2&rdquo;)</li>
+<li>the source IP and destination IP (&ldquo;Layer 3&rdquo;)</li>
+<li>the port and other TCP/UDP information (&ldquo;Layer 4&rdquo;)</li>
+<li>the contents of your HTTP packet  like <code>GET /</code> (&ldquo;Layer 7&rdquo;)</li>
+</ol>
+
+<p><strong>Thing 1: local networking vs far-away networking</strong></p>
+
+<p>When you send a packet <strong>directly</strong> to a computer (on the same local network),
+here&rsquo;s how it works.</p>
+
+<p>Packets are addressed by <strong>MAC address</strong>. My MAC address is
+<code>3c:97:ae:44:b3:7f</code>; I found it by running <code>ifconfig</code>.</p>
+
+<pre><code>bork@kiwi~&gt; ifconfig
+enp0s25   Link encap:Ethernet  HWaddr 3c:97:ae:44:b3:7f 
+</code></pre>
+
+<p>So to send a packet to me, any computer on my local network can write
+<code>3c:97:ae:44:b3:7f</code> on it, and it gets to my computer. In AWS, &ldquo;local network&rdquo;
+basically means &ldquo;availability zone&rdquo;. If two instances are in the <strong>same AWS
+availability zone</strong>, they can just put the MAC address of the target computer
+on it, and then the packet will get to the right place. It doesn&rsquo;t matter what
+IP address is on the packet!</p>
+
+<p>Okay, what if my computer <strong>isn&rsquo;t</strong> in the same local network / availability
+zone as the target computer? What then? Then <strong>routers</strong> in the middle need to
+look at the IP address on the packet and get it to the right place.</p>
+
+<p>There is a lot to know about how routers work, and we do not have time to learn
+it all right now. Luckily, in AWS you have basically no way to configure the
+routers, so it doesn&rsquo;t matter if we don&rsquo;t know how they work! To send a
+packet to an instance outside your availability zone, you need to put that
+instance&rsquo;s IP address on it. Full stop. Otherwise it ain&rsquo;t gonna get there.</p>
+
+<p>If you manage your own datacenter, you can do clever stuff to set up your
+routers.</p>
+
+<p>So! Here&rsquo;s what we&rsquo;ve learned, for AWS:</p>
+
+<ul>
+<li>if you&rsquo;re in the same AZ as your target, you can just send a packet with any
+random IP address on it, and as long as the MAC address is right it&rsquo;ll get
+there.</li>
+<li>if you are in a different AZ, to send a packet to a computer, it has to have the IP address of that instance on it.</li>
+</ul>
+
+<h3 id="the-route-table">The route table</h3>
+
+<p>You may be wondering &ldquo;julia, but how can I <strong>control</strong> the MAC address my
+packet gets sent to! I have never done that ever! That is very confusing!&rdquo;</p>
+
+<p>When you send a packet to <code>172.23.2.1</code> on your local network, your operating
+system (Linux, for our purposes) looks up the MAC address for that IP address
+in a table it maintains (called the ARP table). Then it puts that MAC address on the packet and sends it off.</p>
+
+<p>So! What if I had a packet for the container <code>10.4.4.4</code> but I actually wanted it
+to go to the computer <code>172.23.1.1</code>? It turns out this actually easy peasy! You
+just add an entry to another table. It&rsquo;s all tables.</p>
+
+<p>Here&rsquo;s command you could run to do this manually:</p>
+
+<pre><code>sudo ip route add 10.4.4.0/24 via 172.23.1.1 dev eth0
+</code></pre>
+
+<p><code>ip route add</code> adds an entry to the <strong>route table</strong> on your computer. This
+route table entry says &ldquo;Linux, whenever you see a packet for <code>10.4.4.*</code>, just
+send it to the MAC address for <code>172.23.2.1</code>, would ya darling?&rdquo;</p>
+
+<h3 id="we-can-give-containers-ips">we can give containers IPs!</h3>
+
+<p>It is time celebrate our first victory! We now know
+all the basic tools for one main way to route container IP addresses!</p>
+
+<p>The steps are:</p>
+
+<ol>
+<li>pick a different subnet for every computer on your network (like 10.4.4.0/24 &ndash; that&rsquo;s 10.4.4.*). That subnet will let you have 256 containers per machine.</li>
+<li>On every computer, add <strong>routes</strong> for every other computer. So you&rsquo;d add a route for 10.4.1.0/24, 10.4.2.0/24, 10.4.3.0/24, etc.</li>
+<li>You&rsquo;re done! Packets to 10.4.4.4 will now get routed to the right computer. There&rsquo;s still the question of what they will do when they <strong>get</strong> to that computer, but we&rsquo;ll get there in a bit.</li>
+</ol>
+
+<p>So our first tool for doing container networking is the <strong>route table</strong>.</p>
+
+<h3 id="what-if-the-two-computers-are-in-different-availability-zones">what if the two computers are in different availability zones?</h3>
+
+<p>We said earlier that this route table trick will only work if the computers are
+connected directly. If the two computers are far apart (in different local
+networks) we&rsquo;ll need to do something more complicated.</p>
+
+<p>We want to send a packet to the container IP 10.4.4.4, and it is on the computer
+172.9.9.9. But because the computer is far away, we <strong>have</strong> to address the
+packet to the IP address 172.9.9.9. Woe is us! All is lost! Where are we going
+to put the IP address 10.4.4.4?</p>
+
+<p><strong>Encapsulation</strong></p>
+
+<p>All is not lost. We can do a thing called &ldquo;encapsulation&rdquo;. This is where you
+take a network packet and put it inside ANOTHER network packet.</p>
+
+<p>So instead of sending</p>
+
+<pre><code>IP: 10.4.4.4
+TCP stuff
+HTTP stuff
+</code></pre>
+
+<p>we will send</p>
+
+<pre><code>IP: 172.9.9.9
+(extra wrapper stuff)
+IP: 10.4.4.4
+TCP stuff
+HTTP stuff
+</code></pre>
+
+<p>There are at least 2 different ways of doing encapsulation: there&rsquo;s &ldquo;ip-in-ip&rdquo; and &ldquo;vxlan&rdquo; encapsulation.</p>
+
+<p><strong>vxlan</strong> encapsulation takes your whole packet (including the MAC address) and
+wraps it inside a UDP packet. That looks like this:</p>
+
+<pre><code>MAC address: 11:11:11:11:11:11
+IP: 172.9.9.9
+UDP port 8472 (the &quot;vxlan port&quot;)
+MAC address: ab:cd:ef:12:34:56
+IP: 10.4.4.4
+TCP port 80
+HTTP stuff
+</code></pre>
+
+<p><strong>ip-in-ip</strong> encapsulation just slaps on an extra IP header on top of your old
+IP header. This means you don&rsquo;t get to keep the MAC address you wanted to send
+it to but I&rsquo;m not sure why you would care about that anyway.</p>
+
+<pre><code>MAC:  11:11:11:11:11:11
+IP: 172.9.9.9
+IP: 10.4.4.4
+TCP stuff
+HTTP stuff
+</code></pre>
+
+<p><strong>How to set up encapsulation</strong></p>
+
+<p>Like before, you might be thinking &ldquo;how can I get my kernel to do this weird
+encapsulation thing to my packets&rdquo;? This turns out to be not all that hard.
+Basically all you do is set up a new <strong>network interface</strong> with encapsulation
+configured.</p>
+
+<p>On my laptop, I can do this using: (taken from <a href="http://www.linux-admins.net/2010/09/tunneling-ipip-and-gre-encapsulation.html">these instructions</a>)</p>
+
+<pre><code>sudo ip tunnel add mytun mode ipip remote 172.9.9.9 local 10.4.4.4 ttl 255
+sudo ifconfig mytun 10.42.1.1
+</code></pre>
+
+<p>Then you set up a route table, but you tell Linux to route the packet with your
+new magical encapsulation network interface. Here&rsquo;s what that looks like:</p>
+
+<pre><code>sudo route add -net 10.42.2.0/24 dev mytun
+sudo route list 
+</code></pre>
+
+<p>I&rsquo;m mostly giving you these commands to get an idea of the kinds of commands
+you can use to create / inspect these tunnels (<code>ip route list</code> , <code>ip tunnel</code>,
+<code>ifconfig</code>) &ndash; I&rsquo;ve almost certainly gotten a couple of the specifics wrong,
+but this is about how it works.</p>
+
+<h3 id="how-do-routes-get-distributed">How do routes get distributed?</h3>
+
+<p>We&rsquo;ve talked a lot about adding routes to your route table (&ldquo;10.4.4.4 should go
+via 172.9.9.9&rdquo;), but I haven&rsquo;t explained at all how those routes should actually
+<strong>get</strong> in your route table. Ideally you&rsquo;d like them to configured automatically.</p>
+
+<p>Every container networking thing to runs <strong>some</strong> kind of daemon program
+on every box which is in charge of adding routes to the route table.</p>
+
+<p>There are two main ways they do it:</p>
+
+<ol>
+<li>the routes are in an etcd cluster, and the program talks to the etcd cluster to figure out which routes to set</li>
+<li>use the <strong>BGP</strong> protocol to gossip to each other about routes, and a daemon (<code>BIRD</code>) listens for BGP messages on every box</li>
+</ol>
+
+<h2 id="what-happens-when-packets-get-to-your-box">What happens when packets get to your box?</h2>
+
+<p>So, you&rsquo;re running Docker, and a packet comes in on the IP address 10.4.4.4. How
+does that packet actually end up getting to your program?</p>
+
+<p>I&rsquo;m going to try to explain <strong>bridge networking</strong> here. I&rsquo;m a bit fuzzy on this
+so some of this is probably wrong.</p>
+
+<p>My understanding right now is:</p>
+
+<ul>
+<li>every packet on your computer goes out through a real interface (like <code>eth0</code>)</li>
+<li>Docker will create <strong>fake</strong> (virtual) network interfaces for every single one of your containers. These have IP addresses like 10.4.4.4</li>
+<li>Those virtual network interfaces are <strong>bridged</strong> to your real network interface. This means that the packets get copied (?) to the network interface corresponding to the real network card, and then sent out to the internet</li>
+</ul>
+
+<p>This seems important but I don&rsquo;t totally get it yet.</p>
+
+<h2 id="finale-how-all-these-container-networking-things-work">finale: how all these container networking things work</h2>
+
+<p>Okay! Now we we have all the fundamental concepts you need to know to navigate
+this container networking landscape.</p>
+
+<p><strong>Flannel</strong></p>
+
+<p>Flannel supports a few different ways of doing networking:</p>
+
+<ul>
+<li><strong>vxlan</strong> (encapsulate all packets)</li>
+<li><strong>host-gw</strong> (just set route table entries, no encapsulation)</li>
+</ul>
+
+<p>The daemon that sets the routes gets them from an etcd cluster.</p>
+
+<p><strong>Calico</strong></p>
+
+<p>Calico supports 2 different ways of doing networking:</p>
+
+<ul>
+<li><strong>ip-in-ip</strong> encapsulation</li>
+<li>&ldquo;regular&rdquo; mode, (just set route table entries, no encapsulation)</li>
+</ul>
+
+<p>The daemon that sets the routes gets them using BGP messages from other hosts.
+There&rsquo;s still an etcd cluster with Calico but it&rsquo;s not used for distributing
+routes.</p>
+
+<p>The most exciting thing about Calico is that it has the option to not use
+encapsulation. If you look carefully though you&rsquo;ll notice that Flannel also has
+an option to not use encapsulation! If you&rsquo;re on AWS, I can&rsquo;t actually tell
+which of these is better. They have the same limitations: they&rsquo;ll both only
+work between instances in the same availability zone.</p>
+
+<p>Most of these container networking things will set up all these routes and
+tunnels and stuff for you, but I think it&rsquo;s important to understand what&rsquo;s
+going on behind the scenes, so that if something goes wrong I can debug it and
+fix it.</p>
+
+<h3 id="is-this-software-defined-networking">is this software defined networking?</h3>
+
+<p>I don&rsquo;t know what software defined networking. All of this helps you do
+networking differently, and it&rsquo;s all software, so maybe it&rsquo;s software defined
+networking?</p>
+
+<h3 id="that-s-all">that&rsquo;s all</h3>
+
+<p>That&rsquo;s all I have for now! Hopefully this was helpful. It turns out this stuff
+isn&rsquo;t so bad, and spending some time with the <code>ip</code> command, <code>ifconfig</code> and
+<code>tcpdump</code> can help you understand the basics of what&rsquo;s going on in your
+Kubernetes installation. You don&rsquo;t need to be an expert network engineer! My
+awesome coworker Doug helped me understand a lot of this.</p>
+
+<p><small> Thanks to Sophie Haskins for encouraging me to publish this :) </small></p>
+
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2016/12/22/container-networking/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2016/12/22/container-networking/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2016/12/23/systems-we-love/" title="Previous Post: Systems We Love 2016">Systems We Love 2016</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2016/12/21/2016--year-in-review/" title="Next Post: 2016: Year in review">2016: Year in review</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

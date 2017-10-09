@@ -1,0 +1,417 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>ftrace: trace your kernel functions! - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="ftrace: trace your kernel functions!">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2017/03/19/getting-started-with-ftrace/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">ftrace: trace your kernel functions!</h1>
+
+<div class="post-tags">
+  
+</div>
+<p class="meta">
+<time datetime="2017-03-19T18:51:21" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     
+
+<p>Hello! Today we&rsquo;re going to talk about a debugging tool we haven&rsquo;t talked about
+much before on this blog: ftrace. What could be more exciting than a new
+debugging tool?!</p>
+
+<p>Better yet, ftrace isn&rsquo;t new! It&rsquo;s been around since Linux kernel 2.6, or about 2008.
+<a href="https://lwn.net/Articles/290277/">here&rsquo;s the earliest documentation I found with some quick Gooogling</a>.
+So you might be able to use it even if you&rsquo;re debugging an older system!</p>
+
+<p>I&rsquo;ve known that ftrace exists for about 2.5 years now, but hadn&rsquo;t gotten around
+to really learning it yet. I&rsquo;m supposed to run a workshop tomorrow where I talk
+about ftrace, so today is the day we talk about it!</p>
+
+<h3 id="what-s-ftrace">what&rsquo;s ftrace?</h3>
+
+<p>ftrace is a Linux kernel feature that lets you trace Linux kernel function
+calls. Why would you want to do that? Well, suppose you&rsquo;re debugging a weird
+problem, and you&rsquo;ve gotten to the point where you&rsquo;re staring at the source code
+for your kernel version and wondering what <strong>exactly</strong> is going on.</p>
+
+<p>I don&rsquo;t read the kernel source code very often when debugging, but occasionally
+I do! For example this week at work we had a program that was frozen and stuck
+spinning inside the kernel. Looking at what functions were being called helped us
+understand better what was happening in the kernel and what systems were
+involved (in that case, it was the virtual memory system)!</p>
+
+<p>I think ftrace is a bit of a niche tool (it&rsquo;s definitely less broadly useful and
+harder to use than strace) but that it&rsquo;s worth knowing about. So let&rsquo;s learn
+about it!</p>
+
+<h3 id="first-steps-with-ftrace">first steps with ftrace</h3>
+
+<p>Unlike strace and perf, ftrace isn&rsquo;t a <strong>program</strong> exactly &ndash; you don&rsquo;t
+just run <code>ftrace my_cool_function</code>. That would be too easy!</p>
+
+<p>If you read <a href="https://lwn.net/Articles/365835/">Debugging the kernel using Ftrace</a> it
+starts out by telling you to <code>cd /sys/kernel/debug/tracing</code> and then do various
+filesystem manipulations.</p>
+
+<p>For me this is way too annoying &ndash; a simple example of using ftrace this way is something like</p>
+
+<pre><code>cd /sys/kernel/debug/tracing
+echo function &gt; current_tracer
+echo do_page_fault &gt; set_ftrace_filter
+cat trace
+</code></pre>
+
+<p>This filesystem interface to the tracing system (&ldquo;put values in these magic
+files and things will happen&rdquo;) seems theoretically possible to use but really
+not my preference.</p>
+
+<p>Luckily, team ftrace also thought this interface wasn&rsquo;t that user friendly and
+so there is an easier-to-use interface called <strong>trace-cmd</strong>!!! trace-cmd is a
+normal program with command line arguments. We&rsquo;ll use that! I found an intro to
+trace-cmd on LWN at <a href="https://lwn.net/Articles/410200/">trace-cmd: A front-end for Ftrace</a>.</p>
+
+<h3 id="getting-started-with-trace-cmd-let-s-trace-just-one-function">getting started with trace-cmd: let&rsquo;s trace just one function</h3>
+
+<p>First, I needed to install <code>trace-cmd</code> with <code>sudo apt-get install trace-cmd</code>. Easy enough.</p>
+
+<p>For this first ftrace demo, I decided I wanted to know when my kernel was handling a page fault.
+When Linux allocates memory, it often does it lazily (&ldquo;you weren&rsquo;t <em>really</em>
+planning to use that memory, right?&ldquo;). This means that when an application
+tries to actually write to memory that it allocated, there&rsquo;s a page fault and
+the kernel needs to give the application physical memory to use.</p>
+
+<p>Let&rsquo;s start <code>trace-cmd</code> and make it trace the <code>do_page_fault</code> function!</p>
+
+<pre><code>$ sudo trace-cmd record -p function -l do_page_fault
+  plugin 'function'
+Hit Ctrl^C to stop recording
+</code></pre>
+
+<p>I ran it for a few seconds and then hit <code>Ctrl+C</code>. Awesome! It created a 2.5MB
+file called <code>trace.dat</code>. Let&rsquo;s see what&rsquo;s that file!</p>
+
+<pre><code>$ sudo trace-cmd report
+          chrome-15144 [000] 11446.466121: function:             do_page_fault
+          chrome-15144 [000] 11446.467910: function:             do_page_fault
+          chrome-15144 [000] 11446.469174: function:             do_page_fault
+          chrome-15144 [000] 11446.474225: function:             do_page_fault
+          chrome-15144 [000] 11446.474386: function:             do_page_fault
+          chrome-15144 [000] 11446.478768: function:             do_page_fault
+ CompositorTileW-15154 [001] 11446.480172: function:             do_page_fault
+          chrome-1830  [003] 11446.486696: function:             do_page_fault
+ CompositorTileW-15154 [001] 11446.488983: function:             do_page_fault
+ CompositorTileW-15154 [001] 11446.489034: function:             do_page_fault
+ CompositorTileW-15154 [001] 11446.489045: function:             do_page_fault
+</code></pre>
+
+<p>This is neat &ndash; it shows me the process name (chrome), process ID (15144), CPU (000), and function that got traced.</p>
+
+<p>By looking at the whole report, (<code>sudo trace-cmd report | grep chrome</code>) I can
+see that we traced for about 1.5 seconds and in that time Chrome had about 500
+page faults. Cool! We have done our first ftrace!</p>
+
+<h3 id="next-ftrace-trick-let-s-trace-a-process">next ftrace trick: let&rsquo;s trace a process!</h3>
+
+<p>Okay, but just seeing one function is kind of boring! Let&rsquo;s say I want to know
+everything that&rsquo;s happening for one program. I use a static site generator
+called Hugo. What&rsquo;s the kernel doing for Hugo?</p>
+
+<p>Hugo&rsquo;s PID on my computer right now is 25314, so I recorded all the kernel functions with:</p>
+
+<pre><code>sudo trace-cmd record --help # I read the help!
+sudo trace-cmd record -p function -P 25314 # record for PID 25314
+</code></pre>
+
+<p><code>sudo trace-cmd report</code> printed out 18,000 lines of output. If you&rsquo;re
+interested, you can see <a href="https://gist.githubusercontent.com/jvns/e5c2d640f7ec76ed9ed579be1de3312e/raw/78b8425436dc4bb5bb4fa76a4f85d5809f7d1ef2/trace-cmd-report.txt">all 18,000 lines here</a>.</p>
+
+<p>18,000 lines is a lot so here are some interesting excerpts.</p>
+
+<p>This looks like what happens when the <code>clock_gettime</code> system call runs. Neat!</p>
+
+<pre><code> compat_SyS_clock_gettime
+    SyS_clock_gettime
+       clockid_to_kclock
+       posix_clock_realtime_get
+          getnstimeofday64
+             __getnstimeofday64
+                arch_counter_read
+    __compat_put_timespec
+</code></pre>
+
+<p>This is something related to process scheduling:</p>
+
+<pre><code> cpufreq_sched_irq_work
+    wake_up_process
+       try_to_wake_up
+          _raw_spin_lock_irqsave
+             do_raw_spin_lock
+          _raw_spin_lock
+             do_raw_spin_lock
+          walt_ktime_clock
+             ktime_get
+                arch_counter_read
+          walt_update_task_ravg
+             exiting_task
+</code></pre>
+
+<p>Being able to see all these function calls is pretty cool, even if I don&rsquo;t
+quite understand them.</p>
+
+<h3 id="function-graph-tracing">&ldquo;function graph&rdquo; tracing</h3>
+
+<p>There&rsquo;s another tracing mode called <code>function_graph</code>. This is the same as the
+function tracer except that it instruments both entering <em>and</em> exiting a
+function. <a href="https://gist.githubusercontent.com/jvns/f32e9b06bcd2f1f30998afdd93e4aaa5/raw/8154d9828bb895fd6c9b0ee062275055b3775101/function_graph.txt">Here&rsquo;s the output of that tracer</a></p>
+
+<pre><code>sudo trace-cmd record -p function_graph -P 25314
+</code></pre>
+
+<p>Again, here&rsquo;s a snipped (this time from the futex code)</p>
+
+<pre><code>             |      futex_wake() {
+             |        get_futex_key() {
+             |          get_user_pages_fast() {
+  1.458 us   |            __get_user_pages_fast();
+  4.375 us   |          }
+             |          __might_sleep() {
+  0.292 us   |            ___might_sleep();
+  2.333 us   |          }
+  0.584 us   |          get_futex_key_refs();
+             |          unlock_page() {
+  0.291 us   |            page_waitqueue();
+  0.583 us   |            __wake_up_bit();
+  5.250 us   |          }
+  0.583 us   |          put_page();
++ 24.208 us  |        }
+</code></pre>
+
+<p>We see in this example that <code>get_futex_key</code> gets called right after <code>futex_wake</code>. Is that what really happens in the source code? We can check!! <a href="https://github.com/torvalds/linux/blob/v4.4/kernel/futex.c#L1313-L1324">Here&rsquo;s the definition of futex_wake in Linux 4.4</a> (my kernel version).</p>
+
+<p>I&rsquo;ll save you a click: it looks like this:</p>
+
+<pre><code>static int
+futex_wake(u32 __user *uaddr, unsigned int flags, int nr_wake, u32 bitset)
+{
+	struct futex_hash_bucket *hb;
+	struct futex_q *this, *next;
+	union futex_key key = FUTEX_KEY_INIT;
+	int ret;
+	WAKE_Q(wake_q);
+
+	if (!bitset)
+		return -EINVAL;
+
+	ret = get_futex_key(uaddr, flags &amp; FLAGS_SHARED, &amp;key, VERIFY_READ);
+</code></pre>
+
+<p>So the first function called in <code>futex_wake</code> really is <code>get_futex_key</code>! Neat!
+Reading the function trace was definitely an easier way to find that out than
+by reading the kernel code, and it&rsquo;s nice to see how long all of the functions
+took.</p>
+
+<h3 id="how-to-know-what-functions-you-can-trace">How to know what functions you can trace</h3>
+
+<p>If you run <code>sudo trace-cmd list -f</code> you&rsquo;ll get a list of all the functions you
+can trace. That&rsquo;s pretty simple but it&rsquo;s important.</p>
+
+<h3 id="one-last-thing-events">one last thing: events!</h3>
+
+<p>So, now we know how to trace functions in the kernel! That&rsquo;s really cool!</p>
+
+<p>There&rsquo;s one more class of thing we can trace though! Some events don&rsquo;t correspond super well to function calls. For example, you might want to knowwhen a program is scheduled on or off the CPU! You might be able to figure that out by peering at function calls, but I sure can&rsquo;t.</p>
+
+<p>So the kernel also gives you a few events so you can see when a few important
+things happen. You can see a list of all these events with <code>sudo cat /sys/kernel/debug/tracing/available_events</code></p>
+
+<p>I looked at all the sched_switch events. I&rsquo;m not exactly sure what sched_switch is but it&rsquo;s something to do with scheduling I guess.</p>
+
+<pre><code>sudo cat /sys/kernel/debug/tracing/available_events
+sudo trace-cmd record -e sched:sched_switch
+sudo trace-cmd report
+</code></pre>
+
+<p>The output looks like this:</p>
+
+<pre><code> 16169.624862:   Chrome_ChildIOT:24817 [112] S ==&gt; chrome:15144 [120]
+ 16169.624992:   chrome:15144 [120] S ==&gt; swapper/3:0 [120]
+ 16169.625202:   swapper/3:0 [120] R ==&gt; Chrome_ChildIOT:24817 [112]
+ 16169.625251:   Chrome_ChildIOT:24817 [112] R ==&gt; chrome:1561 [112]
+ 16169.625437:   chrome:1561 [112] S ==&gt; chrome:15144 [120]
+</code></pre>
+
+<p>so you can see it switching from PID 24817 -&gt; 15144 -&gt; kernel -&gt; 24817 -&gt; 1561 -&gt; 15114. (all of these events are on the same CPU)</p>
+
+<h3 id="how-does-ftrace-work">how does ftrace work?</h3>
+
+<p>ftrace is a dynamic tracing system. This means that when I start ftracing a
+kernel function, the <strong>function&rsquo;s code gets changed</strong>. So &ndash; let&rsquo;s suppose that
+I&rsquo;m tracing that <code>do_page_fault</code> function from before. The kernel will insert
+some extra instructions in the assembly for that function to notify the tracing
+system every time that function gets called. The reason it can add extra
+instructions is that Linux compiles in a few extra NOP instructions into every
+function, so there&rsquo;s space to add tracing code when needed.</p>
+
+<p>This is awesome because it means that when I&rsquo;m not using ftrace to trace my
+kernel, it doesn&rsquo;t affect performance at all. When I do start tracing, the more
+functions I trace, the more overhead it&rsquo;ll have.</p>
+
+<p>(probably some of this is wrong, but this is how I think ftrace works anyway)</p>
+
+<h3 id="use-ftrace-more-easily-brendan-gregg-s-tools-kernelshark">use ftrace more easily: brendan gregg&rsquo;s tools &amp; kernelshark</h3>
+
+<p>As we&rsquo;ve seen in this post, you need to think quite a lot about what individual
+kernel functions / events do to use ftrace directly. This is cool, but
+it&rsquo;s also a lot of work!</p>
+
+<p>Brendan Gregg (our linux debugging tools hero) has repository of tools that use
+ftrace to give you information about various things like IO latency. They&rsquo;re
+all in his <a href="https://github.com/brendangregg/perf-tools">perf-tools</a> repository
+on GitHub.</p>
+
+<p>The tradeoff here is that they&rsquo;re easier to use, but you&rsquo;re limited to
+things that Brendan Gregg thought of &amp; decided to make a tool for. Which is a
+lot of things! :)</p>
+
+<p>Another tool for visualizing the output of ftrace better is
+<a href="https://lwn.net/Articles/425583/">kernelshark</a>. I haven&rsquo;t played with it much
+yet but it looks useful. You can install it with <code>sudo apt-get install
+kernelshark</code>.</p>
+
+<h3 id="a-new-superpower">a new superpower</h3>
+
+<p>I&rsquo;m really happy I took the time to learn a little more about ftrace today!
+Like any kernel tool, it&rsquo;ll work differently between different kernel versions,
+but I hope that you find it useful one day.</p>
+
+<h3 id="an-index-of-ftrace-articles">an index of ftrace articles</h3>
+
+<p>Finally, here&rsquo;s a list of a bunch of ftrace articles I found. Many of them are on
+LWN (Linux Weekly News), which is a pretty great source of writing on Linux. (you can buy a
+<a href="https://lwn.net/subscribe/Info">subscription</a>!)</p>
+
+<ul>
+<li><a href="https://lwn.net/Articles/365835/">Debugging the kernel using Ftrace - part 1</a> (Dec 2009, Steven Rostedt)</li>
+<li><a href="https://lwn.net/Articles/366796/">Debugging the kernel using Ftrace - part 2</a> (Dec 2009, Steven Rostedt)</li>
+<li><a href="https://lwn.net/Articles/370423/">Secrets of the Linux function tracer</a> (Jan 2010, Steven Rostedt)</li>
+<li><a href="https://lwn.net/Articles/410200/">trace-cmd: A front-end for Ftrace</a> (Oct 2010, Steven Rostedt)</li>
+<li><a href="https://lwn.net/Articles/425583/">Using KernelShark to analyze the real-time scheduler</a> (2011, Steven Rostedt)</li>
+<li><a href="https://lwn.net/Articles/608497/">Ftrace: The hidden light switch</a> (2014, Brendan Gregg)</li>
+<li>the kernel documentation: (which is quite useful) <a href="https://raw.githubusercontent.com/torvalds/linux/v4.4/Documentation/trace/ftrace.txt">Documentation/ftrace.txt</a></li>
+<li>documentation on events you can trace <a href="https://raw.githubusercontent.com/torvalds/linux/v4.4/Documentation/trace/events.txt">Documentation/events.txt</a></li>
+<li>some docs on ftrace design for linux kernel devs (not as useful, but interesting) <a href="https://raw.githubusercontent.com/torvalds/linux/v4.4/Documentation/trace/ftrace-design.txt">Documentation/ftrace-design.txt</a></li>
+</ul>
+
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2017/03/19/getting-started-with-ftrace/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2017/03/19/getting-started-with-ftrace/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2017/03/20/blogging-principles/" title="Previous Post: Blogging principles I use">Blogging principles I use</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2017/03/17/career-narrative/" title="Next Post: Writing down my career">Writing down my career</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

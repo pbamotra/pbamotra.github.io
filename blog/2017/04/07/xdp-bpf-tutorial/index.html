@@ -1,0 +1,373 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>How to filter packets super fast: XDP &amp; eBPF! - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="How to filter packets super fast: XDP &amp; eBPF!">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2017/04/07/xdp-bpf-tutorial/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">How to filter packets super fast: XDP &amp; eBPF!</h1>
+
+<div class="post-tags">
+  
+  •
+  
+    <a class="post-tag" href="/categories/netdev">netdev</a> 	•
+  
+  
+</div>
+<p class="meta">
+<time datetime="2017-04-07T14:14:03" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     
+
+<p>Hello! Today I am at the netdev conference, and this is the second day.</p>
+
+<p>I&rsquo;m going to write about the Most Exciting Thing from today, which was a
+great hour-long tutorial about eBPF and XDP by Andy Gospodarek and Jesper
+Dangaard Brouer. I thought it was so exciting I wanted to write a whole
+blog post just with my notes from that tutorial.</p>
+
+<p>This tutorial walked us through how to build a simple DDoS prevention XDP
+filter! This was amazing because there were talks yesterday about how to build DDoS
+prevention yesterday kind of abstractly, but they showed in this tutorial
+exactly how you build a simple example and talked about a lot of the
+details. The application they built had:</p>
+
+<ul>
+<li>an XDP program (that runs in the kernel, written in eBPF) that filters out
+packets (more quickly and more flexibly than iptables does!) from some IP addresses you specify</li>
+<li>a userspace command line tool that lets you add &amp; remove IP addresses to be filtered</li>
+<li>counters so you can see how many packets have been blocked by the filter</li>
+</ul>
+
+<p>They were pretty clear that this is just a demo / example to understand the
+concepts, not something to immediately start using in production :)</p>
+
+<p>All of the code for this tutorial is on GitHub in their <a href="https://github.com/netoptimizer/prototype-kernel/tree/72e473c/kernel/samples/bpf">prototype-kernel repo</a>.</p>
+
+<h3 id="intro-to-ebpf">intro to eBPF</h3>
+
+<p>eBPF is a virtual machine in the kernel. It&rsquo;s pretty flexible (you write eBPF
+programs by writing C code, so you can do a lot!) but there are limitations.
+Some important limitations/facts to know about eBPF:</p>
+
+<ul>
+<li>all interactions with userspace happen through eBPF &ldquo;maps&rdquo; which are
+key-value stores</li>
+<li>there are about a dozen different kinds of maps you can use right now</li>
+<li>eBPF doesn&rsquo;t have loops, so every eBPF program will finish within some
+bounded execution time</li>
+<li>in particular eBPF isn&rsquo;t turing complete :) :)</li>
+</ul>
+
+<h3 id="intro-to-xdp">intro to XDP</h3>
+
+<p>XDP is a new system in the kernel, that lets you write custom eBPF programs to
+filter network packets. We&rsquo;ll call those &ldquo;XDP programs&rdquo;. The XDP programs run as soon as the packet gets to the
+network driver (so very very quickly).</p>
+
+<p>When an XDP program, it needs to exit with either <code>XDP_TX</code>, <code>XDP_DROP</code>, or
+<code>XDP_PASS</code>. There might be more return codes in the future.</p>
+
+<p>They said Ubuntu 16.10 has XDP &ndash; IIRC the earliest kernel version with XDP
+support is 4.8.</p>
+
+<h3 id="our-xdp-program-getting-started">our XDP program: getting started!</h3>
+
+<p>For this program, we want both kernel code (the XDP program, which is going to
+run inside the kernel) and userspace code (for us to run to tell the program in
+the kernel which IP addresses to block).</p>
+
+<ul>
+<li><a href="https://github.com/netoptimizer/prototype-kernel/blob/72e473c723bc8dbc389b00d2ec631729444e4998/kernel/samples/bpf/xdp_ddos01_blacklist_kern.c">kernel code</a></li>
+<li><a href="https://github.com/netoptimizer/prototype-kernel/blob/72e473c723bc8dbc389b00d2ec631729444e4998/kernel/samples/bpf/xdp_ddos01_blacklist_user.c">user code</a></li>
+<li><a href="https://github.com/netoptimizer/prototype-kernel/blob/72e473c723bc8dbc389b00d2ec631729444e4998/kernel/samples/bpf/xdp_ddos01_blacklist_cmdline.c">command line tool</a></li>
+</ul>
+
+<p>You might think that the command line tool would need to run as root (because
+it&rsquo;s talking to the kernel), but it turns out that the command line tool works
+by updating the BPF maps! And the way you update the BPF maps is through a file
+interface in sysfs (<code>/sys/..something..</code>). And if you&rsquo;re updating something
+through a file, you can just change the permissions / ownership of that file!</p>
+
+<p>So the command line tool to add new IP addresses to blacklist doesn&rsquo;t need to
+run as root.</p>
+
+<p>Okay, so what is this BPF map we&rsquo;re updating? It has type
+<code>BPF_MAP_TYPE_PERCPU_HASH</code>. This map is going to have IP addresses as keys and
+how many packets we&rsquo;ve blocked for that IP address as a value. This is a hash that is, well, per cpu. So every CPU
+has its own map. This means that our userspace tool that reports how many
+packets have been blocked will need to add up all the values for each CPU.</p>
+
+<p>I think having the map be per CPU is more efficient or something.</p>
+
+<p>So our map has: (the <a href="https://github.com/netoptimizer/prototype-kernel/blob/72e473c723bc8dbc389b00d2ec631729444e4998/kernel/samples/bpf/xdp_ddos01_blacklist_kern.c#L28">definition is here</a></p>
+
+<ul>
+<li>key size: 32 bits (an IPv4 address)</li>
+<li>value size: 64 bits (a count)</li>
+<li>max entries: 100000</li>
+</ul>
+
+<p>Seems reasonable!</p>
+
+<h3 id="writing-our-xdp-program-for-real">writing our XDP program for real</h3>
+
+<p>So how does this XDP program work?</p>
+
+<p>Almost the first line in this program is (from <a href="https://github.com/netoptimizer/prototype-kernel/blob/72e473c723bc8dbc389b00d2ec631729444e4998/kernel/samples/bpf/xdp_ddos01_blacklist_kern.c#L259">here</a>)
+<code>struct ethhdr *eth = data</code></p>
+
+<p>The beginning of any packet is an Ethernet header. We need to parse that
+Ethernet header. The really interesting point that they made here is &ndash; XDP
+programs are compiled inside the kernel tree. This means that you have access
+to all the kernel data structures! And the kernel already has a struct that
+represents an Ethernet header, so you don&rsquo;t have to write that much fancy
+parsing code, you can just reuse that struct from the kernel.</p>
+
+<p>The heart of the XDP program is this part (from line 227): where we look up the
+source IP address in our BPF map. If it&rsquo;s there then we increment the value (so
+that we can know how many packets were dropped!)</p>
+
+<pre><code>value = bpf_map_lookup_elem(&amp;blacklist, &amp;ip_src);
+if (value) {
+  /* Don't need __sync_fetch_and_add(); as percpu map */
+  *value += 1; /* Keep a counter for drop matches */
+  return XDP_DROP;
+}
+</code></pre>
+
+<p>This whole program that parses the packet, finds the IP address in the IP
+header, looks it up in the BPF map, and returns is only 270 lines of C! That
+seems really reasonable!!</p>
+
+<p>Also there are no loops because this is eBPF and loops aren&rsquo;t allowed, which
+makes it even easier to understand.</p>
+
+<p>One very interesting thing that they pointed out is this check:</p>
+
+<pre><code>if ((void *)eth + offset &gt; data_end)
+  return false;
+</code></pre>
+
+<p>This is basically making sure that you&rsquo;re not going outside of the packet. The
+interesting here is that if you don&rsquo;t do your bounds checking properly, the
+<strong>kernel will reject your code</strong> &ndash; since eBPF code is running inside the
+kernel, it needs to make sure that it&rsquo;s not accessing any data it shouldn&rsquo;t. So
+it somehow does static analysis on your program to make sure it&rsquo;s not doing
+anything illegal. That&rsquo;s super interesting and I would like to learn more about
+how this works! Let&rsquo;s keep going, though.</p>
+
+<h3 id="getting-the-xdp-program-into-your-kernel">getting the XDP program into your kernel</h3>
+
+<p>Okay, so we&rsquo;ve written an XDP program, compiled it to an object file <code>kern.o</code>, and we want to get it into the kernel.
+They said there are 2 ways to do this:</p>
+
+<ul>
+<li>use iproute2 (though they didn&rsquo;t say how exactly)</li>
+<li>write your own code to load it (what they did)</li>
+</ul>
+
+<p>This is the <a href="https://github.com/netoptimizer/prototype-kernel/blob/72e473c723bc8dbc389b00d2ec631729444e4998/kernel/samples/bpf/xdp_ddos01_blacklist_user.c">user code</a> linked before.</p>
+
+<p>Basically what I understood in this part is that there is a (userspace) library
+provided by the kernel for loading BPF code. They copied it out of the kernel
+and made some changes because they wanted it to be different.
+<a href="https://github.com/netoptimizer/prototype-kernel/blob/72e473c723bc8dbc389b00d2ec631729444e4998/kernel/samples/bpf/bpf_load.c">bpf_load.c</a></p>
+
+<p>I&rsquo;m kind of fuzzy on what&rsquo;s involved in the userspace part right now but
+the code is there, so I can read it later if I need to know more. The point is
+that the program loads the object file into the kernel.</p>
+
+<h3 id="how-do-you-know-your-xdp-program-is-loaded">how do you know your XDP program is loaded?</h3>
+
+<p>So we wanted to attach this XDP program to a network interface. How do we know
+if it worked?</p>
+
+<p>When I run <code>ip link list</code> on my laptop, I get a list of all network interfaces:</p>
+
+<pre><code>1: lo: &lt;LOOPBACK,UP,LOWER_UP&gt; mtu 65536 qdisc noqueue state UNKNOWN mode
+DEFAULT group default qlen 1
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+2: br0: &lt;BROADCAST,MULTICAST,UP,LOWER_UP&gt; mtu 1500 qdisc noqueue state UP mode
+DEFAULT group default qlen 1000
+    link/ether c6:f7:88:c6:d6:97 brd ff:ff:ff:ff:ff:ff
+3: mlan0: &lt;BROADCAST,MULTICAST,UP,LOWER_UP&gt; mtu 1500 qdisc mq state UP mode
+DORMANT group default qlen 1000
+    link/ether 18:67:b0:10:e8:eb brd ff:ff:ff:ff:ff:ff
+5: veth_android@if4: &lt;BROADCAST,MULTICAST,UP,LOWER_UP&gt; mtu 1500 qdisc noqueue
+master br0 state UP mode DEFAULT group default qlen 1000
+    link/ether c6:f7:88:c6:d6:97 brd ff:ff:ff:ff:ff:ff link-netnsid 0
+</code></pre>
+
+<p>This shows all these settings for the interface, like <code>mtu 1500 qdisc noqueue
+state UP...</code>.  If there&rsquo;s an XDP program running on that interface it&rsquo;ll also
+say <code>xdp</code> in there.</p>
+
+<h3 id="ebpf-xdp-tips">eBPF/XDP tips</h3>
+
+<p>Here are some tips they gave!</p>
+
+<p>tip 1: if when your BPF program is running it says <code>__bpf_prog_run</code> in <code>perf
+top</code>, you should <strong>turn on the kernel JIT</strong>. Running your BPF code through the
+JIT will make everything way faster</p>
+
+<p>tip 2: if your ulimits aren&rsquo;t high enough you&rsquo;ll run into problems. I&rsquo;m a
+little fuzzy on what a ulimit is still but this seems like a good tip. You can
+look at ulimits with <code>ulimit -a</code></p>
+
+<p>tip 3: dump out kern.o maps with readelf / objdump to look at them. &ldquo;It&rsquo;s
+just an ELF file, it&rsquo;s not magic&rdquo;. when you do, you can see the section with
+the XDP program and the section with the BPF maps! you can also see the eBPF
+bytecode in the maps section but it&rsquo;s not that human readable :)</p>
+
+<p>tip 4:  you can use <code>bpf_trace_printk</code> to print debugging message. These don&rsquo;t
+actually get printed, but they end up in the kernel tracing system at
+<code>/sys/kernel/debug/tracing/trace_pipe</code></p>
+
+<p>Also, <code>man bpf</code> is a good reference</p>
+
+<p>tip 5: You can blacklist subnets! There&rsquo;s a trie BPF map type</p>
+
+<p>tip 6: you can persist your BPF maps when the XDP program is attached/detached.</p>
+
+<h3 id="performance">performance</h3>
+
+<p>They wrote a filter that filters all UDP traffic (or some UDP traffic?
+unclear). They tried implementing the rule in iptables and compared it to their
+custom XDP approach.</p>
+
+<ul>
+<li>iptables: 4.5 million packets/second</li>
+<li>XDP: 9.7 million packets/second</li>
+</ul>
+
+<p>so this XDP program really was more than twice as fast as iptables! Cool!</p>
+
+<p>performance definitely isn&rsquo;t the only benefit over iptables though &ndash; it&rsquo;s
+definitely really important that with XDP you can write arbitrary code.</p>
+
+<h3 id="that-s-it">that&rsquo;s it!</h3>
+
+<p>I really liked that this tutorial focused on demystifying how this stuff
+works &ndash; they said it&rsquo;s really useful to use readelf/objdump to look at the ELF
+files that are generated along the way to understand how they&rsquo;re structured.</p>
+
+<p>I still don&rsquo;t understand everything but this made the idea of writing eBPF
+programs to make my kernel filter packets seem WAY more concrete/feasible.
+Probably some things in this post are wrong but I hope you have learned
+something anyway!</p>
+
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2017/04/07/xdp-bpf-tutorial/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2017/04/07/xdp-bpf-tutorial/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2017/04/07/netdev-conference-day-2/" title="Previous Post: netdev conference, day 2">netdev conference, day 2</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2017/04/06/netdev-2-1/" title="Next Post: netdev conference, day 1">netdev conference, day 1</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

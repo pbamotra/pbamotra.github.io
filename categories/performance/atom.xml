@@ -1,0 +1,1241 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title><![CDATA[Julia Evans]]></title>
+  <link href="http://jvns.ca/atom.xml" rel="self"/>
+  <link href="http://jvns.ca"/>
+  <updated>2016-02-12T20:22:38+00:00</updated>
+  <id>http://jvns.ca</id>
+  <author>
+    <name><![CDATA[Julia Evans]]></name>
+  </author>
+  <generator uri="http://gohugo.io/">Hugo</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[Why I love log files]]></title>
+    <link href="https://jvns.ca/blog/2016/02/12/why-i-love-log-files/"/>
+    <updated>2016-02-12T20:22:38+00:00</updated>
+    <id>https://jvns.ca/blog/2016/02/12/why-i-love-log-files/</id>
+    <content type="html"><![CDATA[
+
+<p>Dan Luu wrote a fantastic blog post recently on <a href="http://danluu.com/perf-tracing/">the limitations of sampling profilers &amp; tracing tools from the future</a>, which you should totally read. I&rsquo;m pretty into having conversations with people via blogging, so this is my much more pedestrian and less futuristic response to that post.</p>
+
+<h3 id="tracing-vs-profiling">tracing vs profiling</h3>
+
+<p>One of the biggest takeaways from Dan&rsquo;s post for me is:</p>
+
+<blockquote>
+<p>Sampling profilers, the most common performance debugging tool, are notoriously bad at debugging problems caused by tail latency because they aggregate events into averages. But tail latency is, by definition, not average.</p>
+</blockquote>
+
+<p>I learned this recently at work! I had a Thing that was slow. And I was staring at a dashboard with all kinds of  graphs that looked like this:</p>
+
+<p><img src="/images/log-squiggle.png"></p>
+
+<p>This was maybe a graph of 95th percentile latency or something. Whatever. It wasn&rsquo;t helping. None of the spikes in the graphs had anything to do with my slow thing. Then I asked <a href="https://twitter.com/nelhage">Nelson</a> for advice and he was basically like &ldquo;dude, look at the logs!&rdquo;.</p>
+
+<p>The basic rationale for this is exactly what Dan says &ndash; if you have 1000 events that were unusually slow, they probably failed because of a relatively uncommon event. And uncommon events do not always show up in graphs. But know where they show up? LOG FILES. WHICH ARE THE BEST. As long as you&rsquo;ve put in enough print statements.</p>
+
+<h3 id="log-files-total-instant-success">log files: total instant success</h3>
+
+<p>So, back to debugging my Thing. I stopped trying to look at graphs, took Nelson&rsquo;s advice and looked at the log files for the 10 slowest requests.</p>
+
+<p>The logs were all like</p>
+
+<pre>
+00:00:01.000 do thing 1
+00:00:01.012 do thing 2
+00:00:01.032 do thing 3
+00:00:01.045 do thing 4
+00:00:01.056 do thing 5
+00:00:02.158 do thing 6
+00:00:02.160 do thing 7
+</pre>
+
+<p>In this log file, obviously thing 5 is the problem! It took like a second before getting to thing 6! What the hell, thing 5.</p>
+
+<p>I&rsquo;ve gotten a little more into debugging performance problems, and every time I do it, I find that</p>
+
+<ul>
+<li>graphs are a great way to get an overall general picture of the system (oh, the error rate suddenly and permanently increased by 2x on March 13 at 3pm?)</li>
+<li>graphs are also great for seeing correlations (every time we deploy code our CPU usage spikes and we have timeouts?) (but remember: CORRELATION IS NOT CAUSATION GUYS. NEVER.)</li>
+<li>logs are amazing for digging into short spikes of timeouts or slow requests. Often I&rsquo;ll look at the logs for a few requests, they&rsquo;ll all exhibit the same behavior, and I&rsquo;ll have a much clearer understanding of what happened there.</li>
+</ul>
+
+<p>That&rsquo;s how I learned that logging a bunch of events (&ldquo;do thing 1&rdquo;) at a few well-chosen points in your code can be pretty useful, if log files are the only way you have to trace requests.</p>
+
+<h3 id="a-very-small-digression-on-splunk">a very small digression on Splunk</h3>
+
+<p>Splunk is a tool that ingests your logs. It costs money and they are definitely not paying me but it is AMAZING WIZARD MAGIC.</p>
+
+<p>Today I was talking about performance with a coworker and then we used Splunk to parse the nginx server logs, extract all the request times, and draw the median and 95th percentiles every hour. That&rsquo;s like totally trivial with Splunk.</p>
+
+<h3 id="magical-tracing-tools-are-like-log-files">magical tracing tools are like log files!</h3>
+
+<p>I think it&rsquo;s cool that these performance tools from the future that Dan describes are basically like.. magical wizard log files. And they&rsquo;re great for the same reason that log files are great. Because they are both tracing tools and tracing is important!</p>
+
+<p><a href="http://twitter.github.io/zipkin/">Zipkin</a> is a tool that serves a similar purpose, somewhere in between a bunch of print statements and the high performance instrumentation tools Dan is describing. It&rsquo;s based on <a href="http://highscalability.com/blog/2010/4/27/paper-dapper-googles-large-scale-distributed-systems-tracing.html">Dapper</a>, a distributed tracing framework at Google. I don&rsquo;t know what other tracing tools exist, though! <a href="https://twitter.com/b0rk">Let me know?</a></p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[How CPU load averages work (and using them to triage webserver performance!)]]></title>
+    <link href="https://jvns.ca/blog/2016/02/07/cpu-load-averages/"/>
+    <updated>2016-02-07T17:48:47+00:00</updated>
+    <id>https://jvns.ca/blog/2016/02/07/cpu-load-averages/</id>
+    <content type="html"><![CDATA[
+
+<p>CPU load averages have long been a little mysterious to me. I understood that
+low is good, and high is bad, but I thought of them as a mostly inscrutable
+number. I have now reached a small epiphany about them, which I would like to
+share with you!</p>
+
+<p>I tweeted earlier today:</p>
+
+<blockquote>
+<p>I understand CPU load averages now! If I have a load average of 6, and am processing 60 requests/second, then each one takes <sup>6</sup>&frasl;<sub>60</sub>=0.1s of CPU time</p>
+</blockquote>
+
+<p>and someone <a href="https://twitter.com/EitanAdler/status/696386442080030720">responded</a>:</p>
+
+<blockquote>
+<p>CPU load average is the number of processes in the runnable state. Little to nothing to do with CPU time.</p>
+</blockquote>
+
+<p>I thought this was a totally reasonable response. I also still thought I was
+<em>right</em>, but I needed to do some work first, and it wouldn&rsquo;t fit in a tweet.</p>
+
+<p>It turns out that I was kinda wrong, but I think also kinda right! What follows will hopefully be correct. When doing calculations, I’m going to assume that your processes using CPU are all doing it for the same reason, and that reason is to serve HTTP requests.</p>
+
+<p>Before I explain what load averages have to do with CPU time (spoiler: we&rsquo;re
+going to do a tiny bit of queueing theory!), I want to tell you what a load
+average is, and why the formula I tweeted is awesome.</p>
+
+<h3 id="what-s-a-load-average">What’s a load average?</h3>
+
+<p>Modern operating systems (since, like, <a href="http://www.cim.mcgill.ca/~franco/OpSys-304-427/lecture-notes/node46.html">4.2BSD in 1983</a>) can run more than one process on a single CPU (this is called “CPU scheduling”). My computer is running 300 processes right now! The operating system keeps track of a state for every process. The man page for <code>ps</code> lists them:</p>
+
+<pre><code>PROCESS STATE CODES
+       Here are the different values that the s, stat and state output specifiers (header &quot;STAT&quot; or &quot;S&quot;) will display to describe the state
+       of a process:
+       D    uninterruptible sleep (usually IO)
+       R    running or runnable (on run queue)
+       S    interruptible sleep (waiting for an event to complete)
+       T    stopped, either by a job control signal or because it is being traced.
+       W    paging (not valid since the 2.6.xx kernel)
+       X    dead (should never be seen)
+       Z    defunct (&quot;zombie&quot;) process, terminated but not reaped by its parent.
+</code></pre>
+
+<p>The load average is the average, in the last minute / 5 minutes / 15 minutes, of the number of processes in a running or runnable state. As far as I understand, &lsquo;runnable&rsquo; means &ldquo;I&rsquo;d be running if you&rsquo;d let me&rdquo;. Processes that are asleep don’t count. Almost every process on my computer is asleep at any given time.</p>
+
+<p>Given this definition, you may understand why someone would say this has “Little to nothing to do with CPU time”. It doesn&rsquo;t seem like it would!</p>
+
+<h3 id="a-quick-note-on-multiple-cpu-cores">A quick note on multiple CPU cores</h3>
+
+<p>If there are 3 processes that want to run on a CPU at the same time, and your computer has 4 CPU cores, then you’re totally okay! They can all run. So a load average of 3 is fine is you have 4 cores, and bad if you have 1 core.</p>
+
+<p>The number of cores you have doesn’t affect the formula we’re going to talk about here, though.</p>
+
+<h3 id="why-cpu-load-averages-are-awesome">Why CPU load averages are awesome</h3>
+
+<p>The other day at work, I had a server that had a load average of 6. It was processing 60 HTTP requests per second. (the numbers here are all fake)</p>
+
+<p>Both of these numbers are easy to get! The load average is in the output of <code>top</code> (for instance <code>load average: 6.12, 6.01, 5.98</code>), and I got the requests per second processed (or throughput) by counting log lines in the service&rsquo;s log file.</p>
+
+<p>So! According to our formula from above, each request was taking 6 / 60 = 0.1s = 100ms of time using-or-waiting-for-the-CPU. I asked my awesome coworker to double check this division to make sure that was right. 100ms is a bajillion years of CPU time, and I was super concerned. That story is for another time! But being able to calculate that number so quickly was SUPER USEFUL to me for understanding the server&rsquo;s performance.</p>
+
+<h3 id="why-the-formula-is-correct">Why the formula is correct</h3>
+
+<p>So! I posited this formula that tells you CPU time per request = load average / request throughput (requests per second). Why does that work?</p>
+
+<p>There&rsquo;s this theorem called <a href="https://en.wikipedia.org/wiki/Little%27s_law">Little&rsquo;s Law</a>, that states:</p>
+
+<blockquote>
+<p>The long-term average number of customers in a stable system L is equal to the long-term average effective arrival rate, λ, multiplied by the average time a customer spends in the system, W; or expressed algebraically: L = λW.</p>
+</blockquote>
+
+<p>This is pretty intuitive: if 10 people per hour (W) arrive at your store, and they spend 30 minutes each there (λ), then on average there will be 5 people (L) at a time in your store.</p>
+
+<p>Now, let&rsquo;s imagine the CPU is your store, and that HTTP requests are people. The load average tells you how many processes at a time are in line to use the CPU (L). Since in my case I have 1 HTTP request / process, this is the same as the number of requests in line to use the CPU. Note that we care about the steady-state load average &ndash; if the load is constantly changing then it&rsquo;s much harder to reason about. So we want the &ldquo;average load average&rdquo;. In my example system at work, the load average had been about 6 for a long time.</p>
+
+<p>If your system is in a steady state (constant load), then the rate of incoming requests will on average, over a long period of time, be the same as the rate of finishing requests. That rate is W.</p>
+
+<p>Lastly, λ is the amount of time each request spends on the CPU (in a running or runnable state).</p>
+
+<p>So:</p>
+
+<ul>
+<li>L = load average (average # requests in a running or runnable state)</li>
+<li>λ = average total time each request spends in a running or runnable state</li>
+<li>W = throughput (requests per second)</li>
+</ul>
+
+<p>So if we want to do my example from the previous section, we get:</p>
+
+<p>time spent on CPU = λ = L / W = 6 / 60 = 0.1s per request.</p>
+
+<h3 id="caveats">Caveats</h3>
+
+<p>There are quite a few assumptions built into this formula, which I&rsquo;ll make explicit now. First, I told you &ldquo;The load average tells you how many processes at a time are in line to use the CPU (L)&rdquo;. This isn&rsquo;t actually true!</p>
+
+<p>The <a href="https://en.wikipedia.org/wiki/Load_(computing)">Wikipedia page on load averages remarks that</a>:</p>
+
+<blockquote>
+<p>However, Linux also includes processes in uninterruptible sleep states (usually waiting for disk activity), which can lead to markedly different results if many processes remain blocked in I/O due to a busy or stalled I/O system.</p>
+</blockquote>
+
+<p>So, here are the cases when this &ldquo;CPU time per request = load average / throughput&rdquo; formula won&rsquo;t work for you:</p>
+
+<ul>
+<li>some of your processes are in uninterruptible sleep</li>
+<li>your system has a highly fluctuating load average / throughput</li>
+<li>you&rsquo;re handling more than 1 HTTP request per thread (for instance if you&rsquo;re using Node or Go or&hellip;).</li>
+<li>the CPU activity on your system is caused by something other than your HTTP request processing</li>
+<li>this time (time running + time waiting for the CPU) includes time spent doing context switches between processes, and time spent on-CPU inside the kernel</li>
+</ul>
+
+<p>It&rsquo;s also worth noting that the load average is an exponentially decaying average. This means that if your load average is changing over time, it&rsquo;s hard to know what the non-exponentially-decaying load average is.</p>
+
+<p>There’s likely another caveat I’ve missed, but I think that’s most of them.</p>
+
+<h3 id="a-version-for-time-spent-on-the-cpu">a version for time spent <em>on</em> the CPU</h3>
+
+<p>We&rsquo;ve found a formula for &ldquo;time the request spends on the CPU (or waiting for it to be free)&rdquo;. But what if we wanted to ignore the time it spent waiting? I have an idea that I made up just now.</p>
+
+<p>If the CPU load is low (like, less than half your number of cores), I think it&rsquo;s reasonable to assume that any process that wants to be scheduled gets scheduled immediately. So there&rsquo;s nothing to do.</p>
+
+<p>But what if your CPU is overloaded? Suppose I have 4 CPUs. Then we could instead define</p>
+
+<ul>
+<li>L = average number of processes in a running state (which should be 4, since the CPU is at capacity)</li>
+<li>λ = average time each request spends in a running state</li>
+<li>W = throughput (requests per second)</li>
+</ul>
+
+<p>Then we can still try to calculate our new λ, from our example from before!</p>
+
+<p>λ = L / W = 4 / 60 = 0.066 s = 66ms per request on the CPU.</p>
+
+<p>I think this math still holds up, but it feels a little shakier to me. I would love comments on this.</p>
+
+<h3 id="this-formula-awesome">this formula = awesome</h3>
+
+<p>I had a good experience with this formula yesterday! Being able to quickly triage the number of milliseconds of CPU time per request was an awesome start to doing some more in-depth performance analysis! (which I won’t go into here)</p>
+
+<p>I hope it will help you as well! If you think I&rsquo;ve gotten this all wrong, <a href="https://twitter.com/b0rk">let me know on twitter</a> :)</p>
+
+<p><small> Thanks to Kamal Marhubi, Darius Bacon, Dan Luu, and Sean Allen for comments </small></p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Fast integer sets with Roaring Bitmaps (and, making friends with your modern CPU)]]></title>
+    <link href="https://jvns.ca/blog/2016/01/23/fast-integer-sets-with-roaring-bitmaps/"/>
+    <updated>2016-01-23T17:24:53+00:00</updated>
+    <id>https://jvns.ca/blog/2016/01/23/fast-integer-sets-with-roaring-bitmaps/</id>
+    <content type="html"><![CDATA[
+
+<p>I went to the <a href="http://www.meetup.com/Papers-We-Love-Montreal/">Papers we Love Montreal meetup</a> this week where <a href="https://scholar.google.com/citations?user=q1ja-G8AAAAJ">Daniel Lemire</a> spoke about <a href="http://roaringbitmap.org/">roaring bitmaps</a>, and it was AWESOME.</p>
+
+<p>I learned about a cool new data structure, why sets of integers are super important, how modern CPUs are different from they were in the 90s, and how we should maybe think about that when designing data structures.</p>
+
+<h3 id="integer-sets-til-hash-sets-aren-t-fast">integer sets (TIL hash sets aren&rsquo;t fast)</h3>
+
+<p>The talk was about building integer sets (like <code>{1,28823,24,514}</code>) that let you do really really fast intersections &amp; unions &amp; other set operations.</p>
+
+<p>But why even care about integer sets? I was super confused about this at the beginning of the talk.</p>
+
+<p>Well, suppose you&rsquo;re building a database! Then you need to run queries like <code>select * from people where name = 'julia' and country = 'canada'</code>. This involves finding all the rows where <code>name = 'julia'</code> and where <code>country = 'canada'</code> and taking a set intersection! And the rows IDs are integers.</p>
+
+<p>You might have millions of rows in your database that match, so both the size of the set in memory and the speed of the set intersection are important! A fast integer set library here will really help you.</p>
+
+<p>One of the big takeaways for me in this talk was &ldquo;whoa, hashsets are not fast. okay.&rdquo; It turns out there are much much faster ways to represent large sets!</p>
+
+<h3 id="bitmaps">bitmaps</h3>
+
+<p>Here&rsquo;s the basic story about how to make fast integer sets!</p>
+
+<p>To represent the set [0,1,2,5], you don&rsquo;t need 4 integers! (128 bits) Instead, you can just store the bits <code>111001</code> (set the bit 5 to 1 to indicate that 5 is in the set!). That&rsquo;s a &ldquo;bitmap&rdquo; or &ldquo;bitset&rdquo;, and it only uses 6 bits. AMAZING.</p>
+
+<p>Taking &lsquo;AND&rsquo; or &lsquo;OR&rsquo; of two bitmaps corresponds to set intersection or union, and is extremely wizard fast. Even faster than you might think! This is where the talk got really surprising to me, so we&rsquo;re going to take a break and talk about CPUs for a while.</p>
+
+<h3 id="modern-cpus-and-parallelization-but-not-the-kind-you-think">modern CPUs and parallelization (but not the kind you think)</h3>
+
+<p>I have this idea in my head that my CPU can do 2.7 billion instructions a second (that&rsquo;s what 2.7 GHz means, right?). But I learned this is not actually really true! It does 2.7 billion <strong>cycles</strong> a second, but can potentially do way more instructions than that. Sometimes.</p>
+
+<p>Imagine two different programs. In the first one, you&rsquo;re doing something dead-simple like taking the <code>AND</code> of a bunch of bits. In the second program, you have tons of branching, and what you do with the end of the data depends on what the beginning of the data is.</p>
+
+<p>The first one is definitely easier to parallelize! But usually when I hear people talk about parallelization, they mean splitting a computation across many CPU cores, or many computers. That&rsquo;s not what this is about.</p>
+
+<p>This is about doing more than one instruction per CPU cycle, on a single core, in a single thread. I still don&rsquo;t understand very much about modern CPU architecture (<a href="https://danluu.com">Dan Luu</a> writes cool blog posts about that, though). Let&rsquo;s see a short experiment with that in action.</p>
+
+<h3 id="some-cpu-cycle-math">some CPU cycle math</h3>
+
+<p>In <a href="/blog/2014/05/12/computers-are-fast/">Computers are fast</a>, we looked at summing the bytes in a file as fast as possible. What&rsquo;s up with our CPU cycles, though? We can find out with <code>perf stat</code>:</p>
+
+<pre><code>$ perf stat ./bytesum_intrinsics The\ Newsroom\ S01E04.mp4
+ Performance counter stats for './bytesum_intrinsics The Newsroom S01E04.mp4':
+
+       783,592,910 cycles                    #    2.735 GHz                    
+       472,822,242 stalled-cycles-frontend   #   60.34% frontend cycles idle   
+     1,126,180,100 instructions              #    1.44  insns per cycle        
+            31,039 branch-misses             #    0.02% of all branches        
+
+       0.288103005 seconds time elapsed
+
+</code></pre>
+
+<p>My laptop&rsquo;s clock speed is 2.735 GHz. That means in 0.288103 seconds it has time for about 780,000,000 cycles (do the math! it checks out.) Not-coincidentally, that&rsquo;s exactly how many cycles perf reports the program using. But cycles are not instructions!! My understanding of modern CPUs is &ndash; old CPUs used to do only one instruction per cycle, and it was easy to reason about. New CPU have &ldquo;instruction pipelines&rdquo; and can do LOTS. I don&rsquo;t actually know what the limit is.</p>
+
+<p>For this program, it&rsquo;s doing 1.4 instructions per cycle. I have no idea if that&rsquo;s good, or why. If I look at <code>perf stat ls</code>, it does 0.6 instructions per cycle. That&rsquo;s more than 2x less! In the talk, Lemire said that you can get up to an 8x speed increase by doing more instructions per cycle!</p>
+
+<p>Here&rsquo;s the disassembly of <code>bytesum_intrinsics</code>, and which instructions it spends the most time on (the numbers on the right are percentages). <a href="https://danluu.com">Dan Luu</a> would probably be able to interpret this and tell me what&rsquo;s going on, but I don&rsquo;t know how.</p>
+
+<p><img src="/images/perf.png"></p>
+
+<h3 id="roaring-bitmaps-a-library-for-compressed-bitmaps">Roaring Bitmaps: a library for compressed bitmaps</h3>
+
+<p>Okay, back to bitmaps!</p>
+
+<p>If you want to represent the set {0,1,100000000} with a bitmap, then you have a problem. You don&rsquo;t want to use 100000000 bits to represent 3 elements. So compression of bitmaps is a big deal. The Roaring Bitmap library gives you a data structure and a bunch of algorithms to take the intersection and union of compressed bitmaps fast. He said they can usually use 2-3 bits per integer they store?! I&rsquo;m not going to explain how it works at all &ndash; read <a href="http://roaringbitmap.org">roaringbitmap.org</a> or <a href="https://github.com/RoaringBitmap/RoaringBitmap">the github repository&rsquo;s README</a> if you want to know more.</p>
+
+<h3 id="modern-cpus-roaring-bitmaps">modern CPUs &amp; roaring bitmaps</h3>
+
+<p>What does all this talk of CPUs have to do with bitmaps, though?</p>
+
+<p>Basically they designed the roaring bitmaps data structure so that the CPU can do less instructions (using single-instruction-multiple-data/SIMD instructions that let you operate on 128 bits at a time) and then additionally do lots of instructions per cycle (good parallelization!). I thought this was super awesome.</p>
+
+<p>He showed a lot of really great benchmark results, and I felt pretty convinced that this is a good library.</p>
+
+<p>The whole goal of the Papers We Love meetup is to show programmers work academics are doing that can actually help them write programs. This was a fantastic example of that.</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Java isn&#39;t slow]]></title>
+    <link href="https://jvns.ca/blog/2016/01/03/java-isnt-slow/"/>
+    <updated>2016-01-03T06:27:07+00:00</updated>
+    <id>https://jvns.ca/blog/2016/01/03/java-isnt-slow/</id>
+    <content type="html"><![CDATA[
+
+<p>This is probably obvious to many of you, but I wanted to write it down just in case.</p>
+
+<p>I used to write Java at work, and my Java programs were really slow. I thought
+(and people sometimes told me) that this was because Java is a slow programming
+language.</p>
+
+<p>This just isn&rsquo;t true. This article describes the architecture of the <a href="http://martinfowler.com/articles/lmax.html">LMAX Disruptor</a>, a messaging library that they use to process 6 million events per second on a single machine. That article is also SUPER FASCINATING and really worth reading. Java is fast like C is fast (really fast). People write databases (<a href="http://cassandra.apache.org/">Cassandra</a>) in Java!</p>
+
+<p>By &ldquo;Java is fast&rdquo;, I mean something pretty specific &ndash; that you can comfortably do millions of things a second in Java. This isn&rsquo;t true for languages like Python or Ruby &ndash; in the <a href="http://computers-are-fast.github.io/">computers-are-fast game I made</a>, you can see that a pure-python HTTP request parser can parse 25,000 requests a second. I&rsquo;d expect an optimized Java program to do dramatically better than that.</p>
+
+<p>So if your Java code is doing something easier than processing 6 million events a second, and it&rsquo;s slow, you can maybe make it faster! Processing 6 million events per second is actually extremely difficult, but I find it inspiring to think about when I&rsquo;m having trouble processing like.. 10 things per second :)</p>
+
+<p>My Java code was probably slow because I was creating like a bajillion objects all the time, and destroying them, and doing a bajillion allocations takes time, and also it puts pressure on the garbage collector, and&hellip; Well, you get the idea. But code like that is not the whole world!</p>
+
+<p>There&rsquo;s a culture of building high-performance Java code out there. I asked on <a href="https://twitter.com/b0rk/status/683623665800474624">twitter</a> and got linked to <a href="https://github.com/real-logic/Agrona">this interesting-looking data structures library</a> and this <a href="https://github.com/JCTools/JCTools">Java concurrency tools</a> repo. And to Netty! Netty is a networking framework (to build webservers, and other things!) in Java. The <a href="http://netty.io/testimonials">Netty testimonials page</a> says that trading firms (who we all know care a lot about performance!!) use Netty.</p>
+
+<p>There&rsquo;s this high performance <a href="https://github.com/brettwooldridge/HikariCP">database connection pool</a> and a <a href="https://github.com/brettwooldridge/HikariCP/wiki/Down-the-Rabbit-Hole">page explaining how they made it fast</a>. <a href="http://chronicle.software/products/chronicle-map/">Chronicle</a> is a key-value store in Java. And all that&rsquo;s just what I got in 10 minutes from reading a few tweets!</p>
+
+<h3 id="how-to-make-your-java-or-scala-or-clojure-code-fast">How to make your Java (or Scala, or Clojure) code fast</h3>
+
+<p>This is a super small thing, but some people I talked to didn&rsquo;t know this!</p>
+
+<p>Did you know the JVM ships with a free profiler that can tell you which part of your code is the slowest? It&rsquo;s called <a href="https://visualvm.java.net">VisualVM</a>. It’s very easy to use and it&rsquo;s an AWESOME first step to take. Here&rsquo;s a screenshot of VisualVM profiling VisualVM. It&rsquo;s spending most of its time on <code>org.netbeans.swing.tabcontrol.TabbedContainer.paint</code>. So it&rsquo;s mostly working on drawing the screen to show me the results of profiling itself!</p>
+
+<p><a href="/images/visualvm.png"><img src="/images/visualvm-small.png"></a></p>
+
+<p>(<a href="https://www.yourkit.com/">YourKit</a> is better, but VisualVM is free)</p>
+
+<p>It won&rsquo;t get you to LMAX disruptor speed (that&rsquo;s much more serious wizardry), but it is a good first step!</p>
+
+<p>I had some <a href="http://jvns.ca/blog/2015/09/10/a-millisecond-isnt-fast-and-how-we-fixed-it/">slow JVM code</a> at work a while ago. We made it fast. I used VisualVM! So can you :) <a href="http://computers-are-fast.github.io/">Computers</a> are <a href="http://jvns.ca/blog/2014/05/12/computers-are-fast/">fast</a>, and you should expect a lot out of your computer programs.</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Why you should understand (a little) about TCP]]></title>
+    <link href="https://jvns.ca/blog/2015/11/21/why-you-should-understand-a-little-about-tcp/"/>
+    <updated>2015-11-21T09:13:44+00:00</updated>
+    <id>https://jvns.ca/blog/2015/11/21/why-you-should-understand-a-little-about-tcp/</id>
+    <content type="html"><![CDATA[
+
+<p>This isn&rsquo;t about understanding <em>everything</em> about TCP or reading through <a href="http://www.amazon.com/TCP-Illustrated-Vol-Addison-Wesley-Professional/dp/0201633469">TCP/IP Illustrated</a>. It&rsquo;s about how a little bit of TCP knowledge is essential. Here&rsquo;s why.</p>
+
+<p>When I was at the <a href="http://recurse.com">Recurse Center</a>, I wrote a TCP stack in Python (<a href="http://jvns.ca/blog/2014/08/12/what-happens-if-you-write-a-tcp-stack-in-python/">and wrote about what happens if you write a TCP stack in Python</a>). This was a fun learning experience, and I thought that was all.</p>
+
+<p>A year later, at work, someone mentioned on Slack &ldquo;hey I&rsquo;m publishing messages to NSQ and it&rsquo;s taking 40ms each time&rdquo;. I&rsquo;d already been thinking about this problem on and off for a week, and hadn&rsquo;t gotten anywhere.</p>
+
+<p>A little background: NSQ is a queue that you send to messages to. The way you publish a message is to make an HTTP request on localhost. It really should not take <strong>40 milliseconds</strong> to send a HTTP request to localhost. Something was terribly wrong. The NSQ daemon wasn&rsquo;t under high CPU load, it wasn&rsquo;t using a lot of memory, it didn&rsquo;t seem to be a garbage collection pause. Help.</p>
+
+<p>Then I remembered an article I&rsquo;d read a week before called <a href="https://gocardless.com/blog/in-search-of-performance-how-we-shaved-200ms-off-every-post-request/">In search of performance - how we shaved 200ms off every POST request</a>. In that article, they talk about why every one of their POST requests were taking 200 extra milliseconds. That&rsquo;s.. weird. Here&rsquo;s the key paragraph from the post</p>
+
+<h3 id="delayed-acks-tcp-nodelay">Delayed ACKs &amp; TCP_NODELAY</h3>
+
+<blockquote>
+<p>Ruby&rsquo;s Net::HTTP splits POST requests across two TCP packets - one for the
+headers, and another for the body. curl, by contrast, combines the two if
+they&rsquo;ll fit in a single packet. To make things worse, Net::HTTP doesn&rsquo;t set
+TCP_NODELAY on the TCP socket it opens, so it waits for acknowledgement of the
+first packet before sending the second. This behaviour is a consequence of
+Nagle&rsquo;s algorithm.</p>
+
+<p>Moving to the other end of the connection, HAProxy has to choose how to
+acknowledge those two packets. In version 1.4.18 (the one we were using), it
+opted to use TCP delayed acknowledgement. Delayed acknowledgement interacts
+badly with Nagle&rsquo;s algorithm, and causes the request to pause until the server
+reaches its delayed acknowledgement timeout..</p>
+</blockquote>
+
+<p>Let&rsquo;s unpack what this paragraph is saying.</p>
+
+<ul>
+<li>TCP is an algorithm where you send data in <strong>packets</strong></li>
+<li>Their HTTP library was sending POST requests in 2 small packets</li>
+</ul>
+
+<p>Here&rsquo;s what the rest of the TCP exchange looked like after that:</p>
+
+<blockquote>
+<p>application: hi! Here&rsquo;s packet 1. <br>
+HAProxy: &lt;silence, waiting for the second packet&gt;<br>
+HAProxy: &lt;well I&rsquo;ll ack eventually but nbd&gt;<br>
+application: &lt;silence&gt;<br>
+application: &lt;well I&rsquo;m waiting for an ACK maybe there&rsquo;s network congestion&gt;<br>
+HAProxy: ok i&rsquo;m bored. here&rsquo;s an ack<br>
+application: great here&rsquo;s the second packet!!!!<br>
+HAProxy: sweet. we&rsquo;re done here<br></p>
+</blockquote>
+
+<p>That period where the application and HAProxy are both passive-aggressively
+waiting for the other to send information? That&rsquo;s the extra 200ms. The application is doing it because of Nagle&rsquo;s algorithm, and HAProxy because of delayed ACKs.</p>
+
+<p>Delayed ACKs happen, as far as I understand, by default on <em>every</em> Linux system.
+So this isn&rsquo;t an edge case or an anomaly &ndash; if you send your data in more than 1
+TCP packet, it can happen to you.</p>
+
+<h3 id="in-which-we-become-wizards">in which we become wizards</h3>
+
+<p>So I read this article, and forgot about it. But I was stewing about my extra 40ms, and then I remembered.</p>
+
+<p>And I thought &ndash; that can&rsquo;t be my problem, can it? can it??? And I sent an email to my team saying &ldquo;I think I might be crazy but this might be a TCP problem&rdquo;.</p>
+
+<p>So I committed a change turning on <code>TCP_NODELAY</code> for our application, and BOOM.</p>
+
+<p>All of the 40ms delays <strong>instantly disappeared</strong>. Everything was fixed. I was a wizard.</p>
+
+<h3 id="should-we-stop-using-delayed-acks-entirely">should we stop using delayed ACKs entirely</h3>
+
+<p>A quick sidebar &ndash; I just read <a href="https://news.ycombinator.com/item?id=9048947">this comment on Hacker News</a> from John Nagle (of Nagle&rsquo;s algorithm) via <a href="https://twitter.com/alicemazzy/status/667799010317574145">this awesome tweet</a> by @alicemazzy.</p>
+
+<blockquote>
+<p>The real problem is ACK delays. The 200ms &ldquo;ACK delay&rdquo; timer is a bad idea that
+someone at Berkeley stuck into BSD around 1985 because they didn&rsquo;t really
+understand the problem. A delayed ACK is a bet that there will be a reply from
+the application level within 200ms. TCP continues to use delayed ACKs even if
+it&rsquo;s losing that bet every time.</p>
+</blockquote>
+
+<p>He goes on to comment that ACKs are small and inexpensive, and that the problems
+caused in practice by delayed ACKs are probably much worse than the problems
+they solve.</p>
+
+<h3 id="you-can-t-fix-tcp-problems-without-understanding-tcp">you can&rsquo;t fix TCP problems without understanding TCP</h3>
+
+<p>I used to think that TCP was really low-level and that I did not need to understand it. Which is mostly true! But sometimes in real life you have a bug and that bug is because of something in the TCP algorithm. So it turns out that understanding TCP is important. (as we frequently discuss on this blog, this turns out to be true for a lot of things, like, system calls &amp; operating systems :) :))</p>
+
+<p>This delayed ACKs / TCP_NODELAY interaction is particularly bad &ndash; it could affect anyone writing code that makes HTTP requests, in any programming language. You don&rsquo;t have to be a systems programming wizard to run into this. Understanding a tiny bit about how TCP worked really helped me work through this and recognize that that thing the blog post was describing also might be my problem. I also used strace, though. strace forever.</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[PAPERS ARE AMAZING: Profiling threaded programs with Coz]]></title>
+    <link href="https://jvns.ca/blog/2015/10/31/papers-are-amazing-profiling-threaded-programs-with-coz/"/>
+    <updated>2015-10-31T10:40:02+00:00</updated>
+    <id>https://jvns.ca/blog/2015/10/31/papers-are-amazing-profiling-threaded-programs-with-coz/</id>
+    <content type="html"><![CDATA[
+
+<p>HI BLOG FRIENDS!</p>
+
+<p>I usually don&rsquo;t read papers. I only read <a href="http://research.google.com/pubs/pub43146.html">one paper</a> so far this year (which I love). I only read it because my friend Maggie printed it out and gave it to me.</p>
+
+<p>SO. Yesterday I got handed 3 (three!) printed out papers from the amazing organizers of <a href="http://www.meetup.com/Papers-We-Love-Montreal/">Papers We Love Montreal</a>. And I woke up this morning and started reading one (because, Saturday morning). And then I had to tell you all about it because this paper is so cool. Okay, enough backstory.</p>
+
+<p>The paper we&rsquo;re going to talk about is <a href="https://web.cs.umass.edu/publication/docs/2015/UM-CS-2015-008.pdf">COZ: Finding Code that Counts with Causal Profiling</a> (pdf). I found it super easy to read. Here is what I got out of it so far!</p>
+
+<h2 id="profiling-threaded-applications-is-hard">Profiling threaded applications is hard</h2>
+
+<p>Profiling single-threaded applications where everything happens synchronously is pretty straightforward. If one part of the program is slow, it&rsquo;ll show up as taking 10% of the time or something, and then you can target that part of the program for optimization.</p>
+
+<p>But, when you start to use threads, everything gets way more complicated. The paper uses this program as an example:</p>
+
+<pre><code>void a() { // ˜6.7 seconds
+  for(volatile size_t x=0; x&lt;2000000000; x++) {}
+}
+void b() { // ˜6.4 seconds
+  for(volatile size_t y=0; y&lt;1900000000; y++) {}
+}
+int main() {
+  // Spawn both threads and wait for them.
+  thread a_thread(a), b_thread(b);
+  a_thread.join(); b_thread.join();
+}
+</code></pre>
+
+<p>Speeding up one of <code>a()</code> or <code>b()</code> won&rsquo;t help you, because they <em>both</em> need to finish in order for the program to finish. (this is totally different from if we ran <code>a(); b()</code>, in which case speeding up <code>a()</code> could give you an up to 50% increase in speed).</p>
+
+<p>Okay, so profiling threaded programs is hard. What next?</p>
+
+<h2 id="speed-up-one-thread-to-see-if-that-thread-is-the-problem">Speed up one thread to see if that thread is the problem</h2>
+
+<p>The core idea in this paper is &ndash; if you have a line of code in a thread, and you want to know if it&rsquo;s making your program slow, speed up that line of code to see if it makes the <strong>whole program</strong> faster!</p>
+
+<p>Of course, you can&rsquo;t actually speed up a thread. But you <em>can</em> slow down all other threads! So that&rsquo;s what they do. The implemention here is super super super interesting &ndash; they use the <code>perf</code> Linux system to do this, and in particular they can do it <strong>without modifying the program&rsquo;s code</strong>. So this is a) wizardry, and b) uses <code>perf</code></p>
+
+<p>Which are both things we love here (<a href="http://jvns.ca/blog/2014/05/13/profiling-with-perf/">omg perf</a>). I&rsquo;m going to refer you to the paper for now to learn more about how they use perf to slow down threads, because I honestly don&rsquo;t totally understand it myself yet. There are some difficult details like &ldquo;if the thread is already waiting on another thread, should we slow it down even more?&rdquo; that they get into.</p>
+
+<h2 id="omg-it-works">omg it works</h2>
+
+<p>The thing that really impressed me about this paper is that they showed the results of running this profiler on real programs (SQLite! Memcached!), and then they could use the profiler results to detect</p>
+
+<ul>
+<li>a problem with too many hash table collisions</li>
+<li>unnecessary / inefficient uses of locking (&ldquo;this is atomic anyway! no need to lock!&rdquo;)</li>
+<li>where it would be more efficient to move code from one thread to another</li>
+</ul>
+
+<p>and speed up the program on the workload they were testing by, like, 10%!</p>
+
+<p>They also find out places where speeding up a line of code would introduce a <em>slowdown</em> (because of increased contention around some resource). This paradoxically also helps them make code faster, because that&rsquo;s a good site for figuring out why there&rsquo;s a problem with contention and changing the ways the locks are set up.</p>
+
+<p>Also, they claim that the overhead of this profiling is like 20%? How can this be. This seems like literally magic except that THEY EXPLAIN HOW IT WORKS. Papers. Wow.</p>
+
+<h2 id="actually-running-the-code">Actually running the code</h2>
+
+<p>You can actually download the code <a href="https://github.com/plasma-umass/coz">on GitHub</a>. I tried to compile it and it did not work the first time. I suspect this is because <code>perf</code> changes a little between different Linux versions (I get a bunch of errors about <code>perf.h</code>). It seems like this is something <a href="https://github.com/plasma-umass/coz/issues/16">they&rsquo;re working on</a>. Maybe a future project will be to try to get it to compile and run it on a REAL PROGRAM and see if I can reproduce some of the things they talk about in the paper! We&rsquo;ll see.</p>
+
+<h2 id="async-programming">Async programming?!</h2>
+
+<p>Now I&rsquo;m really curious about if we could do something similar for profiling single-threaded but asynchronous applications (for all the javascript programmers in the world!). Like, if you identified a function call you were interested in speeding up, you could slow down everything else running in the event loop and see if it slowed down the overall program. Maybe someone has already tried this! If so I want to know about it. (I&rsquo;m <a href="https://twitter.com/b0rk">@b0rk</a> on twitter).</p>
+
+<p>Okay, papers are cool. If you know me and want to print a paper you love and give it to me I&rsquo;d be into it.</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[A millisecond isn&#39;t fast (and how we made it 100x faster)]]></title>
+    <link href="https://jvns.ca/blog/2015/09/10/a-millisecond-isnt-fast-and-how-we-fixed-it/"/>
+    <updated>2015-09-10T08:28:56+00:00</updated>
+    <id>https://jvns.ca/blog/2015/09/10/a-millisecond-isnt-fast-and-how-we-fixed-it/</id>
+    <content type="html"><![CDATA[<p>Hi friends! For the first time today I&rsquo;m going to tell you about my DAY
+AT WORK (machine learning at Stripe) yesterday. =D. This is a
+collaboration with <a href="http://kamalmarhubi.com">Kamal Marhubi</a> who did this
+profiling with me after work because I was so mad about the performance.</p>
+
+<p>I used to think a millisecond was fast. At work, I have code that runs
+some VERY_LARGE_NUMBER of times. It&rsquo;s distributed and split up into
+tasks, and an individual task runs the code more than 6 million times.</p>
+
+<p>I wrote a benchmark for the Slow Code and found it could process
+~1000 records/s. This meant that processing 6 million things would take
+1.5 hours, which is Slow. The code is kind of complicated, so originally
+we all thought this was a reasonable amount of time. But my heart was
+sad.</p>
+
+<p>Yesterday <a href="https://twitter.com/avibryant">Avi</a> (who is the best) and I
+looked at why it was so damn slow (~1 millisecond/record) in some more
+depth. This code is open source so I can show it to you! We profiled using
+VisualVM and, after doing some optimizations, found out that it was
+spending all its time in <code>DenseHLL$x$6</code>. This is mystery Scala speak for
+this code block from Twitter&rsquo;s Algebird library that estimates the size of a HyperLogLog:</p>
+
+<pre><code class="language-scala">  lazy val (zeroCnt, z) = {
+    var count: Int = 0
+    var res: Double = 0
+
+    // goto while loop to avoid closure
+    val arr: Array[Byte] = v.array
+    val arrSize: Int = arr.size
+    var idx: Int = 0
+    while (idx &lt; arrSize) {
+      val mj = arr(idx)
+      if (mj == 0) {
+        count += 1
+        res += 1.0
+      } else {
+        res += java.lang.Math.pow(2.0, -mj)
+      }
+      idx += 1
+    }
+    (count, 1.0 / res)
+  }
+</code></pre>
+
+<p>from
+<a href="https://github.com/twitter/algebird/blob/c84d67836396757db881/algebird-core/src/main/scala/com/twitter/algebird/HyperLogLog.scala#L436-L455">HyperLogLog.scala</a></p>
+
+<p>This is a little inscrutable and I&rsquo;m not going to explain what this code
+does, but <code>arrSize</code> in my case is 4096. So basically, we have
+something like 10,000 floating point operations, and it takes about 1ms
+to do. I am still new to performance optimizations, but I discussed it
+with Kamal and we decided it was outrageous. Since this loop is <strong>hardly
+doing anything omg</strong>, the obvious target is <code>java.lang.Math.pow(2.0,
+-mj)</code>, because that looks like the hardest thing. (note: Java is pretty fast. if you are doing normal operations like adding and multiplying numbers it should go REALLY FAST. because <a href="http://jvns.ca/blog/2014/05/12/computers-are-fast/">computers are fast</a>)</p>
+
+<p>(note: <a href="https://gist.github.com/jboner/2841832">Latency Numbers Every Programmer Should Know</a> is great and useful in
+cases like this! Many CPU instructions take a nanosecond
+or something. so 10K of them should be on the order of 10 microseconds
+or so. Definitely not a millisecond.)</p>
+
+<p>Kamal and I tried two things: replacing <code>Math.pow(2, -mj)</code> with <code>1.0 / (1 &lt;&lt; mj)</code>, and writing a lookup table (since <code>mj</code> is a byte and has
+256 possible values, we can just calculate 2^(-mj) for every possible
+value up front).</p>
+
+<p>The final performance numbers on the benchmark we picked were:</p>
+
+<pre><code>math.pow:         0.8ms
+1.0 / (1 &lt;&lt; mj):  0.017ms (!)
+the lookup table: 0.008ms (!!!)
+</code></pre>
+
+<p>So we can literally make this code <strong>100 times faster</strong> by just changing
+one line. Avi simultaneously came to the same conclusions and
+made this pull request <a href="https://github.com/twitter/algebird/pull/491">Speed up HLL presentation by 100x</a>. Hooray!</p>
+
+<p>I&rsquo;m learning intuitions for when code is slower than it should be and it
+is THE BEST. Being able to say &ldquo;this code should not take 10s to process
+10,000 records&rdquo; is amazing. It is even more amazing when you can
+actually fix it.</p>
+
+<p><small>
+If you&rsquo;re interested in the rest of my day at work for some reason, I
+</small></p>
+
+<ul>
+<li><small>worked with someone on understanding which of our machine learning models are doing the most work for us</small></li>
+<li><small>wrote 2 SQL queries to help someone on the Risk team find accounts with suspicious activity</small></li>
+<li><small>wrangled Scala performance (this) so that we can generate training sets for our machine learning models without tearing our hair out</small></li>
+</ul>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Nancy Drew and the Case of the Slow Program]]></title>
+    <link href="https://jvns.ca/blog/2015/03/15/nancy-drew-and-the-case-of-the-slow-program/"/>
+    <updated>2015-03-15T14:14:35+00:00</updated>
+    <id>https://jvns.ca/blog/2015/03/15/nancy-drew-and-the-case-of-the-slow-program/</id>
+    <content type="html"><![CDATA[<p>Yesterday I tweeted:</p>
+
+<p><blockquote class="twitter-tweet" lang="en"><p>you have three slow
+programs:&#10;1. CPU-bound&#10;2. waiting for slow network
+responses&#10;3. writing a lot to disk&#10;how do you tell which is
+which?</p>&mdash; Julia Evans (@b0rk) <a
+href="https://twitter.com/b0rk/status/576883056864288768">March 14,
+2015</a></blockquote>
+<script async src="//platform.twitter.com/widgets.js"
+charset="utf-8"></script></p>
+
+<p>I specifically wanted programming-language-independent ways to
+investigate questions like this, and I guess people who follow me on
+twitter get me because I got SO MANY GREAT ANSWERS. I&rsquo;ll give you a list
+of all the answers at the end, but first! We&rsquo;re going to mount an
+investigation.</p>
+
+<p>Let&rsquo;s start! I wrote up 3 example mystery programs, and you can find
+them in this
+<a href="https://github.com/jvns/swiss_army_knife_talk">github repository</a>.</p>
+
+<h3 id="mystery-program-1">Mystery Program #1</h3>
+
+<p>Let&rsquo;s investigate our first mystery slow program!</p>
+
+<p></p>
+
+<p>First, let&rsquo;s check <strong>how long it takes</strong> using <code>time</code>:</p>
+
+<pre><code>$ time python mystery_1.py
+0.09user 0.01system 0:02.11elapsed 5%CPU (0avgtext+0avgdata 52064maxresident)
+</code></pre>
+
+<p>We can already see by timing the program  that a) it takes 2 seconds and
+b) it&rsquo;s only on the CPU for 5% of that time. So we already know it&rsquo;s
+waiting for something! But what is it waiting for?</p>
+
+<h4 id="what-is-mystery-program-1-waiting-for">What is Mystery Program #1 waiting for?</h4>
+
+<p>First, we&rsquo;ll use a rough tool: <code>ps</code> can tell us what every process is
+currently waiting for. It gives you a piece of information called
+<code>wchan</code>, which the internet defines as &ldquo;wait channel. The address of an
+event on which a particular process is waiting.&rdquo;</p>
+
+<p>So, let&rsquo;s start the program and then call <code>ps -eo pid,wchan:42,cmd</code> to
+get the PID, current waiting channel, and command for each process. (the
+42 is so it doesn&rsquo;t cut off any information)</p>
+
+<p>I actually ran it in a loop (<code>ps -eopid,wchan:42,cmd; sleep 0.5</code> so that
+I wouldn&rsquo;t miss anything)</p>
+
+<pre><code>$ ps -eo pid,wchan:42,cmd | grep mystery_1.py
+2382 sk_wait_data                               python mystery_1.py
+</code></pre>
+
+<p><a href="http://askubuntu.com/questions/19442/what-is-the-waiting-channel-of-a-process">The internet</a>
+tells us that <code>sk_wait_data</code> means &ldquo;Wait for some data on a network
+socket.&ldquo;. So it seems likely that it&rsquo;s slow because it&rsquo;s waiting for a
+network response! AWESOME.</p>
+
+<p>You can see <a href="https://github.com/jvns/swiss_army_knife_talk/blob/master/slow_client.py">the source for mystery_1.py</a> if you want to know what it&rsquo;s actually doing.</p>
+
+<h2 id="mystery-program-2">Mystery Program #2</h2>
+
+<p><code>time</code>, again, is a great place to start.</p>
+
+<pre><code>$ time python mystery_2.py
+2.74user 0.00system 0:02.74elapsed 99%CPU (0avgtext+0avgdata 18032maxresident)k
+</code></pre>
+
+<p>This program is spending all of its runtime on the CPU (2.<sup>74</sup>&frasl;<sub>2</sub>.74
+seconds), and it&rsquo;s all in user functions. The operating system won&rsquo;t
+have anything new to tell us here (no IO! No network!), and since it&rsquo;s
+Python (and not, say, C++) it&rsquo;s actually going to be best to just use a
+Python profiler.</p>
+
+<p>It&rsquo;s important to know when you <em>shouldn&rsquo;t</em> use fancy operating systems
+tools to debug performance, and I think this is one of those cases.</p>
+
+<p>You can see <a href="https://github.com/jvns/swiss_army_knife_talk/blob/master/adder.py">the source for mystery_2.py</a>
+if you want to know what it&rsquo;s actually doing.</p>
+
+<h2 id="mystery-program-3">Mystery program #3</h2>
+
+<pre><code>time python mystery_3.py 
+0.08user 1.03system 0:10.61elapsed 10%CPU (0avgtext+0avgdata 18176maxresident)k
+</code></pre>
+
+<p>This one is waiting for 9 seconds. What&rsquo;s going on?! I actually
+originally thought I understood this one but I TOTALLY DIDN&rsquo;T.</p>
+
+<p>To thicken the plot, if we run the program twice in a row, it takes
+drastically different amounts of time:</p>
+
+<pre><code>$ time python mystery_3.py 
+0.01user 0.40system 0:00.61elapsed 69%CPU (0avgtext+0avgdata 18176maxresident)k
+0inputs+585944outputs (0major+1239minor)pagefaults 0swaps
+$ time python mystery_3.py 
+0.01user 0.34system 0:10.55elapsed 3%CPU (0avgtext+0avgdata 18176maxresident)k
+24inputs+585944outputs (0major+1238minor)pagefaults 0swaps
+</code></pre>
+
+<p>It just went from 0.6 seconds to 10 seconds! What in the world is going on?</p>
+
+<p>I tried this <code>wchan</code> trick again, and ran our mystery program a few times</p>
+
+<pre><code>$ for i in `seq 1 100`
+do
+    ps -eo pid,wchan:42,cmd | grep mystery_3; sleep 0.5
+end
+
+11285 -                                          python mystery_3.py
+11285 sleep_on_buffer                            python mystery_3.py
+11285 sleep_on_buffer                            python mystery_3.py
+11285 sleep_on_buffer                            python mystery_3.py
+11410 sleep_on_page                              python mystery_3.py
+11438 sleep_on_shadow_bh                         python mystery_3.py
+</code></pre>
+
+<p>All of this buffer and page business is enough for me to conclude that
+there&rsquo;s <strong>something</strong> going on with IO. But what, and why does it run so
+much more slowly the second time? I was actually totally confused about
+this, even though I knew what the program was doing.</p>
+
+<p>Here&rsquo;s the program. It&rsquo;s writing 287MB to <code>/tmp/fake.txt</code>.</p>
+
+<pre><code class="language-python">line = 'a' * 30000
+filename = '/tmp/fake.txt'
+
+with open(filename, 'w') as f:
+    for i in xrange(10000):
+        f.write(line)
+</code></pre>
+
+<p>The whole point of this exercise is to debug using our operating system,
+so we need to get a better picture of what the OS is doing! Let&rsquo;s use
+<code>dstat</code>, which gives us snapshots every second of what network, IO, and
+CPU activity is happening (SO GREAT)</p>
+
+<pre><code>$ dstat
+----total-cpu-usage---- -dsk/total- -net/total- ---paging-- ---system--
+usr sys idl wai hiq siq| read  writ| recv  send|  in   out | int   csw 
+ 14   5  78   3   0   0|  46k  342k|   0     0 |   0  1629B| 374  1282 
+  3   1  95   1   0   0|   0   232k|   0     0 |   0     0 | 606  2807 
+  3   2  95   0   0   0|   0     0 | 164B  204B|   0     0 | 444  2093 
+</code></pre>
+
+<p>I&rsquo;m going to just show you the disk stats using <code>dstat -d</code> for clarity. It prints a new line every second.</p>
+
+<pre><code>$ dstat -d 
+-dsk/total-
+ read  writ
+   0   136k
+   0    56M &lt;-- when I start python mystery_3.py. It finishes immediately
+   0    46M &lt;-- but it's still writing data!
+   0    32M &lt;-- still writing...
+   0    52M &lt;-- still writing...
+   0    70M &lt;-- still writing...
+   0    32M &lt;-- still writing...
+   0   148k &lt;-- okay it's done
+   0     0 
+   0   144k
+   0     0 
+   0   144k^
+</code></pre>
+
+<p>So we see that the OS is writing data even after the program is
+finished. For 5 whole seconds! This was when a lightbulb went off in my
+head going OH FILESYSTEM CACHES RIGHT. Writing to disks is <strong>super
+slow</strong>, and the kernel loves you and wants you to not have to wait. So
+it says &ldquo;okay, got it!&rdquo;, but doesn&rsquo;t actually write the data to disk
+until a little later.</p>
+
+<p>When the filesystem cache runs out of space, it says &ldquo;okay you need to
+stop writing now&rdquo; and actually writes the data to disk and makes you
+wait until it&rsquo;s done. Of course, sometimes you want your data to be
+*actually for serious written before you keep on going (for example if
+you&rsquo;re a database!!). This is why the second run of our program takes so
+long! It needs to wait for the writes from the previous run to finish,
+and also catch up on its own.</p>
+
+<p><a href="https://twitter.com/kamalmarhubi">Kamal</a> wisely suggested that I could
+force the kernel to do finish all the writes before the program
+finishes:</p>
+
+<pre><code class="language-python">import os
+line = 'a' * 30000
+filename = '/home/bork/fake.txt'
+
+with open(filename, 'w') as f:
+    for i in xrange(10000):
+        f.write(line)
+    f.flush()
+    os.fsync(f.fileno())
+</code></pre>
+
+<pre><code>time python writes2.py 
+0.02user 0.32system 0:06.70elapsed 5%CPU (0avgtext+0avgdata
+18192maxresident)k
+</code></pre>
+
+<p>Surprise: it takes about 6.5 seconds. every time. Which is exactly what
+we&rsquo;d expect from looking at our dstat output above! I have other
+Serious Questions about why my hard drive only writes at 40MB/s but that
+will be for another time.</p>
+
+<h2 id="all-of-the-performance-tools">All of the performance tools</h2>
+
+<p>I got SO MANY ANSWERS. holy crap you guys. I&rsquo;m going to write down every
+tool someone recommended here so I don&rsquo;t forget them, though you can
+also just <a href="https://twitter.com/b0rk/status/576883056864288768">read the Twitter replies</a>.</p>
+
+<ul>
+<li><code>nethogs</code>, <code>nettop</code>, and <code>jnettop</code> for network performance</li>
+<li><code>iotop</code> is top, but for IO! Awesome!</li>
+<li><code>iostat</code> and <code>lsof</code> too for seeing what&rsquo;s up with IO and files right now</li>
+<li><code>top</code> and <code>htop</code> for CPU stats, of course (pro tip: use htop instead of top)</li>
+<li><code>strace</code> because <a href="http://jvns.ca/blog/categories/strace/">we &lt;3 strace</a></li>
+<li><code>perf</code> is <a href="http://www.brendangregg.com/perf.html">a magical tool that can do anything</a></li>
+<li><code>atop</code> which I don&rsquo;t even understand what it is</li>
+<li><code>pidstat</code> is an amazing program for looking at both CPU and disk activity which we&rsquo;re going to explain a little more later</li>
+<li><code>ps xaopid,wchan:42,cmd</code> is this amazing <code>ps</code> incantation <a href="https://twitter.com/aredridel">Aria Stewart</a> told me which tells you what <em>every process is currently doing</em>. whoa.</li>
+<li>vmstat which I&rsquo;m not totally sure what it is yet</li>
+<li><code>dstat</code> is like iotop and nethogs and top all rolled into one and I&rsquo;m
+super into it.</li>
+<li><a href="http://www.brendangregg.com/Perf/linux_observability_tools.png">Brendan Gregg&rsquo;s great picture of Linux observability tools</a>
+which is awesome as a reference but honestly I have a really hard time learning new things from it. I need examples!</li>
+</ul>
+
+<p>Twitter is the bomb and I learned about at least 5 awesome tools I
+hadn&rsquo;t heard of before (nethogs, iotop, pidstat, dstat, and this <code>ps
+-eo wchan</code> business)</p>
+
+<h3 id="that-s-all-for-now">that&rsquo;s all for now!</h3>
+
+<p>I&rsquo;m working on a talk about this for PyCon 2015 next month, so there
+should be more posts along these lines coming your way :) :) :)</p>
+
+<p>many many thanks to Aria Stewart, Brendan Gregg, Kamal Marhubi, and
+others for telling me about some of these amazing tools!</p>]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[ How the locate command works (and let&#39;s write a faster version in one minute!)]]></title>
+    <link href="https://jvns.ca/blog/2015/03/05/how-the-locate-command-works-and-lets-rewrite-it-in-one-minute/"/>
+    <updated>2015-03-05T08:12:48+00:00</updated>
+    <id>https://jvns.ca/blog/2015/03/05/how-the-locate-command-works-and-lets-rewrite-it-in-one-minute/</id>
+    <content type="html"><![CDATA[<p>Sometimes I want to find all the Alanis songs on my computer. There are
+(basically) two ways to do this.</p>
+
+<ol>
+<li><code>find / -name '*Alanis*'</code></li>
+<li><code>locate Alanis</code></li>
+</ol>
+
+<p>I&rsquo;ve known for a long time that <code>locate</code> is faster than <code>find</code>, and that it had
+some kind of database, and that you could update the database using <code>updatedb</code>.</p>
+
+<p>But I always somehow thought of the locate database as this Complicated Thing.
+Until today I started looking at it! On my machine it&rsquo;s
+<code>/var/lib/mlocate/mlocate.db</code>. You can probably find it with <code>locate mlocate</code>
+or <code>strace -e open locate whatever</code>. It&rsquo;s about 15MB on my computer.</p>
+
+<p>When I <code>cat</code> it, here&rsquo;s what part of it looks like.</p>
+
+<pre><code>/bin^@^@bash^@^@bunzip2^@^@busybox^@^@bzcat^@^@bzcmp^@^@bzdiff^@^@bzegrep^@^@bzexe^@^@bzfgrep^@^@bzgrep^@^@bzip2^@^@bzip2recover^@^@bzless^@^@bzmore^@^@cat^@^@chacl^@^@chgrp^@^@chmod^@^@chown^@^@chvt
+^@^@cp^@^@cpio^@^@dash^@^@date^@^@dbus-cleanup-sockets^@^@dbus-daemon^@^@dbus-uuidgen^@^@dd^@^@df^@^@dir^@^@dmesg^@^@dnsdomainname^@^@domainname^@^@dumpkeys^@^@echo^@^@ed
+^@^@egrep^@^@false^@^@fgconsole^@^@fgrep^@^@findmnt^@^@fuser^@^@fusermount^@^@getfacl^@^@grep^@^@gunzip^@^@gzexe^@^@gzip^@^@hostname^@^@ip^@^@kbd_mode^@^@kill^@^@kmod^@^@
+less^@^@lessecho^@^@lessfile^@^@lesskey^@^@lesspipe^@^@ln^@^@loadkeys^@^@login^@^@loginctl^@^@lowntfs-3g^@^@ls^@^@lsblk^@^@lsmod^@^@mkdir^@^@mknod^@^@mktemp
+</code></pre>
+
+<p>And here&rsquo;s what&rsquo;s in the <code>/bin</code> directory:</p>
+
+<pre><code>$ ls /bin | head
+bash
+bunzip2
+busybox
+bzcat
+bzcmp
+bzdiff
+bzegrep
+bzexe
+bzfgrep
+bzgrep
+</code></pre>
+
+<p>COINCIDENCE THAT ALL OF THESE WORDS ARE THE SAME? I THINK NOT!</p>
+
+<p>It turns out that the locate database is basically just a huge recursive
+directory listing (<code>ls -R /</code>). (I think it&rsquo;s actually more complicated than
+that; there&rsquo;s a paper at the end). So a slightly less space-efficient version
+of this whole <code>locate</code> business would be to create a database with this Very
+Sophisticated Command:</p>
+
+<pre><code>sudo find / &gt; database.txt
+</code></pre>
+
+<p>This gives us a file that looks like</p>
+
+<pre><code>/
+/vmlinuz.old
+/var
+/var/mail
+/var/spool
+/var/spool/rsyslog
+/var/spool/mail
+/var/spool/cups
+/var/spool/cups/tmp
+/var/spool/cron
+</code></pre>
+
+<p>Then we can more or less reproduce <code>locate</code>&rsquo;s functionality by just doing</p>
+
+<pre><code>grep Alanis database.txt
+
+</code></pre>
+
+<p>I got curious about the relative speed of <code>find</code> vs <code>locate</code> vs our makeshift
+locate using <code>grep</code>. I have an SSD, so a <code>find</code> across all files on my computer
+is pretty fast:</p>
+
+<pre><code>$ time find / -name blah
+0.59user 0.67system 0:01.71elapsed 73%CPU
+</code></pre>
+
+<pre><code>$ time locate blah
+0.26user 0.00system 0:00.30elapsed 87%CPU
+</code></pre>
+
+<pre><code>$ time grep blah database.txt
+0.04user 0.02system 0:00.10elapsed 64%CPU
+</code></pre>
+
+<p>Whoa, our homegrown locate using grep is actually way faster! That is
+surprising to me. Our homegrown database takes about 3x as much space as
+<code>locate</code>&rsquo;s database (45MB instead of 15MB), so that&rsquo;s probably part of why.</p>
+
+<p>Anyway now you know how it works! This kind of makes me wonder if our database
+format which doesn&rsquo;t use any clever compression tricks might actually be a
+better format if you&rsquo;re not worried about the extra space it takes up. But I
+don&rsquo;t really understand yet why locate is so much slower.</p>
+
+<p>My current theory is that grep is better optimized than locate and that it can
+do smarter stuff. But if you know the real answer, or if you get different
+results on your computer, please tell me!</p>
+
+<p>update: omg Mark Dominus tweeted at me within seconds and said he <a href="http://perl.plover.com/classes/mybin/samples/slide077.html">found exactly the same thing 10 years ago</a>. Maybe this is really a thing! Or, more likely, there&rsquo;s just stuff I don&rsquo;t understand yet here. Either way I&rsquo;d like to know!</p>
+
+<p>further update: Patrick Collison pointed out this amazingly-titled (and short! 3 pages!)
+<a href="http://www.eecs.berkeley.edu/Pubs/TechRpts/1983/CSD-83-148.pdf">Finding Files Fast</a>
+from 1983 which talks about locate&rsquo;s design, and also claims that the
+<a href="http://ftp3.usa.openbsd.org/pub/OpenBSD/src/usr.bin/locate/">source is pretty readable</a>.</p>
+
+<p>The 1983 paper specifically calls out &ldquo;Why not simply build a list of static
+files and search with grep?&ldquo;, and says that grepping a list of 20,000 files
+took 30 seconds (&ldquo;unacceptable for an oft-used command&rdquo;), and that their locate
+implementation gives them better performance. To compare, I have 700,000 files
+on my hard disk, and it takes about 0.05 seconds. It seems to me like the
+locate authors&rsquo; original issues are really not a problem anymore, 30 years
+later.</p>
+
+<p>They&rsquo;re also pretty worried about saving space in the locate database, which
+also isn&rsquo;t really a concern anymore. This really makes me wonder what other
+standard unix programs make design assumptions that aren&rsquo;t true in 2015.</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[I can spy on my CPU cycles with perf!]]></title>
+    <link href="https://jvns.ca/blog/2014/05/13/profiling-with-perf/"/>
+    <updated>2014-05-13T20:47:49+00:00</updated>
+    <id>https://jvns.ca/blog/2014/05/13/profiling-with-perf/</id>
+    <content type="html"><![CDATA[<p>Yesterday I talked about using <code>perf</code> to profile assembly
+instructions. Today I learned how to make flame graphs with <code>perf</code>
+today and it is THE BEST. I found this because
+<a href="https://twitter.com/graydon_moz">Graydon Hoare</a> pointed me to Brendan
+Gregg&rsquo;s <em>excellent</em>
+<a href="http://www.brendangregg.com/perf.html">page on how to use perf</a>.</p>
+
+<p>Wait up! What&rsquo;s <code>perf</code>? I&rsquo;ve talked about <code>strace</code> a lot before (in
+<a href="http://jvns.ca/blog/2014/04/20/debug-your-programs-like-theyre-closed-source/">Debug your programs like they&rsquo;re closed source</a>).
+<code>strace</code> lets you see which system calls a program is calling. But
+what if you wanted to know</p>
+
+<ul>
+<li>how many CPU instructions it ran?</li>
+<li>How many L1 cache misses there were?</li>
+<li>profiling information for each assembly instruction?</li>
+</ul>
+
+<p><code>strace</code> only does system calls, and none of those things are system
+calls. So it can&rsquo;t tell you any of those things!</p>
+
+<p></p>
+
+<p><code>perf</code> is a Linux tool that can tell you all of these things, and
+more! Let&rsquo;s run a quick example on the
+<a href="http://jvns.ca/blog/2014/05/12/computers-are-fast/">bytesum program from yesterday</a>.</p>
+
+<pre>
+bork@kiwi ~/w/howcomputer> perf stat ./bytesum_mmap *.mp4
+ Performance counter stats for './bytesum_mmap The Newsroom S01E04.mp4':
+
+        158.141639 task-clock                #    0.994 CPUs utilized          
+                22 context-switches          #    0.139 K/sec                  
+                 9 CPU-migrations            #    0.057 K/sec                  
+               133 page-faults               #    0.841 K/sec                  
+       438,662,273 cycles                    #    2.774 GHz                     [82.43%]
+       269,916,782 stalled-cycles-frontend   #   61.53% frontend cycles idle    [82.38%]
+       131,557,379 stalled-cycles-backend    #   29.99% backend  cycles idle    [66.66%]
+       681,518,403 instructions              #    1.55  insns per cycle        
+                                             #    0.40  stalled cycles per insn [84.88%]
+       130,568,804 branches                  #  825.645 M/sec                   [84.85%]
+            20,756 branch-misses             #    0.02% of all branches         [83.68%]
+
+       0.159154389 seconds time elapsed
+</pre>
+
+<p>This is super neat information, and there&rsquo;s a lot more (see <code>perf
+list</code>). But we can do even more fun things!</p>
+
+<h3 id="flame-graphs-with-perf">Flame graphs with perf</h3>
+
+<p>I wanted to profile my <code>bytesum</code> program. But how do you even profile
+C programs? Here&rsquo;s a way to do it with <code>perf</code>:</p>
+
+<pre>
+sudo perf record -g ./bytesum_mmap *.mp4
+sudo perf script | stackcollapse-perf.pl | flamegraph.pl > flamegraph.svg
+</pre>
+
+<p>Here&rsquo;s the SVG this gave me:</p>
+
+<p><img src="/images/flamegraph.svg"></p>
+
+<p>This is AMAZING. But what does it mean? Basically <code>perf</code> periodically
+interrupts the program and finds out where in the stack it is. The
+width of each part of the stack in the graph above is the proportion
+of samples that happened there. (so about 30% of the execution time
+was spend in <code>main</code>). I don&rsquo;t know what the colour means here.</p>
+
+<p>We can see that there are 3 big parts &ndash; there&rsquo;s the <code>mmap</code> call (on
+the left), the main program execution (in the middle), and the
+<code>sys_exit</code> part on the right. Apparently stopping my program takes a
+long time! Neat!</p>
+
+<p>But there&rsquo;s more!</p>
+
+<h3 id="is-it-really-l1-cache-misses-we-can-find-out">Is it really L1 cache misses? We can find out!</h3>
+
+<p>So yesterday I made a program with really bad memory access patterns
+(<a href="https://github.com/jvns/howcomputer/blob/master/bytesum_stride.c">bytesum_stride.c</a>),
+and I conjectured that it was way slower because it was causing way
+too many L1 cache misses.</p>
+
+<p>But with <code>perf</code>, we can check if that&rsquo;s actually true! Here are the
+results (reformatted a bit to be more compact):</p>
+
+<pre>
+bork@kiwi ~/w/howcomputer> perf stat -e L1-dcache-misses,L1-dcache-loads ./bytesum_mmap *.mp4
+        17,175,214 L1-dcache-misses #   11.48% of all L1-dcache hits  
+       149,568,438 L1-dcache-loads
+bork@kiwi ~/w/howcomputer> perf stat -e L1-dcache-misses,L1-dcache-loads ./bytesum_stride *.mp4 1000
+     1,031,902,483 L1-dcache-misses #  193.16% of all L1-dcache hits  
+       534,219,219 L1-dcache-loads
+</pre>
+
+<p>So, uh, that&rsquo;s really bad. We now have <strong>60 times more</strong> L1 cache
+misses, and also 3 times more hits.</p>
+
+<h3 id="other-amazing-things">Other amazing things</h3>
+
+<ul>
+<li>Go to
+<a href="http://www.brendangregg.com/perf.html">Brendan Gregg&rsquo;s perf page and read the whole thing</a>.
+Also possibly everything he&rsquo;s ever written. His recent post on
+<a href="http://www.brendangregg.com/blog/2014-05-11/strace-wow-much-syscall.html">strace</a>
+is great too.</li>
+<li>The <a href="https://perf.wiki.kernel.org/index.php/Tutorial">perf tutorial</a>
+is pretty long, but I found it somewhat helpful.</li>
+<li><a href="https://github.com/brendangregg/FlameGraph">FlameGraph!</a></li>
+<li>I spent a little bit of time running cachegrind with
+<code>valgrind --tool=cachegrind ./bytesum_mmap my_file</code>
+which can give you possibly even more information about CPU caches
+than <code>perf</code> can. Still haven&rsquo;t totally wrapped my head around this.</li>
+</ul>
+
+<p>There are still so many things I don&rsquo;t understand at all!</p>]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Computers are *fast*!]]></title>
+    <link href="https://jvns.ca/blog/2014/05/12/computers-are-fast/"/>
+    <updated>2014-05-12T21:31:59+00:00</updated>
+    <id>https://jvns.ca/blog/2014/05/12/computers-are-fast/</id>
+    <content type="html"><![CDATA[<p>So I have a computer. My computer contains hardware (like a CPU! RAM!
+L1/L2 caches!) But I don&rsquo;t understand very well how fast that hardware
+is, what tools I have to profile it, and how much of the time that my
+programs are running is split between RAM/the hard disk/the CPU.</p>
+
+<p>So today I paired with
+<a href="https://twitter.com/SashaLaundy">Sasha Laundy</a>, and we ran Serious
+Investigations into how fast my computer can process a 1GB file.</p>
+
+<p><strong>The objects:</strong></p>
+
+<ul>
+<li>An episode of The Newsroom (1GB)</li>
+<li>A task: add up all the bytes (mod 256)</li>
+</ul>
+
+<p>This was basically the easiest task that I could think of that
+involved processing the entire file (so nothing gets optimized out by
+the compiler).</p>
+
+<p></p>
+
+<h3 id="step-1-write-a-program-to-add-up-all-the-bytes">Step 1: Write a program to add up all the bytes</h3>
+
+<p>I wrote a small C program to add up all the bytes in a file. It&rsquo;s
+called
+<a href="https://github.com/jvns/howcomputer/blob/master/bytesum.c">bytesum.c</a>.
+It reads the file in chunks of 64k, and then adds up all the bytes
+into a char.</p>
+
+<p>This runs pretty fast! I compiled it with <code>gcc -Ofast</code> (to make it
+FASTER!) and it added up all the bytes in</p>
+
+<ul>
+<li>2.5 seconds (the first time I ran the program)</li>
+<li>0.6 seconds (the second time I ran the program, because it&rsquo;s already
+loaded into RAM)</li>
+</ul>
+
+<p>I take this to mean that it takes 2s to read the file into memory (I
+have a SSD in my computer, so 500MB/s makes sense), and then 0.6s to
+do the actual adding-up-of-the bytes. Awesome! We now know that I can
+read from my hard drive at 500MB/s.</p>
+
+<h3 id="step-2-try-to-use-mmap-to-make-it-faster">Step 2: try to use <code>mmap</code> to make it faster</h3>
+
+<p>This is a pretty boring step. We made it use <code>mmap</code> instead (see
+<a href="https://github.com/jvns/howcomputer/blob/master/bytesum_mmap.c">bytesum_mmap.c</a>),
+in the hopes that it would make it faster. It took exactly the same
+amount of time. NEXT.</p>
+
+<h3 id="step-3-use-vector-intrinsics">Step 3: use vector intrinsics!!!</h3>
+
+<p>Then I went and talked to <a href="http://jamesporter.me/">James Porter</a>, and
+he told me that CPUs have special instructions for doing multiple
+additions at once, and that I could maybe use them to optimize my
+program! So I googled &ldquo;vector intrinsics&rdquo;, copied some code from Stack
+Overflow, and ended up with a new version:
+<a href="https://github.com/jvns/howcomputer/blob/master/bytesum_intrinsics.c">bytesum_intrinsics.c</a>.
+I timed it, and it took <strong>0.25 seconds</strong>!!!</p>
+
+<p>So our program now runs <strong>twice as fast</strong>, and we know a whole bunch
+of new words (SSE! SIMD! vector intrinsics!)</p>
+
+<h3 id="step-4-make-it-slow">Step 4: Make it slow.</h3>
+
+<p>Now that we&rsquo;ve written a super fast program, I wanted to understand
+the CPU caches better. What if we engineered a whole bunch of cache
+misses? I wrote a new version of <code>bytesum_mmap.c</code> that added up all
+the bytes in an irregular way &ndash; instead of going through all the
+bytes in order, it would skip from byte 1 to 2001 to 3001 to 4001 and
+then loop around and access 2, 2002, 3002, &hellip;, 100002. As you might
+imagine, this isn&rsquo;t very efficient.</p>
+
+<p>You can see the code for this in
+<a href="https://github.com/jvns/howcomputer/blob/master/bytesum_stride.c">bytesum_stride.c</a>.
+I ran it with <code>./bytesum_stride *.mp4 60000</code>, and it took about 20
+seconds. So we&rsquo;ve learned that <strong>cache misses can make your code 40
+times slower</strong>.</p>
+
+<h3 id="step-5-where-do-the-0-25-seconds-come-from">Step 5: where do the 0.25 seconds come from???</h3>
+
+<p>I still didn&rsquo;t totally understand exactly how my super fast vector
+intrinsic program&rsquo;s performance broke down, though: how much of that
+0.25 seconds was spent doing memory accesses, and how much in
+numerical computation? James suggested using
+<a href="http://marss86.org/~marss86/index.php/Home">Marss</a> which will
+apparently give you unlimited amounts of information, but I spent a
+few minutes trying to get it to work and failed.</p>
+
+<p>So instead I used <code>perf</code>, which is a <em>totally magical</em> performance
+measurement tool for Linux. I needed to upgrade my kernel first, which
+was a bit nervewracking. But I did it! And it was beautiful. There are
+colours, and we got it to annotate the assembly code with performance
+statistics. Here&rsquo;s what I ran to do it:</p>
+
+<pre>
+perf record ./bytesum_intrinsics The\ Newsroom\ S01E04.mp4
+perf annotate --no-source
+</pre>
+
+<p>And here&rsquo;s the result:</p>
+
+<p><img src="/images/perf.png"></p>
+
+<p>The <code>movdqa</code> instructions have to do with accessing memory, and it
+spends 32% of its time on those instructions. So I <em>think</em> that means
+that it spends 32% of its time accessing RAM, and the other 68% of its
+time doing calculations. Super neat!</p>
+
+<p>There are still a lot of things I don&rsquo;t understand here &ndash; are my
+conclusions about this program correct? Are there further things I
+could be doing to optimize this?</p>
+
+<p>I&rsquo;m also kind of amazed by how fast C is. I&rsquo;m used to writing in
+dynamic programming languages, which definitely do not process 1GB
+files in 0.25 seconds. Fun!</p>]]></content>
+  </entry>
+  
+</feed>

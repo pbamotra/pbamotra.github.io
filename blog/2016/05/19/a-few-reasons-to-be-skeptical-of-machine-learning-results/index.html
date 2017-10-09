@@ -1,0 +1,186 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>A few reasons to be skeptical of machine learning - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="A few reasons to be skeptical of machine learning">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2016/05/19/a-few-reasons-to-be-skeptical-of-machine-learning-results/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">A few reasons to be skeptical of machine learning</h1>
+
+<div class="post-tags">
+  
+</div>
+<p class="meta">
+<time datetime="2016-05-19T00:37:38" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     
+
+<p>I&rsquo;m giving a talk at PyData Berlin on Friday, and it&rsquo;s about</p>
+
+<ul>
+<li>why machine learning is fun and awesome</li>
+<li><a href="https://codewords.recurse.com/issues/five/why-do-neural-networks-think-a-panda-is-a-vulture">how to trick a neural network</a></li>
+<li>why, even though machine learning is really awesome and cool and you can do super powerful and interesting things with it &ndash; why you should still be skeptical</li>
+</ul>
+
+<p>I wanted to put some of my ideas together, so as usual I&rsquo;m writing a blog post. These are all pretty basic ideas but maybe they are helpful to people who are new to thinking about machine learning! We&rsquo;ll see.</p>
+
+<h3 id="machine-learning-models-are-only-as-good-as-the-data-you-put-into-them">machine learning models are only as good as the data you put into them</h3>
+
+<p>When explaining what machine learning is, I&rsquo;m giving the example of predicting the country someone lives in from their first name. So John might be American and Johannes might be German.</p>
+
+<p>In this case, it&rsquo;s really easy to imagine what data you might want to do a good job at this &ndash; just get the first names and current countries of every person in the world! Then count up which countries Julias live in (Canada? The US? Germany?), pick the most likely one, and you&rsquo;re done!</p>
+
+<p>This is a super simple modelling process, but I think it&rsquo;s a good illustration &ndash; if you don&rsquo;t include any data from China when training your computer to recognize names, it&rsquo;s not going to get any Chinese names right!</p>
+
+<p>This also applies when you have Big Datasets &ndash; maybe you have bajillions of data points in the US, but very few in the rest of the world. This means your model will represent your US data but not the rest!</p>
+
+<h3 id="machine-learning-programs-can-have-bugs">machine learning programs can have bugs.</h3>
+
+<p>So, machine learning is usually implemented with, well, computer programs. As we all know, computer programs sometimes (dare I say &ldquo;usually&rdquo;?) have bugs.</p>
+
+<p>At work it&rsquo;s definitely happened that someone&rsquo;s said to me &ldquo;hey julia, why did the machine learning make this decision? it seems wrong?&rdquo; and I&rsquo;ve said &ldquo;oh, you know, machine learning! it&rsquo;s probably doing something cool and smart&rdquo;.</p>
+
+<p>But then I look into it anyway. And then, rather than something cool and smart, the program I work on just had a bug. And then I was really happy that the people asking the questions didn&rsquo;t assume that the machine learning was Correct and Smart, but that instead told us &ldquo;hey, this looks wrong&rdquo;.</p>
+
+<p>If you want to read more on the topic of &ldquo;machine learning programs have bugs, maybe more bugs than regular programs&rdquo;, <a href="http://research.google.com/pubs/pub43146.html">Machine Learning: The High Interest Credit Card of Technical Debt</a> is a fantastic paper from Google.</p>
+
+<h3 id="machine-learning-models-often-are-just-totally-wrong">machine learning models often are just totally wrong</h3>
+
+<p>Okay, so let&rsquo;s supposed you trained your model on a reasonable dataset, and your program has no bugs. Awesome. Here&rsquo;s the results of a search in my Google Photos for the string &ldquo;baby&rdquo;. I&rsquo;m assuming they&rsquo;re using machine learning to classify my images and automatically attach keywords to them.</p>
+
+<p><img src="/images/baby.png"></p>
+
+<p>These are all pictures of me and none of them are pictures of babies. It&rsquo;s totally fine that Google Photos&rsquo; machine learning is doing a bad job here &ndash; it&rsquo;s not a mission critical application of machine learning, and there are actually a few pictures of adorable babies in those search results.</p>
+
+<p>But there are also mysteriously/hilariously donald trump pinatas.</p>
+
+<p><img src="/images/donald-trump-pinata.png"></p>
+
+<p>Google Photos does awesome when I search for &ldquo;fire hydrant&rdquo; and &ldquo;beach&rdquo; and lots of other things, so, to be clear &ndash; this is totally a useful feature and I like it. But it&rsquo;s definitely not perfect and sometimes it&rsquo;s absurd.</p>
+
+<p>Again, this is something which is totally familiar to machine learning practitioners, but I think it&rsquo;s a good reminder to be skeptical of individual machine learning predictions.</p>
+
+<h3 id="be-skeptical">be skeptical!</h3>
+
+<p><a href="https://mathbabe.org">Cathy O&rsquo;Neil&rsquo;s blog</a> is one of my favorites, because she constantly talks about the need to assume that just because something came out of a statistical model it isn&rsquo;t &ldquo;objective&rdquo; or even necessarily correct.</p>
+
+<p>Carina Zona has a great talk called <a href="http://www.slideshare.net/cczona/consequences-of-an-insightful-algorithm">Consequences of an insightful algorithm</a> which talks about a few cases where machine learning models that did what they were supposed to do had unintended negative consequences (like the famous Target pregnancy case).</p>
+
+<p>One of my favorite things is when a person (not a machine learning specialist! just anyone!) is like &ldquo;hey, your machine learning? it did something I didn&rsquo;t expect&rdquo;. Often they&rsquo;re right, and there <em>is</em> something weird going on, or something that could be improved.</p>
+
+<p>Machine learning is super powerful and you can build models that do amazing things, but they can also tell you that a donald trump pinata is a picture of a baby, and that makes no sense.</p>
+
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2016/05/19/a-few-reasons-to-be-skeptical-of-machine-learning-results/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2016/05/19/a-few-reasons-to-be-skeptical-of-machine-learning-results/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2016/05/21/a-few-notes-from-my-pydata-berlin-keynote/" title="Previous Post: Notes from my PyData Berlin keynote">Notes from my PyData Berlin keynote</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2016/05/13/erlang-seems-really-complicated/" title="Next Post: Investigating Erlang by reading its system calls">Investigating Erlang by reading its system calls</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

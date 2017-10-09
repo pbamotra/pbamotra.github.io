@@ -1,0 +1,519 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>Linux tracing systems &amp; how they fit together - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="Linux tracing systems &amp; how they fit together">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2017/07/05/linux-tracing-systems/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">Linux tracing systems &amp; how they fit together</h1>
+
+<div class="post-tags">
+  
+</div>
+<p class="meta">
+<time datetime="2017-07-05T22:28:08" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     
+
+<p>I&rsquo;ve been confused about Linux tracing systems for <em>years</em>. There&rsquo;s strace, and
+ltrace, kprobes, and tracepoints, and uprobes, and ftrace, and perf, and eBPF,<br />
+and how does it all fit together and what does it all MEAN?</p>
+
+<p>Last week I went to Papers We Love and later me &amp; Kamal hung out with<br />
+<a href="https://twitter.com/tuxology">Suchakra</a> at <a href="http://www.dorsal.polymtl.ca/">Polytechnique Montréal</a> (where LTTng comes from) and<br />
+finally I think I understand how all these pieces fit together, more or less.
+There are still probably some mistakes in this post, please let me know what
+they are! (I&rsquo;m b0rk on twitter).</p>
+
+<p>I&rsquo;m going to leave strace out of this post (even though it&rsquo;s my favorite thing)
+because the overhead is so high &ndash; in this post we&rsquo;re only going to talk about
+tracing systems that are relatively fast / low overhead.  This post also isn&rsquo;t
+about sampling profilers at all (which is a whole other topic!). Just tracing.</p>
+
+<p>The thing I learned last week that helped me really understand was &ndash; you can
+split linux tracing systems into <strong>data sources</strong> (where the tracing data comes
+from), <strong>mechanisms for collecting data for those sources</strong> (like &ldquo;ftrace&rdquo;)
+and <strong>tracing frontends</strong> (the tool you actually interact with to
+collect/analyse data). The overall picture is still kind of fragmented
+and confusing, but it&rsquo;s at least a more approachable
+fragmented/confusing system.</p>
+
+<p>here&rsquo;s what we&rsquo;ll talk about: (with links if you want to jump to a specific section).</p>
+
+<ul>
+<li><a href="#zine">summary in pictures</a></li>
+<li><a href="#stuff-to-trace">What can you trace?</a></li>
+<li><a href="#data-sources">Data sources</a>:
+
+<ul>
+<li><a href="#kprobes">kprobes</a></li>
+<li><a href="#uprobes">uprobes</a></li>
+<li><a href="#kernel-tracepoints">Tracepoints</a></li>
+<li><a href="#lttng-ust">lttng-ust</a></li>
+<li><a href="#dtrace-probes">USDT / dtrace probes</a></li>
+</ul></li>
+<li><a href="#delicious-data">Mechanisms for collecting your delicious data</a>:
+
+<ul>
+<li><a href="#ftrace">ftrace</a></li>
+<li><a href="#perf-events"><code>perf_events</code></a></li>
+<li><a href="#ebpf">eBPF</a></li>
+<li><a href="#sysdig">sysdig</a></li>
+<li><a href="#systemtap">Systemtap kernel module</a></li>
+<li><a href="#lttng">LTTng</a></li>
+</ul></li>
+<li><a href="#frontends">User frontends</a>:
+
+<ul>
+<li><a href="#perf"><code>perf</code></a></li>
+<li><a href="#ftrace-frontends">Various ftrace frontends</a> (trace-cmd, catapult, kernelshark, <code>perf-tools</code>)</li>
+<li><a href="#bcc">The bcc frontend for eBPF</a></li>
+<li><a href="#lttng-systemtap">LTTng &amp; SystemTap frontends</a></li>
+</ul></li>
+<li><a href="#conclusions">some conclusions</a></li>
+</ul>
+
+<p>It&rsquo;s still kind of complicated but breaking it up this way really helps me
+understand (thanks to Brendan Gregg for suggesting this breakdown on twitter!)</p>
+
+<p><a name="zine"></a></p>
+
+<h3 id="a-picture-version">a picture version</h3>
+
+<p>here are 6 drawings summarizing what this post is about:</p>
+
+<div align="center">
+<a href="https://drawings.jvns.ca/drawings/linux-tracing-1.png"><img src="https://drawings.jvns.ca/drawings/linux-tracing-1.png" width=400px></a>
+<a href="https://drawings.jvns.ca/drawings/linux-tracing-2.png"><img src="https://drawings.jvns.ca/drawings/linux-tracing-2.png" width=400px></a>
+<a href="https://drawings.jvns.ca/drawings/linux-tracing-3.png"><img src="https://drawings.jvns.ca/drawings/linux-tracing-3.png" width=400px></a>
+<a href="https://drawings.jvns.ca/drawings/linux-tracing-4.png"><img src="https://drawings.jvns.ca/drawings/linux-tracing-4.png" width=400px></a>
+<a href="https://drawings.jvns.ca/drawings/linux-tracing-5.png"><img src="https://drawings.jvns.ca/drawings/linux-tracing-5.png" width=400px></a>
+<a href="https://drawings.jvns.ca/drawings/linux-tracing-6.png"><img src="https://drawings.jvns.ca/drawings/linux-tracing-6.png" width=400px></a>
+</div>
+
+<p><a name="stuff-to-trace"></a></p>
+
+<h3 id="what-can-you-trace">What can you trace?</h3>
+
+<p>A few different kinds of things you might want to trace:</p>
+
+<ul>
+<li>System calls</li>
+<li>Linux kernel function calls (which functions in my TCP stack are being called?)</li>
+<li>Userspace function calls (did <code>malloc</code> get called?)</li>
+<li>Custom &ldquo;events&rdquo; that you&rsquo;ve defined either in userspace or in the kernel</li>
+</ul>
+
+<p>All of these things are possible, but it turns out the tracing landscape is actually pretty complicated.</p>
+
+<p><a name="data-sources"></a></p>
+
+<h3 id="data-sources-kprobes-tracepoints-uprobes-dtrace-probes-more">Data sources: kprobes, tracepoints, uprobes, dtrace probes &amp; more</h3>
+
+<p>Okay, let&rsquo;s do data sources! This is kind of the most fun part &ndash; there are so many EXCITING PLACES you can get data about your programs.</p>
+
+<p>I&rsquo;m going to split these up into &ldquo;probes&rdquo; (kprobes/uprobes) and &ldquo;tracepoints&rdquo; (USDT/kernel tracepoints / lttng-ust). I&rsquo;m think I&rsquo;m not using the right terminology exactly but there are 2 distinct ideas here that are useful to understand</p>
+
+<p>A <strong>probe</strong> is when the kernel dynamically modifies your assembly program at
+runtime (like, it changes the instructions) in order to enable tracing. This is
+super powerful (and kind of scary!) because you can enable a probe on literally
+any instruction in the program you&rsquo;re tracing. (though dtrace probes aren&rsquo;t
+&ldquo;probes&rdquo; in this sense). Kprobes and uprobes are examples of this pattern.</p>
+
+<p>A <strong>tracepoint</strong> is something you compile into your program. When someone using
+your program wants to see when that tracepoint is hit and extract data, they
+can &ldquo;enable&rdquo; or &ldquo;activate&rdquo; the tracepoint to start using it. Generally a
+tracepoint in this sense doesn&rsquo;t cause any extra overhead when it&rsquo;s not
+activated, and is relatively low overhead when it is activated. USDT (&ldquo;dtrace
+probes&rdquo;), lttng-ust, and kernel tracepoints are all examples of this pattern.</p>
+
+<p><a name="kprobes"></a>
+<strong>kprobes</strong></p>
+
+<p>Next up is kprobes! What&rsquo;s that? <a href="https://lwn.net/Articles/132196/">From an LWN article</a>:</p>
+
+<blockquote>
+<p>KProbes are a debugging mechanism for the Linux kernel which can also be used
+for monitoring events inside a production system. You can use it to weed out
+performance bottlenecks, log specific events, trace problems etc.</p>
+</blockquote>
+
+<p>To reiterate &ndash; basically kprobes let you dynamically change the Linux kernel&rsquo;s
+assembly code at runtime (like, insert extra assembly instructions) to trace
+when a given instruction is called. I usually think of kprobes as tracing Linux
+kernel function calls, but you can actually trace <strong>any instruction inside the
+kernel and inspect the registers</strong>. Weird, right?</p>
+
+<p><a href="https://github.com/brendangregg/perf-tools/blob/master/kernel/kprobe">Brendan Gregg has a <code>kprobe</code> script</a> that you can use to play around with kprobes.</p>
+
+<p>For example! Let&rsquo;s use kprobes to spy on which files are being opened on our computer. I ran</p>
+
+<pre><code>$ sudo ./kprobe 'p:myopen do_sys_open filename=+0(%si):string' 
+</code></pre>
+
+<p>from the examples and right away it started printing out every file that was being opened on my computer. Neat!!!</p>
+
+<p>You&rsquo;ll notice that the kprobes interface by itself is a little gnarly though &ndash; like, you have to know that the filename argument to <code>do_sys_open</code> is in the <code>%si</code> register and dereference that pointer and tell the kprobes system that it&rsquo;s a string.</p>
+
+<p>I think kprobes are useful in 3 scenarios:
+1. You&rsquo;re tracing a system call. System calls all have  corresponding kernel functions like <code>do_sys_open</code>
+2. You&rsquo;re debugging some performance issue in the network stack or to do with file I/O and you understand the kernel functions that are called well enough that it&rsquo;s useful for you to trace them (not impossible!!! The linux kernel is just code after all!)
+3. You&rsquo;re a kernel developer,or you&rsquo;re otherwise trying to debug a kernel bug, which happens sometimes!! (I am not a kernel developer)</p>
+
+<p><a name="uprobes"></a>
+<strong>uprobes</strong></p>
+
+<p>Uprobes are kind of like kprobes, except that instead of instrumenting a <em>kernel</em> function you&rsquo;re instrumenting <em>userspace</em> functions (like malloc). <a href="http://www.brendangregg.com/blog/2015-06-28/linux-ftrace-uprobe.html">brendan gregg has a good post from 2015</a>.</p>
+
+<p>My understanding of how uprobes work is:</p>
+
+<ol>
+<li>You decide you want to trace the <code>malloc</code> function in libc</li>
+<li>You ask the linux kernel to trace malloc for you from libc</li>
+<li>Linux goes and finds the copy of libc that&rsquo;s loaded into memory (there should be just one, shared across all processes), and changes the code for <code>malloc</code> so that it&rsquo;s traced</li>
+<li>Linux reports the data back to you somehow (we&rsquo;ll talk about how &ldquo;asking linux&rdquo; and &ldquo;getting the data back somehow&rdquo; works later)</li>
+</ol>
+
+<p>This is pretty cool! One example of a thing you can do is spy on what people are typing into their bash terminals</p>
+
+<pre><code>bork@kiwi~/c/perf-tools&gt; sudo ./bin/uprobe 'r:bash:readline +0($retval):string' 
+Tracing uprobe readline (r:readline /bin/bash:0x9a520 +0($retval):string). Ctrl-C to end. 
+            bash-10482 [002] d...  1061.417373: readline: (0x42176e &lt;- 0x49a520) arg1=&quot;hi&quot; 
+            bash-10482 [003] d...  1061.770945: readline: (0x42176e &lt;- 0x49a520) arg1=(fault)
+            bash-10717 [002] d...  1063.737625: readline: (0x42176e &lt;- 0x49a520) arg1=&quot;hi&quot; 
+            bash-10717 [002] d...  1067.091402: readline: (0x42176e &lt;- 0x49a520) arg1=&quot;yay&quot; 
+            bash-10717 [003] d...  1067.738581: readline: (0x42176e &lt;- 0x49a520) arg1=&quot;wow&quot; 
+            bash-10717 [001] d...  1165.196673: readline: (0x42176e &lt;- 0x49a520) arg1=&quot;cool-command&quot; 
+</code></pre>
+
+<p><a name="dtrace-probes"></a>
+<strong>USDT/dtrace probes</strong></p>
+
+<p>USDT stands for &ldquo;Userland Statically Defined Tracing&rdquo;, and &ldquo;USDT probe&rdquo; means the same thing as &ldquo;dtrace probe&rdquo; (which was surprising to me!). You might have heard of dtrace on BSD/Solaris, but you can actually also use dtrace probes on Linux, though the system is different. It&rsquo;s basically a way to expose custom events. For example! <a href="https://docs.python.org/3/howto/instrumentation.html">Python 3 has dtrace probes</a>, if you compile it right.</p>
+
+<p><code>python.function.entry(str filename, str funcname, int lineno, frameptr)</code></p>
+
+<p>This means that if you have a tool that can consume dtrace probes, (like eBPF / systemtap), and a version of Python compiled with dtrace support, you can automagically trace Python function calls. That&rsquo;s really cool! (though this is a little bit of an &ldquo;if&rdquo; &ndash; not all Pythons are compiled with dtrace support, and the version of Python I have in Ubuntu 16.04 doesn&rsquo;t seem to be)</p>
+
+<p><strong>How to tell if you have dtrace probes</strong>, from <a href="(https://docs.python.org/3/howto/instrumentation.html)">the Python docs</a>. Basically you poke around in the binaries with readelf and look for the string &ldquo;stap&rdquo; in the notes.</p>
+
+<pre><code>$ readelf -S ./python | grep .note.stapsdt 
+[30] .note.stapsdt        NOTE         0000000000000000 00308d78 
+# sometimes you need to look in the .so file instead of the binary 
+$ readelf -S libpython3.3dm.so.1.0 | grep .note.stapsdt 
+[29] .note.stapsdt        NOTE         0000000000000000 00365b68 
+$ readelf -n ./python 
+</code></pre>
+
+<p>If you want to read more about dtrace you can read <a href="https://www.cs.princeton.edu/courses/archive/fall05/cos518/papers/dtrace.pdf">this paper from 2004</a> but I&rsquo;m not actually sure what the best reference is.</p>
+
+<p><a name="kernel-tracepoints"></a>
+<strong>kernel tracepoints</strong></p>
+
+<p>Tracepoints are also in the Linux kernel. (here&rsquo;s an <a href="https://lwn.net/Articles/379903/">LWN article</a>). The system was written by Mathieu Desnoyers (who&rsquo;s from Montreal! :)). Basically there&rsquo;s a <code>TRACE_EVENT</code> macro that lets you define tracepoints like this one (which has something to do with UDP… queue failures?):</p>
+
+<pre><code>TRACE_EVENT(udp_fail_queue_rcv_skb, 
+           TP_PROTO(int rc, struct sock *sk), 
+        TP_ARGS(rc, sk), 
+        TP_STRUCT__entry( 
+                __field(int, rc) 
+                __field(__u16, lport) 
+        ), 
+…. 
+</code></pre>
+
+<p>I don&rsquo;t really understand how it works (I think it&rsquo;s pretty involved) but basically tracepoints:</p>
+
+<ul>
+<li>Are better than kprobes because they stay more constant across kernel versions (kprobes just depend on whatever code happens to be in the kernel at that time)</li>
+<li>Are worse than kprobes because somebody has to write them explicitly</li>
+</ul>
+
+<p><strong>lttng-ust</strong></p>
+
+<p>I don&rsquo;t understand LTTng super well yet but &ndash; my understanding is that all of the 4 above things (dtrace probes, kprobes, uprobes, and tracepoints) all need to go through the kernel at some point. <code>lttng-ust</code> is a tracing system that lets you compile tracing probes into your programs, and all of the tracing happens in userspace. This means it&rsquo;s faster because you don&rsquo;t have to do context switching. I&rsquo;ve still used LTTng 0 times so that&rsquo;s mostly all I&rsquo;m going to say about that.</p>
+
+<p><a name="delicious-data"></a></p>
+
+<h3 id="mechanisms-for-collecting-your-delicious-delicious-data">Mechanisms for collecting your delicious delicious data</h3>
+
+<p>To understand the frontend tools you use to collect &amp; analyze tracing data, it&rsquo;s important to understand the fundamental mechanisms by which tracing data gets out of the kernel and into your grubby hands. Here they are. (there are just 5! ftrace, perf_events, eBPF, systemtap, and lttng).</p>
+
+<p>Let&rsquo;s start with the 3 that are actually part of the core Linux kernel: ftrace, perf_events, and eBPF.</p>
+
+<p><a name="ftrace"></a>
+<strong>ftrace</strong></p>
+
+<p>Those <code>./kprobe</code> and <code>./uprobe</code> scripts up there? Those both use <code>ftrace</code> to get data out of the kernel. Ftrace is a kind of janky interface which is a pain to use directly. Basically there&rsquo;s a filesystem at <code>/sys/kernel/debug/tracing/</code> that lets you get various tracing data out of the kernel.</p>
+
+<p>The way you fundamentally interact with ftrace is
+1. Write to files in <code>/sys/kernel/debug/tracing/</code>
+2. Read output from files in <code>/sys/kernel/debug/tracing/</code></p>
+
+<p>Ftrace supports:
+* Kprobes
+* Tracepoints
+* Uprobes<br />
+* I think that&rsquo;s it.</p>
+
+<p>Ftrace&rsquo;s output looks like this and it&rsquo;s a pain to parse and build on top of:</p>
+
+<pre><code>            bash-10482 [002] d...  1061.417373: readline: (0x42176e &lt;- 0x49a520) arg1=&quot;hi&quot; 
+            bash-10482 [003] d...  1061.770945: readline: (0x42176e &lt;- 0x49a520) arg1=(fault) 
+            bash-10717 [002] d...  1063.737625: readline: (0x42176e &lt;- 0x49a520) arg1=&quot;hi&quot; 
+            bash-10717 [002] d...  1067.091402: readline: (0x42176e &lt;- 0x49a520) arg1=&quot;yay&quot; 
+            bash-10717 [003] d...  1067.738581: readline: (0x42176e &lt;- 0x49a520) arg1=&quot;wow&quot; 
+            bash-10717 [001] d...  1165.196673: readline: (0x42176e &lt;- 0x49a520)  
+</code></pre>
+
+<p><a name="perf-events"></a>
+<strong>perf_events</strong></p>
+
+<p>The second way to get data out of the kernel is with the <code>perf_event_open</code> system call. The way this works is:</p>
+
+<ol>
+<li>You call the <code>perf_event_open</code> system call</li>
+<li>The kernel writes events to a ring buffer in user memory, which you can read from</li>
+</ol>
+
+<p>As far as I can tell the only thing you can read this way is tracepoints. This is what running <code>sudo perf trace</code> does (there&rsquo;s a tracepoint for every system call)</p>
+
+<p><a name="ebpf"></a>
+<strong>eBPF</strong></p>
+
+<p>eBPF is a VERY EXCITING WAY to get data. Here&rsquo;s how it works.</p>
+
+<ol>
+<li>You write an &ldquo;eBPF program&rdquo; (often in C, or likely you use a tool that generates that program for you).<br /></li>
+<li>You ask the kernel to attach that probe to a kprobe/uprobe/tracepoint/dtrace probe</li>
+<li>Your program writes out data to an eBPF map / ftrace / perf buffer</li>
+<li>You have your precious precious data!</li>
+</ol>
+
+<p>eBPF is cool because it&rsquo;s part of Linux (you don&rsquo;t have to install any kernel modules) and you can define your own programs to do any fancy aggregation you want so it&rsquo;s really powerful. You usually use it with the <a href="https://github.com/iovisor/bcc">bcc</a> frontend which we&rsquo;ll talk about a bit later. It&rsquo;s only available on newer kernels though (the kernel version you need depends on what data sources you want to attach your eBPF programs to)</p>
+
+<p>Different eBPF features are available at different kernel versions,
+here&rsquo;s a slide with an awesome summary:</p>
+
+<script async class="speakerdeck-embed" data-slide="20" data-id="130bc7df16db4556a55105af45cdf3ba" data-ratio="1.33333333333333" src="//speakerdeck.com/assets/embed.js"></script>
+ 
+
+<p><a name="sysdig"></a>
+<strong>sysdig</strong></p>
+
+<p>Sysdig is a kernel module + tracing system. It lets you trace system calls and maybe some other things? I find their site kind of confusing to navigate, but I think <a href="https://github.com/draios/sysdig/blob/dev/driver/event_table.c">this file</a> contains the list of all the events sysdig supports. So it will tell you what files are being opened but not the weird internal details of what your TCP stack is doing.</p>
+
+<p><a name="systemtap"></a>
+<strong>systemtap</strong></p>
+
+<p>I&rsquo;m a little fuzzy how SystemTap works so we&rsquo;re going to go from this <a href="https://sourceware.org/systemtap/archpaper.pdf">architecture document</a></p>
+
+<ol>
+<li>You decide you want to trace a kprobe</li>
+<li>You write a &ldquo;systemtap program&rdquo; &amp; compile it into a kernel module</li>
+<li>That kernel module, when inserted, creates kprobes that call code from your kernel module when triggered (it calls <a href="https://github.com/torvalds/linux/blob/v4.10/Documentation/kprobes.txt"><code>register_kprobe</code></a>)</li>
+<li>You kernel modules prints output to userspace (using <a href="https://lwn.net/Articles/174669/">relayfs or something</a>)</li>
+</ol>
+
+<p>SystemTap supports:
+* tracepoints
+* kprobes
+* uprobes
+* USDT</p>
+
+<p>Basically lots of things! There are some more useful words about systemtap in <a href="http://www.brendangregg.com/blog/2015-07-08/choosing-a-linux-tracer.html">choosing a linux tracer</a></p>
+
+<p><a name="lttng"></a>
+<strong>LTTng</strong></p>
+
+<p><a href="http://lttng.org/">LTTng</a> (linux tracing: the next generation)  is from Montreal (a lab at ecole polytechnique)!! which makes me super happy (montreal!!). I saw an AMAZING demo of tool called <a href="http://tracecompass.org/">trace compass</a> the other day that reads data that comes from LTTng. Basically it was able to show all the <code>sched_switch</code> transitions between programs and system calls when running <code>tar -xzf somefile.tar.gz</code>, and you could really see exactly what was happening in a super clear way.</p>
+
+<p>The downside of LTTng (like SystemTap) is that you have to install a kernel module for the kernel parts to work. With <code>lttng-ust</code> everything happens in userspace and there&rsquo;s no kernel module needed.</p>
+
+<p><a name="frontends"></a></p>
+
+<h3 id="frontends">Frontends</h3>
+
+<p>Okay! Time for frontends! I&rsquo;m going to categorize them by mechanism (how the data gets  out of the kernel) to make it easier</p>
+
+<p><a name="perf"></a>
+<strong>perf frontends</strong></p>
+
+<p>The only frontend here is <code>perf</code>, it&rsquo;s simple.</p>
+
+<p><code>perf trace</code> will trace system calls for you, fast. That&rsquo;s great and I love it. <code>perf trace</code> is the only one of these I actually use day to day right now. (the ftrace stuff is more powerful and also more confusing / difficult to use)</p>
+
+<p><a name="ftrace-frontends"></a>
+<strong>ftrace frontends</strong></p>
+
+<p>Ftrace is a pain to use on its own and so there are various frontend tools to help you. I haven&rsquo;t found the best thing to use yet but here are some starting points:</p>
+
+<ul>
+<li><strong>trace-cmd</strong> is a frontend for ftrace, you can use it to collect and display ftrace data. I wrote about it a bit in <a href="https://jvns.ca/blog/2017/03/19/getting-started-with-ftrace/">this blog post</a> and there&rsquo;s an <a href="https://lwn.net/Articles/410200/">article on LWN</a> about it</li>
+<li><a href="https://github.com/catapult-project/catapult">Catapult</a> lets you analyze ftrace output. It&rsquo;s for Android / chrome performance originally but you can also just analyze ftrace. So far the only thing I&rsquo;ve gotten it to do is graph <code>sched_switch</code> events so you know which processes were running at what time exactly, and which CPU they were on. Which is pretty cool but I don&rsquo;t really have a use for yet?</li>
+<li><a href="http://rostedt.homelinux.com/kernelshark/">kernelshark</a> consumes ftrace output but I haven&rsquo;t tried it yet</li>
+<li>The <strong>perf</strong> command line tool is a perf frontend and (confusingly) also a frontend for some ftrace functionality (see <a href="http://man7.org/linux/man-pages/man1/perf-ftrace.1.html"><code>perf ftrace</code></a>)</li>
+</ul>
+
+<p><a name="bcc"></a>
+<strong>eBPF frontends: bcc</strong></p>
+
+<p>The only I know of is  the <strong>bcc</strong> framework: <a href="https://github.com/iovisor/bcc">https://github.com/iovisor/bcc</a>. It lets you write eBPF programs, it&rsquo;ll insert them into the kernel for you, and it&rsquo;ll help you get the data out of the kernel so you can process it with a Python script. It&rsquo;s pretty easy to get started with.</p>
+
+<p>If you&rsquo;re curious about the relationship between eBPF and the BPF you use in
+tcpdump I wrote a <a href="https://jvns.ca/blog/2017/06/28/notes-on-bpf---ebpf/">post about eBPF &amp; its relationship with BPF for packet filtering the other day</a>.
+I think it might be easiest though to think of them as unrelated because eBPF
+is so much more powerful.</p>
+
+<p>bcc is a bit weird because you write a C program inside a Python program but
+there are a lot of examples. Kamal and I wrote a program with bcc the other day
+for the first time and it was pretty easy.</p>
+
+<p><a name="lttng-systemtap"></a>
+<strong>LTTng &amp; SystemTap frontends</strong></p>
+
+<p>LTTng &amp; SystemTap both have their own sets of tools that I don&rsquo;t really understand. THAT SAID &ndash; there&rsquo;s this cool graphical tool called <a href="http://tracecompass.org/">Trace Compass</a> that seems really powerful. It consumes a trace format called CTF (&ldquo;common trace format&rdquo;) that LTTng emits.</p>
+
+<p><a name="conclusions"></a></p>
+
+<h3 id="what-tracing-tool-should-i-use-though">what tracing tool should I use though</h3>
+
+<p>Here&rsquo;s kind of how I think about it right now (though you should note that I only just figured out how all this stuff fits together very recently so I&rsquo;m not an expert):</p>
+
+<ul>
+<li>if you&rsquo;re mostly interested in computers running kernels &gt; linux 4.9,
+probably just learn about eBPF</li>
+<li><code>perf trace</code> is good, it will trace system calls with low overhead and it&rsquo;s super simple, there&rsquo;s not much to learn. A+.</li>
+<li>For everything else, they&rsquo;re, well, an investment, they take time to get used to.</li>
+<li>I think playing with kprobes is a good idea (via eBPF/ftrace/systemtap/lttng/whatever, for me right now ftrace is easiest). Being able to know what&rsquo;s going on in the kernel is a good superpower.</li>
+<li>eBPF is only available in kernel versions above 4.4, and some features only above 4.7. I think it makes sense to invest in learning it but on older systems it won&rsquo;t help you out yet</li>
+<li>ftrace is kind of a huge pain, I think it would be worth it for me if I could find a good frontend tool but I haven&rsquo;t managed it yet.</li>
+</ul>
+
+<h3 id="i-hope-this-helped">I hope this helped!</h3>
+
+<p>I&rsquo;m really excited that now I (mostly) understand how all these pieces fit together, I am literally typing some of this post at a free show at the jazz festival and listening to blues and having a fun time.</p>
+
+<p>Now that I know how everything fits together, I think I&rsquo;ll have a much easier time navigating the landscape of tracing frontends!</p>
+
+<p><a href="http://www.brendangregg.com/blog/index.html">Brendan Gregg</a>&rsquo;s awesome
+blog discusses a ton of these topics in a lot of detail &ndash; if you&rsquo;re interested
+in hearing about improvements in the Linux tracing ecosystem as they happen
+(it&rsquo;s always changing!), that&rsquo;s the best place to subscribe.</p>
+
+<p><small>thanks to Annie Cherkaev, Harold Treen, Iain McCoy, and David
+ Turner for reading a draft of this.</small></p>
+
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2017/07/05/linux-tracing-systems/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2017/07/05/linux-tracing-systems/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2017/07/09/linux-tracing-zine/" title="Previous Post: Linux tracing zine">Linux tracing zine</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2017/06/28/notes-on-bpf---ebpf/" title="Next Post: Notes on BPF &amp; eBPF">Notes on BPF &amp; eBPF</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

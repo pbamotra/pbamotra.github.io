@@ -1,0 +1,363 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>How do you decide what to work on? - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="How do you decide what to work on?">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2016/08/16/how-do-you-work-on-something-important/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">How do you decide what to work on?</h1>
+
+<div class="post-tags">
+  
+  •
+  
+    <a class="post-tag" href="/categories/favorite">favorite</a> 	•
+  
+  
+</div>
+<p class="meta">
+<time datetime="2016-08-16T19:39:11" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     
+
+<p>So, I work as a programmer. Until pretty recently I was working on
+machine learning, which is really fun and interesting. One thing I like
+about machine learning is &ndash; it&rsquo;s important (and fun!) to actually spend
+time with your data manually and understand it and look at individual
+things.</p>
+
+<p>But, ultimately, they did not hire me to do manual work! One week I remember
+thinking &ldquo;right, my job is to build systems that accurately classify millions
+of things, not to look at those things manually.&rdquo;</p>
+
+<p>So the reason programmers sometimes get paid a lot of money, I think, is
+because we can build systems that leverage computers to do an
+unreasonable amount of work. If you build Gmail&rsquo;s spam system, you can
+remove spam from the inboxes of millions of people! This is kind of
+magical and amazing and it&rsquo;s worth all of the bugs and dealing with
+computers.</p>
+
+<p>But it takes a long time! Basically anything interesting that I work on
+takes, let&rsquo;s say, 2-6 months. And it&rsquo;s not too weird to work on projects
+that take even longer! One of my friends worked on the same
+thing for more than a year. And at the end he&rsquo;d built a <a href="https://medium.com/transit-app/transit-maps-apple-vs-google-vs-us-cb3d7cd2c362#.mt80iagen">system for drawing transit maps that&rsquo;s better than
+Google&rsquo;s</a>. This was really cool.</p>
+
+<p>So this means you can really only do a few things. And if one of those things
+doesn&rsquo;t work out then that means that like a quarter of your work for the year
+is gone. This is okay, but it means it&rsquo;s worth being thoughtful.</p>
+
+<p>And the more time I spend programming, the more time I see that it&rsquo;s actually
+super hard to figure out what would be important to work on. Like, sure, I can
+make a computer do a billion things (literally! That’s pretty easy!), but
+<em>which billion things exactly</em>? What will have a lot of impact? What will help
+my company do better?</p>
+
+<p>Once, a little while after I started at my current job,
+I told my manager &ldquo;hey, I&rsquo;m thinking of doing $thing&rdquo;. He said &ldquo;ok, what if
+you do $other_thing instead?&rdquo; So I built the first version of the thing he
+suggested (a small system for making it easier to keep track of your machine
+learning experiments), and two years later it&rsquo;s something that the team still
+uses and that a bunch of other people have built on top of. It turns out that
+it was a good idea!</p>
+
+<p>When I started programming, I thought that people would tell me what code to
+write, and then I would write that code, and then that would be all. That is
+not how it&rsquo;s been, even though certainly I get guidance along the way. I work
+for a place that gives its engineers a lot of autonomy.</p>
+
+<p>So instead, for me, it’s been more like:</p>
+
+<ul>
+<li>well we have this one long-term goal, or three, or six</li>
+<li>also a bunch of minor problems of varying urgency</li>
+<li>now it&rsquo;s up to you to figure out which ones would be good to solve
+right now</li>
+<li>also you have to figure out how to solve them</li>
+<li>also the problems might be impossible to solve</li>
+<li>and there are all these other external factors</li>
+<li>you get to talk to a bunch of people who have thought about these
+problems for a while to do it though!</li>
+<li>here&rsquo;s 40 hours a week. go.</li>
+</ul>
+
+<h3 id="know-what-your-goals-are">know what your goals are</h3>
+
+<p>So, how do you decide what to <strong>do</strong>?</p>
+
+<p>I have a coworker Cory Watson who gave this cool talk at Monitorama
+called <a href="http://onemogin.com/observability/stripe/culture/monitoring/monitorama/creating-a-culture-of-observability.html">Creating a Culture of Observability</a>.</p>
+
+<p>He describes what he&rsquo;s doing as follows on that page:</p>
+
+<blockquote>
+<p>In other words, if our sensors — think about metrics, logs and traces —
+are good, then we can learn about how effectively our systems are
+working!</p>
+
+<p>My job at Stripe is to make this fucking awesome.</p>
+</blockquote>
+
+<p>It is kind of obvious when working with Cory that he is relentlessly focused
+on making it easier to know what our software systems are doing. And it helps!
+The company&rsquo;s dashboards and metrics have gotten way better as a result. It’s
+easier to make performance improvements and detect and understand errors.</p>
+
+<p>My friend Anton who made that transit maps app, cares SO MUCH about how to
+represent public transit information and he thinks about it all the time so
+it’s not that surprising to me that he’s built an awesome way to do it.</p>
+
+<p>I think this kind of focus is incredibly helpful &ndash; when I don&rsquo;t have a clear
+goal, I find it really really hard to get things done or decide what to do. I
+think of this as kind of the &ldquo;can I explain my job to someone at a party?&rdquo;
+test. When I can&rsquo;t pass this test (especially if the person at the party is a
+software engineer) I feel uncomfortable.</p>
+
+<p>Obviously you don&rsquo;t need to always focus on the same thing (jeff dean is
+like a legend at Google or something and I think he&rsquo;s done a ton of
+different thing), but having a focus seems really important.</p>
+
+<h3 id="coming-up-with-a-focus-is-not-that-easy">coming up with a focus is not that easy</h3>
+
+<p>At work there are a lot of possible things to think about! And as a single
+person (not a manager), there’s only so much you can focus on at a time. Some
+things I see people working on:</p>
+
+<ul>
+<li>Our storage systems are super-reliable and easy to use</li>
+<li>It’s easy to tell what your code is doing, in real time</li>
+<li>Make the development experience really good and easy</li>
+<li>Make the dashboard an awesome place for our users to understand their business</li>
+</ul>
+
+<p>So somehow I need to find a thing that is big enough and important enough to
+focus on (can i explain to my colleagues why i’m doing what i’m doing?), but
+also small enough that a single person (or small group) can make progress on
+it. And then it is way easier to write code towards that vision!</p>
+
+<h3 id="there-s-no-one-right-thing">there’s no one “right thing”</h3>
+
+<p>I originally called this post “how do you work on the right thing?” I retitled
+it because I think that that’s a wrong (and kind of dangerous) wording &ndash;
+there is no one right thing to work on. I work with many many excellent people
+who are working on many many important things. Not all things are equally
+impactful (which is what this post is all about!), but it’s about reliably
+finding useful things to work on that are within your capabilities, not
+finding a global optimum.</p>
+
+<p>If I only wrote globally optimal blog posts I would literally never publish
+anything.</p>
+
+<h3 id="believe-it-s-possible">believe it&rsquo;s possible</h3>
+
+<p>One thing about working on long-term or ambitious projects is &ndash; you <strong>have</strong>
+to believe that you can do the project. If you start a cool year-long project,
+approximately 50 million things will go wrong along the way. Things you didn&rsquo;t
+expect to break will break. And if you give up when you have a bad week or
+three weeks or somebody doesn’t believe that what you’re doing is right, you
+will never finish.</p>
+
+<p>I think this is a really important thing a mentor / more senior person
+can do for someone more junior. A lot of the time you can&rsquo;t
+tell what&rsquo;s possible and what&rsquo;s impossible and what obstacles are fine and
+what obstacles are insurmountable. But this can be
+bootstrapped! If someone tells you &ldquo;don&rsquo;t worry, it&rsquo;ll all work out!&rdquo;,
+then you can start, and hit the problems, and ask for advice, and keep
+going, and emerge victorious.</p>
+
+<p>And once you have emerged victorious enough times (and failed enough
+times!), you can start to get a sense for which things will work and
+which things will not work, and decide where to persevere.</p>
+
+<p>People talk a lot about ‘agile’ and MVPs but I don’t think that’s a complete
+answer here &ndash; sometimes you need to build a big thing, and you can write
+design docs and prototypes, but ultimately you need to decide that damnit,
+it’s going to work, and commit to spending a long time building it and showing
+intermediate progress when you can.</p>
+
+<p>Also your organization needs to support you in your work &ndash; it&rsquo;s very hard to
+get anything done if the people around you don&rsquo;t believe that you can get it
+done.</p>
+
+<h3 id="i-m-not-in-undergrad-anymore">I’m not in undergrad anymore</h3>
+
+<p>I <em>loved</em> being a math/CS undergrad. My professors would give me a series of
+challenging assignments which were hard but always within my abilities. I
+improved gradually over time! It was so fun! I was awesome at it! But it is
+over.</p>
+
+<p>Being employed is more like &ndash; I have a series of tasks which range from
+totally trivial to I-don’t-even-know-where-to-start and I need to figure out
+how to interrogate people and build up my skills so that I can do the hard
+things. And I need to decide what “good enough” means for the things I do
+decide to do, and nobody will do it for me, not really. There’s an interesting
+comment by Rebecca Frankel that Dan Luu pointed me to, on
+<a href="http://steve-yegge.blogspot.ca/2008/06/done-and-gets-things-smart.html">this post</a></p>
+
+<blockquote>
+<p>I agree with Steve Yegge&rsquo;s assertion that there are an enormously important
+(small) group of people who are just on another level, and ordinary smart
+hardworking people just aren&rsquo;t the same. Here&rsquo;s another way to explain why
+there should be a quantum jump &ndash; perhaps I&rsquo;ve been using this discussion to
+build up this idea: it’s the difference between people who are still trying
+to do well on a test administered by someone else, and the people who have
+found in themselves the ability to grade their own test, more carefully,
+with more obsessive perfectionism, than anyone else could possibly impose on
+them.</p>
+</blockquote>
+
+<p>So somehow working on an important thing and doing it well means you have to
+decide what your goals are and also build your own internal standards for
+whether or not you’ve met them. And other people can help you get started with
+that, but ultimately it’s up to you.</p>
+
+<h3 id="some-disconnected-thoughts-that-feel-useful">some disconnected thoughts that feel useful</h3>
+
+<ul>
+<li>Maggie talked about &ldquo;postmortem-driven development&rdquo; &ndash; look at things that have broken several times! see if you can help them not break again!</li>
+<li>It&rsquo;s normal (and important!!) to do experiments that fail. Maybe the trick is to timebox those experiments and recognize when you&rsquo;re doing something risky / new.</li>
+</ul>
+
+<h3 id="i-don-t-know">I don&rsquo;t know!</h3>
+
+<p>I feel weird admitting that I really struggle with this, but I really struggle
+with this. I do not always have good ideas about what to build. Sometimes I
+have ideas that I think are good and I do them and they’re great, and
+sometimes I have ideas and I do them and they’re… really not great. Sometimes
+I have standards for my work that I cannot figure out how to meet and that’s
+really frustrating.</p>
+
+<p>Sometimes other people have ideas and I think they’re great and help build
+those ideas and it’s amazing. That’s a really good feeling. So far the best
+things I’ve worked on have been other people’s ideas that I got excited about.</p>
+
+<p>Sometimes other people have ideas and I don’t understand what they’re talking
+about for months until they build it and I’m like OH THAT IS REALLY COOL WOW
+WOW WOW. Even reliably recognizing good ideas is hard!</p>
+
+<p>Some links:</p>
+
+<ul>
+<li><a href="http://mcfunley.com/data-driven-products-now">Data-Driven Products Now!</a> is a talk by Dan McKinley about how to think about building consumer-facing web products.</li>
+<li><a href="http://www.theeffectiveengineer.com/blog/secret-to-growing-software-engineering-career">The Secret to Growing Your Engineering Career If You Don’t Want to Manage</a> (thanks to Emil Sit)</li>
+<li><a href="http://www.theeffectiveengineer.com/blog/high-leverage-work-isnt-always-deep">The Highest-Leverage Activities Aren’t Always Deep Work</a></li>
+</ul>
+
+<p><small>
+Thanks to Emil Sit, Camille Fournier, Kyle Kingsbury, Laura Lindzey, Lindsey Kuper, Stephen Tu, Dan Luu,
+Maggie Zhou, Sunah Suh, Julia Hansbrough, and others for their comments on this.
+</small></p>
+
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2016/08/16/how-do-you-work-on-something-important/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2016/08/16/how-do-you-work-on-something-important/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2016/08/16/release-it-then-build-it/" title="Previous Post: Release it, then build it">Release it, then build it</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2016/08/10/how-does-gdb-work/" title="Next Post: How does gdb work?">How does gdb work?</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

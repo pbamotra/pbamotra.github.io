@@ -1,0 +1,255 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>A small website mystery - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="A small website mystery">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2017/05/10/a-small-website-bug-story/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">A small website mystery</h1>
+
+<div class="post-tags">
+  
+</div>
+<p class="meta">
+<time datetime="2017-05-10T21:36:38" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     
+
+<p>Hello! For half of today, my website was broken! I like debugging
+stories, so I thought I&rsquo;d tell this one. Someone <a href="https://twitter.com/Shoxolat/status/862281387138838528">tweeted at me</a> this morning
+saying &ldquo;hey your website has an issue&rdquo;. They very kindly sent me a
+screenshot:</p>
+
+<div align="center">
+<a href="https://jvns.ca/images/gibberish_website.png">
+<img src="https://jvns.ca/images/gibberish_website.png">
+</a>
+</div>
+
+<p>Yep. That looks like an issue to me! I asked them to run <code>curl -i
+http://jvns.ca</code> and they sent me <a href="https://gist.github.com/jvns/33d5b9d45eaa6a827456daa3d6f278ba/raw/266e8584e127edf67345f1cca550b7118567c33c/gistfile1.txt">the output</a>.</p>
+
+<p>Let&rsquo;s take a look at the HTTP headers.</p>
+
+<pre><code>HTTP/1.1 200 OK
+Date: Wed, 10 May 2017 13:12:18 GMT
+Transfer-Encoding: chunked
+Connection: keep-alive
+Set-Cookie: __cfduid=d79dd5269ee9d191c6eb32a5ab5277a391494421938;
+expires=Thu, 10-May-18 13:12:18 GMT; path=/; domain=.jvns.ca; HttpOnly
+ETag: W/&quot;3715-54e836f53861d-gzip&quot;
+Vary: Accept-Encoding
+CF-Cache-Status: HIT
+Expires: Thu, 11 May 2017 13:12:18 GMT
+Cache-Control: public, max-age=86400
+X-Content-Type-Options: nosniff
+Server: cloudflare-nginx
+CF-RAY: 35cd2639b2c36920-CDG
+</code></pre>
+
+<h3 id="why-are-these-http-headers-wrong">why are these HTTP headers wrong?</h3>
+
+<p>There are two things to notice here: first, it says <code>ETag:
+W/&quot;3715-54e836f53861d-gzip&quot;</code>. This is a great clue. I was like &ldquo;oh, is
+it gibberish because it&rsquo;s gzipped??&rdquo;</p>
+
+<p>How do you check if a file is gzipped? The easiest way is probably to
+try to unzip it and see if it works. In this case the gzipped data was in the same file as the headers
+though, so I ran <code>hexdump -c file.txt</code>. I looked at the bytes at the
+beginning of the binary data and it said <code>1f 8b</code>. I <a href="https://jvns.ca/blog/2013/10/24/day-16-gzip-plus-poetry-equals-awesome/">happen to know</a> that those are the 2 bytes every gzip stream starts with!</p>
+
+<p>So, it was gzipped. That&rsquo;s fine though, browsers can handle gzipped
+data! The second thing to notice is, well, something that isn&rsquo;t there.
+When a site sends gzipped data, it&rsquo;s meant to send a <code>Content-Encoding:
+gzip</code> header to say &ldquo;hey, this content is gzipped, unzip it before
+displaying it!&rdquo; So we have our first mystery!</p>
+
+<p><strong>mystery 1: why is the Content-Encoding: gzip header missing?</strong></p>
+
+<h3 id="what-happened-to-the-content-encoding-gzip-header">What happened to the Content-Encoding: gzip header?</h3>
+
+<p>I tried running <code>curl -I http://jvns.nfshost.com</code> (which is the backend
+for my webhost, <a href="https://jvns.ca">https://jvns.ca</a> uses Cloudflare) to look at the HTTP headers. It was returning a
+<code>Content-Encoding: gzip</code> header! Here are the headers:</p>
+
+<pre><code>HTTP/1.1 200 OK
+Date: Thu, 11 May 2017 01:51:56 GMT
+Server: Apache
+Upgrade: h2c
+Connection: Upgrade
+Last-Modified: Tue, 02 May 2017 05:01:38 GMT
+ETag: &quot;1fcdd-54e836f527c7c&quot;
+Accept-Ranges: bytes
+Age: 118
+Vary: Accept-Encoding
+Content-Encoding: gzip
+Content-Length: 14327
+Content-Type: text/html; charset=UTF-8
+</code></pre>
+
+<p>This is also weird though! You might say &ndash; &ldquo;okay, it says
+Content-Encoding: gzip, that&rsquo;s good&rdquo;. But normally in order to get
+gzipped content, you have to send an <code>Accept-Encoding: gzip</code> header to
+say &ldquo;I understand gzip!&rdquo;. But I wasn&rsquo;t sending that header with curl, and my site
+was returning gzipped content anyway. Weird, right?</p>
+
+<p>So we haven&rsquo;t solved our mystery, but we&rsquo;ve found a SECOND mystery:</p>
+
+<p><strong>mystery 2: why does my site send gzipped content even when I didn&rsquo;t ask it to??</strong></p>
+
+<h3 id="the-secret-of-the-surprise-gzipped-content">the secret of the surprise gzipped content</h3>
+
+<p>I could think of an answer to the second mystery, though! A few years
+ago, I felt like I was spending too much money on bandwidth, and I
+wanted to save some money. I have a static site, so I gzipped every page
+on my site, and set up this Apache configuration:</p>
+
+<pre><code>RewriteEngine on 
+RewriteCond %{HTTP:Accept-Encoding} gzip 
+RewriteCond %{REQUEST_FILENAME}.gz -f 
+RewriteRule ^(.*)$ $1.gz [L] 
+</code></pre>
+
+<p>This tells Apache &ldquo;hey, always send gzipped replies no matter what!!&rdquo;.
+So we&rsquo;ve solved Mystery 2 &ndash; I deleted that <code>.htaccess</code> file, and
+jvns.nfshost.com started behaving normally again.</p>
+
+<p>Today my web host (nearlyfreespeech, which I like a lot) will
+automatically gzip content when asked to, but it didn&rsquo;t in the past!
+(<a href="https://blog.nearlyfreespeech.net/2016/02/19/unlimited_free_bandwidth_some_limitations_apply/">here&rsquo;s the post announcing it</a>)</p>
+
+<p>Also, when I cleared my Cloudflare cache my site started behaving
+normally again, which I think means the problem is fixed. Maybe my weird
+Apache rule&rsquo;s aberrant behavior was causing Cloudflare to break somehow? Not clear!</p>
+
+<h3 id="why-did-it-take-me-half-a-day-to-fix-it">why did it take me half a day to fix it?</h3>
+
+<p>Normally if something is wrong with the Cloudflare version of my site
+but the non-CDN version of my site seems ok, I could just turn off
+Cloudflare for a bit to see if that fixes it. Hilariously, I turned on
+<a href="https://jvns.ca/blog/2017/04/30/using-strict-transport-security/">Strict-Transport-Security</a>
+last week, which means my site only works if it&rsquo;s served over HTTPS. And
+my normal webhost isn&rsquo;t set up with HTTPS yet, so I can&rsquo;t just turn off
+Cloudflare. That&rsquo;s ok though, if a few pages on this blog are broken for
+a few hours the world won&rsquo;t end.</p>
+
+<h3 id="what-happened-to-the-content-encoding-gzip-header-though">What happened to the Content-Encoding: gzip header though?</h3>
+
+<p>I still don&rsquo;t know where the Content-Encoding: gzip header went! Did
+Cloudflare remove it? Did my webhost stop serving it for some reason? I
+have no idea! Anyway, my site seems to work again (I think/hope?) and I
+thought this was kind of a fun excursion into HTTP headers.</p>
+
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2017/05/10/a-small-website-bug-story/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2017/05/10/a-small-website-bug-story/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2017/05/14/learn-tcpdump-zine/" title="Previous Post: &#34;Let&#39;s learn tcpdump&#34; zine: now available for everyone">&#34;Let&#39;s learn tcpdump&#34; zine: now available for everyone</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2017/05/02/like-zines-about-computers--you-might-love-bubblesort-zines/" title="Next Post: Like zines about computers? You might love Bubblesort Zines">Like zines about computers? You might love Bubblesort Zines</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

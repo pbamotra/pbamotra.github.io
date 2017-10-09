@@ -1,0 +1,203 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>A second try at using Rust - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="A second try at using Rust">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2016/05/12/a-second-try-at-using-rust/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">A second try at using Rust</h1>
+
+<div class="post-tags">
+  
+  •
+  
+    <a class="post-tag" href="/categories/rust">rust</a> 	•
+  
+  
+</div>
+<p class="meta">
+<time datetime="2016-05-12T11:55:45" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     
+
+<p>I used Rust for the first time in late 2013, while trying to write a tiny operating system. At the time, I learned a lot and it was pretty fun, but I found the experience pretty frustrating. There were all these error messages I didn&rsquo;t understand! It took forever to work with strings! Everyone was very nice but it felt confusing.</p>
+
+<p>I just tried Rust again yesterday! Kamal has been trying to sell me (and <a href="http://kamalmarhubi.com/blog/2016/04/13/rust-nix-easier-unix-systems-programming-3/">everyone else</a>) on the idea that if you&rsquo;re doing systems-y work, and you don&rsquo;t know any systems language very well, then it&rsquo;s worth learning Rust.</p>
+
+<p>After a day or so of trying Rust again, I think he&rsquo;s right that learning Rust is easier than learning C. A few years after first trying, I feel like the language has progressed a lot, and it feels more like writing Python or some other easy language.</p>
+
+<p>Some things I could do easily without working too hard</p>
+
+<ul>
+<li>run a process and then match a regular expression on its output</li>
+<li>make a hashmap, store counts in it, and print the top 10</li>
+<li>format strings nicely and print them</li>
+<li>read command line options</li>
+<li>allocate a lot of memory without creating a memory leak</li>
+</ul>
+
+<p>Those things would have been really hard in C (how do you even make a hashmap???
+I think you have to write the data structure yourself or something.). I probably could have figured out how to free memory in C (i hear you use <code>free</code> :) ) but honestly I don&rsquo;t know how to write C and it&rsquo;s very likely it would have turned into an unmaintainable mess. The things were
+maybe slightly harder to do than in Python (which is a programming language that
+I actually know), but I think not way way way harder. I was surprised at how easy they were!</p>
+
+<h3 id="a-sidebar-on-learning-programming-languages">a sidebar on learning programming languages</h3>
+
+<p>I pair programmed a bunch of Rust code with Kamal, who actually knows Rust. Sometimes when I program, I try to understand everything all at once right away (&ldquo;what are lifetime? how do they work? what are all these pointer types? omg!!!&rdquo;). This time I tried a new approach! When I didn&rsquo;t understand something, I was just like &ldquo;hey kamal tell me what to type!&rdquo; and he would, and then my program would work.</p>
+
+<p>I&rsquo;d fix the bugs that I understood, and he&rsquo;d fix the bugs I didn&rsquo;t, and we made a lot of progress really quickly and it wasn&rsquo;t that frustrating.</p>
+
+<p>I kind of enjoy the experience of having a Magical Oracle to fix my programming problems for me &ndash; having someone elide away the harder stuff so I can focus on what&rsquo;s easy feels to me like a good way to learn.</p>
+
+<p>Of course, you can&rsquo;t let someone else fix all your hard programs <em>forever</em>. Eventually I&rsquo;ll have to understand all about Rust pointers and lifetimes and everything, if I want to write Rust! I bet it&rsquo;s not even all that hard. But for today I only understand like 6 things and that&rsquo;s fine.</p>
+
+<h3 id="error-messages">error messages</h3>
+
+<p>I&rsquo;ve also been mostly happy with the Rust error messages! Sometimes they&rsquo;re super inscrutable, but often they&rsquo;re mostly lucid. Sometimes they link to GitHub issues, and someone on the GitHub issue will have a workaround for your problem! Sometimes they come with detailed explanations!</p>
+
+<p>Here&rsquo;s an example:</p>
+
+<pre><code>$ rustc --explain E0281
+`You tried to supply a type which doesn't implement some trait in a location
+which expected that trait. This error typically occurs when working with
+`Fn`-based types. Erroneous code example:
+
+---
+fn foo&lt;F: Fn()&gt;(x: F) { }
+
+fn main() {
+    // type mismatch: the type ... implements the trait `core::ops::Fn&lt;(_,)&gt;`,
+    // but the trait `core::ops::Fn&lt;()&gt;` is required (expected (), found tuple
+    // [E0281]
+    foo(|y| { });
+}
+---
+
+The issue in this case is that `foo` is defined as accepting a `Fn` with no
+arguments, but the closure we attempted to pass to it requires one argument.
+
+</code></pre>
+
+<h3 id="valgrind-perf-rust-3">valgrind + perf + rust = &lt;3</h3>
+
+<p>another cool thing I noticed is that you can run valgrind or perf on the Rust program and figure out easily which parts of your program are running slowly! And I think the Rust program even has debug info so you can look at the source code in kcachegrind. This was really cool. I ran into a program with valgrind where my program worked fine in Rust, but when I ran it under valgrind it failed. I don&rsquo;t understand why this happened at all.</p>
+
+<h3 id="the-rust-docs-actually-seem-good">the rust docs actually seem good?</h3>
+
+<p>I haven&rsquo;t delved super a lot into the Rust docs, but so far I&rsquo;ve been happy: there&rsquo;s a <a href="https://doc.rust-lang.org/book/">book</a> and lots of other <a href="https://www.rust-lang.org/documentation.html">documentation</a> and it&rsquo;s all official on the Rust website! I think they actually paid Steve Klabnik to write docs, which is amazing.</p>
+
+<p>Here is my <a href="https://github.com/jvns/ruby-stacktrace">Rust project!</a>. More on what it actually does later, but I&rsquo;m super excited about it (for now it&rsquo;s a MYSTERY :D :D).</p>
+
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2016/05/12/a-second-try-at-using-rust/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2016/05/12/a-second-try-at-using-rust/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2016/05/13/homu-plus-highfive-making-less-work-for-open-source-maintainers/" title="Previous Post: homu &#43; highfive: awesome bots that make open source projects easier">homu &#43; highfive: awesome bots that make open source projects easier</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2016/05/06/a-workshop-on-strace-and-tcpdump/" title="Next Post: A workshop on strace &amp; tcpdump">A workshop on strace &amp; tcpdump</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

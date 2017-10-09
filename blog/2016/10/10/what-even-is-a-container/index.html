@@ -1,0 +1,237 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>What even is a container: namespaces and cgroups - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="What even is a container: namespaces and cgroups">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2016/10/10/what-even-is-a-container/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">What even is a container: namespaces and cgroups</h1>
+
+<div class="post-tags">
+  
+  •
+  
+    <a class="post-tag" href="/categories/containers">containers</a> 	•
+  
+  
+</div>
+<p class="meta">
+<time datetime="2016-10-10T22:44:13" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     
+
+<p>The first time I heard about containers it was like &ndash; what? what&rsquo;s that?</p>
+
+<p>Is a container a process? What&rsquo;s Docker? Are containers Docker? Help!</p>
+
+<p>The word &ldquo;container&rdquo; doesn&rsquo;t mean anything super precise. Basically there are a few new  Linux kernel features (&ldquo;namespaces&rdquo; and &ldquo;cgroups&rdquo;) that let you isolate processes from each other. When you use those features, you call it &ldquo;containers&rdquo;.</p>
+
+<p>Basically these features let you pretend you have something like a virtual machine, except it&rsquo;s not a virtual machine at all, it&rsquo;s just processes running in the same Linux kernel. Let&rsquo;s dive in!</p>
+
+<h3 id="namespaces">namespaces</h3>
+
+<p>Okay, so let&rsquo;s say we wanted to have something like a virtual machine. One feature you
+might want is &ndash; my processes should be separated from the other processes on the
+computer, right?</p>
+
+<p>One feature Linux provides here is <strong>namespaces</strong>. There are a bunch of different kinds:</p>
+
+<ul>
+<li>in a <strong>pid</strong> namespace you become PID 1 and then your children are other processes. All the other programs are gone</li>
+<li>in a <strong>networking namespace</strong> you can run programs on any port you want without it conflicting with what&rsquo;s already running</li>
+<li>in a <strong>mount namespace</strong> you can mount and unmount filesystems without it affecting the host filesystem. So you can have a totally different set of devices mounted (usually less)</li>
+</ul>
+
+<p>It turns out that making namespaces is totally easy! You can just run a program called <code>unshare</code> (named after the system call of the same name)</p>
+
+<p>Let&rsquo;s make a new PID namespace and run bash in it!</p>
+
+<pre><code>$ sudo unshare --fork --pid --mount-proc bash
+</code></pre>
+
+<p>What&rsquo;s going on?</p>
+
+<pre><code>root@kiwi:~# ps aux
+USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+root         1  0.0  0.0  28372  4148 pts/6    S    23:01   0:00 bash
+root         2  0.0  0.0  44432  3836 pts/6    R+   23:01   0:00 ps aux
+</code></pre>
+
+<p>Wow, we&rsquo;re in a whole new world! There are only 2 processes running &ndash; bash and ps. Cool, that was easy!</p>
+
+<p>It&rsquo;s worth noting that if I look from my regular PID namespaces, I can see the processes in the new PID namespace:</p>
+
+<pre><code>root     14121  0.0  0.0  33264  4044 pts/6    S+   23:09   0:00 htop
+</code></pre>
+
+<p>This process 14121 (regular namespace) is process 3 in my new PID namespace. So they&rsquo;re two views on the same thing, but one is a lot more restricted.</p>
+
+<h3 id="entering-the-namespace-of-another-program">entering the namespace of another program</h3>
+
+<p>Also you can enter the namespace of another running program! You do this with a command called <code>nsenter</code>. I think this is how <code>docker exec</code> works? Maybe?</p>
+
+<h3 id="cgroups-resource-limits">cgroups: resource limits</h3>
+
+<p>Okay, so we&rsquo;ve made a new magical world with new processes and sockets that is separate from our old world. Cool!</p>
+
+<p>What if I want to limit how much memory or CPU one of my programs is using? WE&rsquo;RE IN LUCK. In 2007 some people developed <a href="https://en.wikipedia.org/wiki/Cgroups">cgroups</a> just for us. These are like when you <code>nice</code> a process but with a bunch more features.</p>
+
+<p>Let&rsquo;s make a cgroup! We&rsquo;ll make one that just limits memory</p>
+
+<pre><code>$ sudo cgcreate -a bork -g memory:mycoolgrou
+</code></pre>
+
+<p>Let&rsquo;s see what&rsquo;s in it!</p>
+
+<pre><code>$ ls -l /sys/fs/cgroup/memory/mycoolgroup/
+-rw-r--r-- 1 bork root 0 Okt 10 23:16 memory.kmem.limit_in_bytes
+-rw-r--r-- 1 bork root 0 Okt 10 23:14 memory.kmem.max_usage_in_bytes
+</code></pre>
+
+<p>ooh, max usage in bytes! Okay, let&rsquo;s try that! 10 megabytes should be enough for anyone!
+10 megabytes should be enough for anyone!</p>
+
+<pre><code>$ sudo echo 10000000 &gt;  /sys/fs/cgroup/memory/mycoolgroup/memory.kmem.limit_in_bytes
+</code></pre>
+
+<p>Awesome, let&rsquo;s try using my cgroup!</p>
+
+<pre><code>$ sudo cgexec  -g memory:mycoolgroup bash
+</code></pre>
+
+<p>I ran a bunch of commands. they worked fine. Then I tried compiling a Rust program :) :) :)</p>
+
+<pre><code>$ root@kiwi:~/work/ruby-stacktrace# cargo build
+error: Could not execute process `rustc -vV` (never executed)
+
+Caused by:
+  Cannot allocate memory (os error 12)
+</code></pre>
+
+<p>Fantastic! We have successfully limited our program&rsquo;s memory!</p>
+
+<h3 id="seccomp-bpf">seccomp-bpf</h3>
+
+<p>Okay, one last feature! If you&rsquo;re isolating your processes, you might in addition to restricting their memory and CPU usage, want to restrict what system calls they can run! Like, &ldquo;no network access for you!&rdquo;.  That might help with security! We like security.</p>
+
+<p>This brings us to <a href="https://en.wikipedia.org/wiki/Seccomp">seccomp-bpf</a>, a Linux kernel feature that lets you filter which system calls your process can run.</p>
+
+<h3 id="what-are-containers">what are containers?</h3>
+
+<p>Okay, now that you&rsquo;ve seen these two features you might think &ldquo;wow, yeah, I could build a bunch of scripts around all these features and have something really cool!&rdquo; It would be really lightweight and my processes would be isolated from each other, and, wow!</p>
+
+<p>Some people thought that in the past too! They built a thing called &ldquo;Docker containers&rdquo; that uses these features :). That&rsquo;s all Docker is! Of course Docker has a lot of features these days, but a lot of it is built on these basic Linux kernel primitives.</p>
+
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2016/10/10/what-even-is-a-container/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2016/10/10/what-even-is-a-container/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2016/10/15/operations-for-software-developers-for-beginners/" title="Previous Post: Operations for software developers for beginners">Operations for software developers for beginners</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2016/10/09/switching-to-hugo/" title="Next Post: Switching to Hugo">Switching to Hugo</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

@@ -1,0 +1,1812 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title><![CDATA[Julia Evans]]></title>
+  <link href="http://jvns.ca/atom.xml" rel="self"/>
+  <link href="http://jvns.ca"/>
+  <updated>2015-12-24T07:35:31+00:00</updated>
+  <id>http://jvns.ca</id>
+  <author>
+    <name><![CDATA[Julia Evans]]></name>
+  </author>
+  <generator uri="http://gohugo.io/">Hugo</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[How to trick a neural network into thinking a panda is a vulture]]></title>
+    <link href="https://jvns.ca/blog/2015/12/24/how-to-trick-a-neural-network-into-thinking-a-panda-is-a-vulture/"/>
+    <updated>2015-12-24T07:35:31+00:00</updated>
+    <id>https://jvns.ca/blog/2015/12/24/how-to-trick-a-neural-network-into-thinking-a-panda-is-a-vulture/</id>
+    <content type="html"><![CDATA[<p>I have an article published in Code Words, the Recurse Centre quarterly publication! I&rsquo;m pretty happy with how it turned out. It comes with code so that you can reproduce everything in it yourself!</p>
+
+<p>Here it is: <a href="https://codewords.recurse.com/issues/five/why-do-neural-networks-think-a-panda-is-a-vulture">How to trick a neural network into thinking a panda is a vulture</a></p>
+
+<p>Code Words is overall pretty excellent &ndash; you can find <a href="https://codewords.recurse.com/issues">every past article here</a>. I particularly like <a href="https://codewords.recurse.com/issues/three/ddos-and-you">DDoS and you</a> and <a href="https://codewords.recurse.com/issues/two/git-from-the-inside-out">Git from the inside out</a> which taught me a lot about Git internals. Also, <a href="https://codewords.recurse.com/issues/one/when-is-equality-transitive-and-other-floating-point-curiosities">When is equality transitive?</a> is delightful.</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Why you should understand (a little) about TCP]]></title>
+    <link href="https://jvns.ca/blog/2015/11/21/why-you-should-understand-a-little-about-tcp/"/>
+    <updated>2015-11-21T09:13:44+00:00</updated>
+    <id>https://jvns.ca/blog/2015/11/21/why-you-should-understand-a-little-about-tcp/</id>
+    <content type="html"><![CDATA[
+
+<p>This isn&rsquo;t about understanding <em>everything</em> about TCP or reading through <a href="http://www.amazon.com/TCP-Illustrated-Vol-Addison-Wesley-Professional/dp/0201633469">TCP/IP Illustrated</a>. It&rsquo;s about how a little bit of TCP knowledge is essential. Here&rsquo;s why.</p>
+
+<p>When I was at the <a href="http://recurse.com">Recurse Center</a>, I wrote a TCP stack in Python (<a href="http://jvns.ca/blog/2014/08/12/what-happens-if-you-write-a-tcp-stack-in-python/">and wrote about what happens if you write a TCP stack in Python</a>). This was a fun learning experience, and I thought that was all.</p>
+
+<p>A year later, at work, someone mentioned on Slack &ldquo;hey I&rsquo;m publishing messages to NSQ and it&rsquo;s taking 40ms each time&rdquo;. I&rsquo;d already been thinking about this problem on and off for a week, and hadn&rsquo;t gotten anywhere.</p>
+
+<p>A little background: NSQ is a queue that you send to messages to. The way you publish a message is to make an HTTP request on localhost. It really should not take <strong>40 milliseconds</strong> to send a HTTP request to localhost. Something was terribly wrong. The NSQ daemon wasn&rsquo;t under high CPU load, it wasn&rsquo;t using a lot of memory, it didn&rsquo;t seem to be a garbage collection pause. Help.</p>
+
+<p>Then I remembered an article I&rsquo;d read a week before called <a href="https://gocardless.com/blog/in-search-of-performance-how-we-shaved-200ms-off-every-post-request/">In search of performance - how we shaved 200ms off every POST request</a>. In that article, they talk about why every one of their POST requests were taking 200 extra milliseconds. That&rsquo;s.. weird. Here&rsquo;s the key paragraph from the post</p>
+
+<h3 id="delayed-acks-tcp-nodelay">Delayed ACKs &amp; TCP_NODELAY</h3>
+
+<blockquote>
+<p>Ruby&rsquo;s Net::HTTP splits POST requests across two TCP packets - one for the
+headers, and another for the body. curl, by contrast, combines the two if
+they&rsquo;ll fit in a single packet. To make things worse, Net::HTTP doesn&rsquo;t set
+TCP_NODELAY on the TCP socket it opens, so it waits for acknowledgement of the
+first packet before sending the second. This behaviour is a consequence of
+Nagle&rsquo;s algorithm.</p>
+
+<p>Moving to the other end of the connection, HAProxy has to choose how to
+acknowledge those two packets. In version 1.4.18 (the one we were using), it
+opted to use TCP delayed acknowledgement. Delayed acknowledgement interacts
+badly with Nagle&rsquo;s algorithm, and causes the request to pause until the server
+reaches its delayed acknowledgement timeout..</p>
+</blockquote>
+
+<p>Let&rsquo;s unpack what this paragraph is saying.</p>
+
+<ul>
+<li>TCP is an algorithm where you send data in <strong>packets</strong></li>
+<li>Their HTTP library was sending POST requests in 2 small packets</li>
+</ul>
+
+<p>Here&rsquo;s what the rest of the TCP exchange looked like after that:</p>
+
+<blockquote>
+<p>application: hi! Here&rsquo;s packet 1. <br>
+HAProxy: &lt;silence, waiting for the second packet&gt;<br>
+HAProxy: &lt;well I&rsquo;ll ack eventually but nbd&gt;<br>
+application: &lt;silence&gt;<br>
+application: &lt;well I&rsquo;m waiting for an ACK maybe there&rsquo;s network congestion&gt;<br>
+HAProxy: ok i&rsquo;m bored. here&rsquo;s an ack<br>
+application: great here&rsquo;s the second packet!!!!<br>
+HAProxy: sweet. we&rsquo;re done here<br></p>
+</blockquote>
+
+<p>That period where the application and HAProxy are both passive-aggressively
+waiting for the other to send information? That&rsquo;s the extra 200ms. The application is doing it because of Nagle&rsquo;s algorithm, and HAProxy because of delayed ACKs.</p>
+
+<p>Delayed ACKs happen, as far as I understand, by default on <em>every</em> Linux system.
+So this isn&rsquo;t an edge case or an anomaly &ndash; if you send your data in more than 1
+TCP packet, it can happen to you.</p>
+
+<h3 id="in-which-we-become-wizards">in which we become wizards</h3>
+
+<p>So I read this article, and forgot about it. But I was stewing about my extra 40ms, and then I remembered.</p>
+
+<p>And I thought &ndash; that can&rsquo;t be my problem, can it? can it??? And I sent an email to my team saying &ldquo;I think I might be crazy but this might be a TCP problem&rdquo;.</p>
+
+<p>So I committed a change turning on <code>TCP_NODELAY</code> for our application, and BOOM.</p>
+
+<p>All of the 40ms delays <strong>instantly disappeared</strong>. Everything was fixed. I was a wizard.</p>
+
+<h3 id="should-we-stop-using-delayed-acks-entirely">should we stop using delayed ACKs entirely</h3>
+
+<p>A quick sidebar &ndash; I just read <a href="https://news.ycombinator.com/item?id=9048947">this comment on Hacker News</a> from John Nagle (of Nagle&rsquo;s algorithm) via <a href="https://twitter.com/alicemazzy/status/667799010317574145">this awesome tweet</a> by @alicemazzy.</p>
+
+<blockquote>
+<p>The real problem is ACK delays. The 200ms &ldquo;ACK delay&rdquo; timer is a bad idea that
+someone at Berkeley stuck into BSD around 1985 because they didn&rsquo;t really
+understand the problem. A delayed ACK is a bet that there will be a reply from
+the application level within 200ms. TCP continues to use delayed ACKs even if
+it&rsquo;s losing that bet every time.</p>
+</blockquote>
+
+<p>He goes on to comment that ACKs are small and inexpensive, and that the problems
+caused in practice by delayed ACKs are probably much worse than the problems
+they solve.</p>
+
+<h3 id="you-can-t-fix-tcp-problems-without-understanding-tcp">you can&rsquo;t fix TCP problems without understanding TCP</h3>
+
+<p>I used to think that TCP was really low-level and that I did not need to understand it. Which is mostly true! But sometimes in real life you have a bug and that bug is because of something in the TCP algorithm. So it turns out that understanding TCP is important. (as we frequently discuss on this blog, this turns out to be true for a lot of things, like, system calls &amp; operating systems :) :))</p>
+
+<p>This delayed ACKs / TCP_NODELAY interaction is particularly bad &ndash; it could affect anyone writing code that makes HTTP requests, in any programming language. You don&rsquo;t have to be a systems programming wizard to run into this. Understanding a tiny bit about how TCP worked really helped me work through this and recognize that that thing the blog post was describing also might be my problem. I also used strace, though. strace forever.</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[ How the locate command works (and let&#39;s write a faster version in one minute!)]]></title>
+    <link href="https://jvns.ca/blog/2015/03/05/how-the-locate-command-works-and-lets-rewrite-it-in-one-minute/"/>
+    <updated>2015-03-05T08:12:48+00:00</updated>
+    <id>https://jvns.ca/blog/2015/03/05/how-the-locate-command-works-and-lets-rewrite-it-in-one-minute/</id>
+    <content type="html"><![CDATA[<p>Sometimes I want to find all the Alanis songs on my computer. There are
+(basically) two ways to do this.</p>
+
+<ol>
+<li><code>find / -name '*Alanis*'</code></li>
+<li><code>locate Alanis</code></li>
+</ol>
+
+<p>I&rsquo;ve known for a long time that <code>locate</code> is faster than <code>find</code>, and that it had
+some kind of database, and that you could update the database using <code>updatedb</code>.</p>
+
+<p>But I always somehow thought of the locate database as this Complicated Thing.
+Until today I started looking at it! On my machine it&rsquo;s
+<code>/var/lib/mlocate/mlocate.db</code>. You can probably find it with <code>locate mlocate</code>
+or <code>strace -e open locate whatever</code>. It&rsquo;s about 15MB on my computer.</p>
+
+<p>When I <code>cat</code> it, here&rsquo;s what part of it looks like.</p>
+
+<pre><code>/bin^@^@bash^@^@bunzip2^@^@busybox^@^@bzcat^@^@bzcmp^@^@bzdiff^@^@bzegrep^@^@bzexe^@^@bzfgrep^@^@bzgrep^@^@bzip2^@^@bzip2recover^@^@bzless^@^@bzmore^@^@cat^@^@chacl^@^@chgrp^@^@chmod^@^@chown^@^@chvt
+^@^@cp^@^@cpio^@^@dash^@^@date^@^@dbus-cleanup-sockets^@^@dbus-daemon^@^@dbus-uuidgen^@^@dd^@^@df^@^@dir^@^@dmesg^@^@dnsdomainname^@^@domainname^@^@dumpkeys^@^@echo^@^@ed
+^@^@egrep^@^@false^@^@fgconsole^@^@fgrep^@^@findmnt^@^@fuser^@^@fusermount^@^@getfacl^@^@grep^@^@gunzip^@^@gzexe^@^@gzip^@^@hostname^@^@ip^@^@kbd_mode^@^@kill^@^@kmod^@^@
+less^@^@lessecho^@^@lessfile^@^@lesskey^@^@lesspipe^@^@ln^@^@loadkeys^@^@login^@^@loginctl^@^@lowntfs-3g^@^@ls^@^@lsblk^@^@lsmod^@^@mkdir^@^@mknod^@^@mktemp
+</code></pre>
+
+<p>And here&rsquo;s what&rsquo;s in the <code>/bin</code> directory:</p>
+
+<pre><code>$ ls /bin | head
+bash
+bunzip2
+busybox
+bzcat
+bzcmp
+bzdiff
+bzegrep
+bzexe
+bzfgrep
+bzgrep
+</code></pre>
+
+<p>COINCIDENCE THAT ALL OF THESE WORDS ARE THE SAME? I THINK NOT!</p>
+
+<p>It turns out that the locate database is basically just a huge recursive
+directory listing (<code>ls -R /</code>). (I think it&rsquo;s actually more complicated than
+that; there&rsquo;s a paper at the end). So a slightly less space-efficient version
+of this whole <code>locate</code> business would be to create a database with this Very
+Sophisticated Command:</p>
+
+<pre><code>sudo find / &gt; database.txt
+</code></pre>
+
+<p>This gives us a file that looks like</p>
+
+<pre><code>/
+/vmlinuz.old
+/var
+/var/mail
+/var/spool
+/var/spool/rsyslog
+/var/spool/mail
+/var/spool/cups
+/var/spool/cups/tmp
+/var/spool/cron
+</code></pre>
+
+<p>Then we can more or less reproduce <code>locate</code>&rsquo;s functionality by just doing</p>
+
+<pre><code>grep Alanis database.txt
+
+</code></pre>
+
+<p>I got curious about the relative speed of <code>find</code> vs <code>locate</code> vs our makeshift
+locate using <code>grep</code>. I have an SSD, so a <code>find</code> across all files on my computer
+is pretty fast:</p>
+
+<pre><code>$ time find / -name blah
+0.59user 0.67system 0:01.71elapsed 73%CPU
+</code></pre>
+
+<pre><code>$ time locate blah
+0.26user 0.00system 0:00.30elapsed 87%CPU
+</code></pre>
+
+<pre><code>$ time grep blah database.txt
+0.04user 0.02system 0:00.10elapsed 64%CPU
+</code></pre>
+
+<p>Whoa, our homegrown locate using grep is actually way faster! That is
+surprising to me. Our homegrown database takes about 3x as much space as
+<code>locate</code>&rsquo;s database (45MB instead of 15MB), so that&rsquo;s probably part of why.</p>
+
+<p>Anyway now you know how it works! This kind of makes me wonder if our database
+format which doesn&rsquo;t use any clever compression tricks might actually be a
+better format if you&rsquo;re not worried about the extra space it takes up. But I
+don&rsquo;t really understand yet why locate is so much slower.</p>
+
+<p>My current theory is that grep is better optimized than locate and that it can
+do smarter stuff. But if you know the real answer, or if you get different
+results on your computer, please tell me!</p>
+
+<p>update: omg Mark Dominus tweeted at me within seconds and said he <a href="http://perl.plover.com/classes/mybin/samples/slide077.html">found exactly the same thing 10 years ago</a>. Maybe this is really a thing! Or, more likely, there&rsquo;s just stuff I don&rsquo;t understand yet here. Either way I&rsquo;d like to know!</p>
+
+<p>further update: Patrick Collison pointed out this amazingly-titled (and short! 3 pages!)
+<a href="http://www.eecs.berkeley.edu/Pubs/TechRpts/1983/CSD-83-148.pdf">Finding Files Fast</a>
+from 1983 which talks about locate&rsquo;s design, and also claims that the
+<a href="http://ftp3.usa.openbsd.org/pub/OpenBSD/src/usr.bin/locate/">source is pretty readable</a>.</p>
+
+<p>The 1983 paper specifically calls out &ldquo;Why not simply build a list of static
+files and search with grep?&ldquo;, and says that grepping a list of 20,000 files
+took 30 seconds (&ldquo;unacceptable for an oft-used command&rdquo;), and that their locate
+implementation gives them better performance. To compare, I have 700,000 files
+on my hard disk, and it takes about 0.05 seconds. It seems to me like the
+locate authors&rsquo; original issues are really not a problem anymore, 30 years
+later.</p>
+
+<p>They&rsquo;re also pretty worried about saving space in the locate database, which
+also isn&rsquo;t really a concern anymore. This really makes me wonder what other
+standard unix programs make design assumptions that aren&rsquo;t true in 2015.</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[How gzip uses Huffman coding]]></title>
+    <link href="https://jvns.ca/blog/2015/02/22/how-gzip-uses-huffman-coding/"/>
+    <updated>2015-02-22T09:28:02+00:00</updated>
+    <id>https://jvns.ca/blog/2015/02/22/how-gzip-uses-huffman-coding/</id>
+    <content type="html"><![CDATA[<p>I wrote a blog post quite a while ago called <a href="http://jvns.ca/blog/2013/10/24/day-16-gzip-plus-poetry-equals-awesome/">gzip + poetry = awesome</a>
+where I talked about how the gzip compression program uses the LZ77 algorithm
+to identify repetitions in a piece of text.</p>
+
+<p>In case you don&rsquo;t know what LZ77 is (I sure didn&rsquo;t), here&rsquo;s the video from that
+post that gives you an example of gzip identifying repetitions in a poem!</p>
+
+<iframe width="500px" height="300px" src="//www.youtube.com/embed/SWBkneyTyPU"
+frameborder="0" allowfullscreen=""></iframe>
+
+<p><br><br></p>
+
+<p>I thought this was a great demonstration, but it&rsquo;s only half the story about
+how gzip works, and it&rsquo;s taken me until now to write the rest of it down. So!
+Without further ado, let&rsquo;s say we&rsquo;re compressing this text:</p>
+
+<pre><code>a tapping, as of someone gently 
+r{apping},{ rapping}
+at my chamber door
+</code></pre>
+
+<p></p>
+
+<p>It&rsquo;s identified <code>apping</code> and <code>rapping</code> as being repeated, so gzip then encodes
+that as, roughly</p>
+
+<pre><code>a tapping, as of someone gently
+r{back 30 characters, copy 6},
+{back 9 characters, copy 8} at my chamber door
+</code></pre>
+
+<p>Once it&rsquo;s gotten rid of the repetitions, the next step is to compress the
+individual characters. That is &ndash; if we have some text like</p>
+
+<pre><code>ab bac ead gae haf iaj kal man oap
+</code></pre>
+
+<p>there isn&rsquo;t any repetition to eliminate, but <code>a</code> is the most common letter, so
+we should compress it more than the other letters <code>bcdefghijklmnop</code>.</p>
+
+<h3 id="how-gzip-uses-huffman-coding-to-represent-individual-characters">How gzip uses Huffman coding to represent individual characters</h3>
+
+<p>gzip compresses bytes, so to make an improvement we&rsquo;re going to want to be able
+to represent some bytes using less than a byte (8 bits) of space. Our
+compressed text might look something like</p>
+
+<pre><code>0101010010101010001010010010010101001010001010100101010101
+1001010101010010011111111000000110000100000101000000000000
+</code></pre>
+
+<p>Those were totally made up 0s and 1s and do not mean anything. But, reading
+something like this, how can you know where the boundaries between characters
+are? Does 01 represent a character? 010? 0101? 01010?</p>
+
+<p>This is where a really smart idea called <strong>Huffman coding</strong> comes in! The idea
+is that we represent our characters (like a, b, c, d, &hellip;.) with codes like</p>
+
+<pre><code>a: 00
+b: 010
+c: 011
+d: 1000
+e: 1001
+f: 1010
+g: 1011
+h: 1111
+</code></pre>
+
+<p>If you look at these carefully, you&rsquo;ll notice something special! It&rsquo;s that none
+of these codes is a prefix of any other code. So if we write down
+<code>010001001011</code> we can see that it&rsquo;s <code>010 00 1001 011</code> or <code>baec</code>! There wasn&rsquo;t
+any ambiguity, because <code>0</code> and <code>01</code> and <code>0100</code>  don&rsquo;t mean anything.</p>
+
+<p>You might ALSO notice that these are all less than 8 bits! That means we&rsquo;re
+doing COMPRESSION. This Huffman table will let us compress anything that only
+has <code>abcdefgh</code>s in it.</p>
+
+<p>These Huffman tables are usually represented as <strong>trees</strong>. Here&rsquo;s the Huffman
+tree for the table I wrote down above:</p>
+
+<p><img src="/images/huffmantree.png"></p>
+
+<p>You can see that, for instance, if you follow the path <code>011</code> then you get to <code>c</code>.</p>
+
+<h3 id="let-s-read-some-real-huffman-tables">Let&rsquo;s read some real Huffman tables!</h3>
+
+<p>It&rsquo;s all very well and good to have a theoretical idea of how this works, but I
+like looking at Real Stuff.</p>
+
+<p>There&rsquo;s a really great program called <code>infgen</code> that I found this morning that
+helps you see the contents of a gzip file. You can get it with</p>
+
+<pre><code>wget http://zlib.net/infgen.c.gz
+gunzip infgen.c.gz
+</code></pre>
+
+<p>When we run<code>./infgen raven.txt.gz</code>, it prints out some somewhat cryptic output like</p>
+
+<pre><code>litlen 10 6
+litlen 32 5
+litlen 33 9
+litlen 34 10
+litlen 39 8
+litlen 44 6
+litlen 45 9
+litlen 46 9
+litlen 59 9
+litlen 63 10
+[... lots more ...]
+literal 'Once upon a midnight dreary, while I 
+match 3 31
+literal 'dered weak an
+match 5 9
+match 3 33
+literal 10 'Over many
+match 3 62
+literal 'quaint
+match 5 30
+literal 'curious volume of forgotten lore,
+</code></pre>
+
+<p>This is really neat! It&rsquo;s telling us how gzip&rsquo;s chosen to compress The Raven.
+We&rsquo;re going to ignore the parts that make sense (&ldquo;Once upon a midnight
+dreary..&ldquo;) and just focus on the confusing <code>litlen</code> parts.</p>
+
+<p>These <code>litlen</code> lines are weird! Thankfully I spent 5 straight days thinking
+about gzip <a href="http://jvns.ca/blog/2013/10/16/day-11-how-does-gzip-work/">in October 2013</a>
+so I know what they mean. <code>litlen 10 6</code> means &ldquo;The ASCII character 10 is
+represented with a code of length 6&rdquo;. Which initially seems totally unhelpful!
+Like, who cares if it&rsquo;s represented with a code of length 6 if I DON&rsquo;T KNOW
+WHAT THAT CODE IS?!!</p>
+
+<p>BUT! Let&rsquo;s sort these by code length first, and translate the ASCII codes to
+characters.</p>
+
+<pre><code>   ' ' 6
+   'a' 6
+   'e' 6
+   'i' 6
+   'n' 6
+   'o' 6
+   'r' 6
+   's' 6
+   't' 6
+  '\n' 7
+   ',' 7
+   'b' 7
+   'c' 7
+</code></pre>
+
+<p>For starters, these are some of the most common letters in the English
+language, so it TOTALLY MAKES SENSE that these would be encoded most
+efficiently. Yay!</p>
+
+<p>The gzip specification actually specifies an algorithm for translating these
+lengths into a Huffman table! We start with 000000, and then add 1 in binary
+each time. If the code length ever increases, then we shift left. (so 100 -&gt;
+1010). Let&rsquo;s apply that to these code lengths!</p>
+
+<pre><code>  ' ' 000000
+   'a' 000001
+   'e' 000010
+   'i' 000011
+   'n' 000100
+   'o' 000101
+   'r' 000110
+   's' 000111
+   't' 001000
+  '\n' 0010010
+   ',' 0010011
+   'b' 0010100
+   'c' 0010101
+   'd' 0010110
+   'f' 0010111
+   'h' 0011000
+   'l' 0011001
+   'm' 0011010
+   'p' 0011011
+   'u' 0011100
+</code></pre>
+
+<p>I found all this out by reading <a href="http://www.infinitepartitions.com/art001.html">this incredibly detailed page</a>, in case you want to know
+more.</p>
+
+<p>I wrote a script to do this, and you can try it out yourself! It&rsquo;s at
+<a href="https://github.com/jvns/gzip-huffman-tree/">https://github.com/jvns/gzip-huffman-tree</a></p>
+
+<p>I tried it out on the compressed source code <code>infgen.c.gz</code>, and you can totally
+see it&rsquo;s source code and not a novel!</p>
+
+<pre><code> ' ' 00000
+ 'a' 000010
+ 'e' 000011
+ 'i' 000100
+ 'n' 000101
+ 'o' 000110
+ 'r' 000111
+ 's' 001000
+ '&quot;' 0010010
+ '(' 0010011
+ ')' 0010100
+ ',' 0010101
+ '-' 0010110
+</code></pre>
+
+<p>I really like going through explorations like this because they give
+me a better idea of how things like Huffman codes are used in real
+life! It&rsquo;s kind of my favorite when things I learned about in math
+class show up in the programs I use every day. And now I feel like I
+have a better idea of when it would be appropriate to use a technique
+like this.</p>]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Diving into concurrency: trying out mutexes and atomics]]></title>
+    <link href="https://jvns.ca/blog/2014/12/14/fun-with-threads/"/>
+    <updated>2014-12-14T12:58:55+00:00</updated>
+    <id>https://jvns.ca/blog/2014/12/14/fun-with-threads/</id>
+    <content type="html"><![CDATA[<p>I hadn&rsquo;t written any threaded programs before yesterday. I knew sort of
+abstractly about some concurrency concepts (mutexes! people say
+compare-and-swap but I don&rsquo;t totally get it!), but actually
+understanding a Thing is hard if I&rsquo;ve never done it. So yesterday I
+decided to write a program with threads! In this post, we&rsquo;re going to:</p>
+
+<ol>
+<li>Write a threaded program that gets the wrong answer because of a race
+condition</li>
+<li>Fix that race condition in C and Rust, using 2 different approaches
+(mutexes and atomics)</li>
+<li>Find out why Rust is slower than C</li>
+<li>Talk a little about the actual system calls and instructions that
+make some of this work</li>
+</ol>
+
+<p></p>
+
+<p>At first I was going to write a concurrent hashmap, but
+<a href="https://twitter.com/kamalmarhubi">Kamal</a> wisely pointed out that I
+should start with something simpler, like a counter!</p>
+
+<p>So. We&rsquo;re going to get 20 threads to count to 20,000,000 all together.
+We&rsquo;ll have a global counter variable, and increment it like this:</p>
+
+<pre><code>counter += 1
+</code></pre>
+
+<p>That seems so safe! What can go wrong here is that if two threads try to
+increment the number at the exact same time, then it&rsquo;ll only get
+incremented once instead of twice. This is called a <strong>race condition</strong>.</p>
+
+<h3 id="writing-a-race-condition">Writing a race condition</h3>
+
+<p>Here&rsquo;s what my original C program looks like, with the bug. I wrote this
+by knowing that people used a library called &ldquo;pthreads&rdquo; to do threads in
+c, and googling &ldquo;pthreads example&rdquo;. I&rsquo;m not going to explain it very
+much, but essentially it creates 20 threads and has them all run the
+<code>AddThings</code> function which increments a global counter a million times.</p>
+
+<p>Full version:
+<a href="https://github.com/jvns/fun-with-threads/blob/master/counter_race.c">counter_race.c</a>.</p>
+
+<pre><code class="language-c">#define NUM_THREADS     20
+#define NUM_INCREMENTS  1000000
+
+int counter;
+
+void *AddThings(void *threadid) {
+   for (int i = 0; i &lt; NUM_INCREMENTS; i++)
+        counter += 1;
+   pthread_exit(NULL);
+}
+
+int main (int argc, char *argv[]) {
+   pthread_t threads[NUM_THREADS];
+   long t;
+   for(t = 0; t&lt;NUM_THREADS; t++){
+      int rc = pthread_create(&amp;threads[t], NULL, AddThings, (void *)t);
+      if (rc){
+         printf(&quot;ERROR; return code from pthread_create() is %d\n&quot;, rc);
+         exit(1);
+      }
+   }
+   // Wait for threads to finish
+   for (t = 0; t &lt; NUM_THREADS; t++)
+       pthread_join(threads[t], NULL);
+   printf(&quot;Final value of counter is: %d\n&quot;, counter);
+   pthread_exit(NULL);
+}
+</code></pre>
+
+<p>This program a) runs very fast and b) returns wildly different answers
+each time. We&rsquo;re expecting 20,000,000. I ran it 10 times and got 10
+different answers, between 2,838,838 and 5,695,671.</p>
+
+<h3 id="first-try-mutexes-and-learning-that-mutexes-can-be-really-slow">First try: mutexes! (and learning that mutexes can be Really Slow)</h3>
+
+<p>A mutex (or <strong>lock</strong>) is a way to control access to a resource so that
+two threads don&rsquo;t change it in conflicting ways at the same time.</p>
+
+<p>A typical pattern for using a lock is:</p>
+
+<pre><code>lock.lock();
+// do something with shared state, eg counter +=1 
+lock.unlock();
+</code></pre>
+
+<p>Mutexes are often implemented on Linux systems with the <a href="http://man7.org/linux/man-pages/man2/futex.2.html"><code>futex</code> system
+call</a>. Basically it&rsquo;s
+a way of saying &ldquo;hey, kernel! This lock is closed, so I&rsquo;d like to stop
+running. Can you please wake me up when it&rsquo;s available again?&ldquo;.</p>
+
+<p>I learned during these explorations that all this making system calls
+and going to sleep and waking up again is actually pretty expensive. But
+let&rsquo;s do performance numbers first!</p>
+
+<p>So the C pthread library has a mutex implementation like this. Let&rsquo;s
+implement our counter with it! You can see the full implementation t
+<a href="https://github.com/jvns/fun-with-threads/blob/master/counter_with_mutex.c">counter_with_mutex.c</a>.
+It&rsquo;s a pretty small change: we need to add</p>
+
+<pre><code>pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+</code></pre>
+
+<p>at the beginning, and replace <code>counter += 1</code> with</p>
+
+<pre><code>pthread_mutex_lock(&amp;mutex);
+counter += 1;
+pthread_mutex_unlock(&amp;mutex);
+</code></pre>
+
+<p>If we run our new program, it calculates the correct answer every time!
+Amazing! What does the performance of this look like? I&rsquo;m going to do
+all my profiling with <code>perf stat</code> (perf is an amazing program that you
+can read more about in <a href="http://jvns.ca/blog/2014/05/13/profiling-with-perf/">I can spy on my CPU cycles with perf!</a>)</p>
+
+<pre><code>$ perf stat ./counter_with_mutex
+Final value of counter is: 20000000
+       3.134196432 seconds time elapse
+</code></pre>
+
+<p>Our original counter with the race condition took more like 0.08
+seconds. This is a really big performance hit, even if it means that we
+have a program that works instead of a program that doesn&rsquo;t!</p>
+
+<h3 id="mutexes-in-rust-too-it-s-even-slower">Mutexes in Rust, too! (it&rsquo;s even slower!)</h3>
+
+<p>I decided to implement the same thing in Rust because, well, Rust is
+fun! You can see it at
+<a href="https://github.com/jvns/fun-with-threads/blob/master/rust_counter_mutex.rs">rust_counter_mutex.rs</a>.</p>
+
+<p>We create a mutex with</p>
+
+<pre><code>let data = Arc::new(Mutex::new(0u));
+</code></pre>
+
+<p>and increment it with</p>
+
+<pre><code>for _ in range(0u, NUM_INCREMENTS) {
+   let mut d = data.lock();
+    *d += 1;
+}
+</code></pre>
+
+<p>I basically got this to work by <a href="http://doc.rust-lang.org/std/sync/struct.Mutex.html">copying the Rust mutex
+documentation</a>. I&rsquo;m
+pretty impressed by how much Rust&rsquo;s documentation has improved in the
+last year.</p>
+
+<p>I ran this, and I was expecting it to perform about as well as my C code.
+It didn&rsquo;t.</p>
+
+<pre><code>$ perf stat ./rust_counter_mutex
+       8.842611143 seconds time elapsed
+</code></pre>
+
+<p>My first instinct was to profile it! I used Brendan Gregg&rsquo;s excellent
+<a href="https://github.com/brendangregg/FlameGraph">flame graph library</a>, and ran</p>
+
+<pre><code>$ sudo perf record ./rust_counter_mutex
+$ sudo perf script | stackcollapse-perf.pl | flamegraph.pl &gt; rust_mutex_flamegraph.svg
+</code></pre>
+
+<p><a href="/images/rust_mutex_flamegraph.svg"><img src="/images/rust_mutex_flamegraph.svg"></a></p>
+
+<p><a href="/images/c_mutex_flamegraph.svg"><img src="/images/c_mutex_flamegraph.svg"></a></p>
+
+<p>What is even going on here?! These two graphs look exactly the same. Why
+does the Rust one taking longer?</p>
+
+<p>So, off to the races in the #rust IRC channel! Fortunately, the people
+in #rust are the Nicest People. You can see them helping me out <a href="https://botbot.me/mozilla/rust/2014-12-13/?msg=27485007&amp;page=27">in the
+logs</a>
+=D.</p>
+
+<p>After a while, someone named Sharp explains that Rust&rsquo;s mutexes are
+implemented in a Slow Way using channels. This seems to make sense, but
+then why couldn&rsquo;t I see that from the flamegraph? He explains helpfully
+that channels in Rust are also implemented with the <code>futex</code> syscall, so
+it&rsquo;s spending all of its time in the same syscalls, just doing it less
+efficiently. COOL.</p>
+
+<p>Sharp also suggests using an atomic instead of a mutex, so that&rsquo;s the next
+step!</p>
+
+<h3 id="making-it-fast-with-atomics-in-rust">Making it fast with atomics in Rust</h3>
+
+<p>This one is at
+<a href="https://github.com/jvns/fun-with-threads/blob/master/rust_counter_atomics.rs">rust_counter_atomics.rs</a>.
+I did this without actually understanding what an atomic even is, so I&rsquo;m not
+going to explain anything yet.</p>
+
+<p>Basically we replace our mutex with a</p>
+
+<pre><code>let counter = Arc::new(AtomicUint::new(0));
+</code></pre>
+
+<p>and our loop with</p>
+
+<pre><code>for _ in range(0u, NUM_INCREMENTS) {
+    counter.fetch_add(1, Relaxed);
+}
+</code></pre>
+
+<p>I&rsquo;m not going to talk about the <code>Relaxed</code> right now (because I don&rsquo;t understand it as well as I&rsquo;d like), but basically this increments our counter in a threadsafe way (so that two threads can&rsquo;t race).</p>
+
+<p>And it works! And it&rsquo;s fast!</p>
+
+<pre><code>perf stat ./rust_counter_atomics
+20000000
+       0.556901591 seconds time elapsed
+</code></pre>
+
+<p>Here&rsquo;s the new flamegraph:</p>
+
+<p><a href="/images/rust_atomics_flamegraph.svg"><img src="/images/rust_atomics_flamegraph.svg"></a></p>
+
+<p>You can see from the new flamegraph that it&rsquo;s definitely not using
+mutexes at all. But we still don&rsquo;t know how these atomics work, which is
+troubling. Let&rsquo;s implement the same thing in C, to see if it makes it a
+little clearer.</p>
+
+<h3 id="atomics-in-c-even-faster">Atomics in C: even faster!</h3>
+
+<p>To use atomics in our C program, I replaced</p>
+
+<pre><code>for (int i = 0; i &lt; NUM_INCREMENTS; i++) {
+    pthread_mutex_lock(&amp;mutex);
+    counter += 1;
+    pthread_mutex_unlock(&amp;mutex);
+}
+</code></pre>
+
+<p>with something called <code>__sync_add_and_fetch</code>:</p>
+
+<pre><code>   for (int i = 0; i &lt; NUM_INCREMENTS; i++) {
+       __sync_add_and_fetch(&amp;counter, 1);
+   }
+</code></pre>
+
+<p>You might have noticed that the <code>fetch_add</code> in Rust is suspiciously
+similar to <code>__sync_add_and_fetch</code>. This is a special GCC <a href="https://gcc.gnu.org/onlinedocs/gcc-4.1.2/gcc/Atomic-Builtins.html">atomic builtin</a>
+which generates assembly instructions to safely increment our counter.</p>
+
+<p>That GCC documentation page is pretty readable! One interesting thing is
+this:</p>
+
+<blockquote>
+<p>All of the routines are described in the Intel documentation to take
+“an optional list of variables protected by the memory barrier”. It&rsquo;s
+not clear what is meant by that; it could mean that only the following
+variables are protected, or it could mean that these variables should
+in addition be protected. At present GCC ignores this list and
+protects all variables which are globally accessible. If in the future
+we make some use of this list, an empty list will continue to mean all
+globally accessible variables.</p>
+</blockquote>
+
+<p>It&rsquo;s sort of refreshing to hear the people who write GCC (who I think of
+as MAGICAL WIZARDS WHO KNOW EVERYTHING) say that they read some Intel
+documentation and it was not clear what it meant! This stuff must really
+not be easy.</p>
+
+<p>This C program is a little faster than the Rust version, clocking in at
+around 0.44 seconds on my machine. I don&rsquo;t know why.</p>
+
+<h3 id="what-actual-cpu-instructions-are-involved">What actual CPU instructions are involved?</h3>
+
+<p>I don&rsquo;t really read assembly, so we&rsquo;ll need some help to see which are
+the Magical Safe Instructions. <code>perf</code> is the best program in the
+universe, and it can help us with this! <code>perf record</code> and <code>perf
+annotate</code> together let us see which instructions in our program are
+taking the most time.</p>
+
+<pre><code>$ perf record ./counter_with_atomics
+$ perf annotate --no-source
+       │    ↓ jmp    21 
+  0.03 │15:   lock   addl   $0x1,counter
+ 99.43 │      addl   $0x1,-0x4(%rbp)
+  0.13 │21:   cmpl   $0xf423f,-0x4(%rbp)
+  0.41 │    ↑ jle    15  
+</code></pre>
+
+<p>and we can try it with the Rust program, too:</p>
+
+<pre><code>$ perf record ./rust_counter_atomics
+$ perf annotate --no-source
+       │       nop
+  0.05 │ 50:   mov    0x20(%rbx),%rcx
+  0.02 │       lock   incq 0x10(%rcx)
+ 99.93 │       dec    %rax
+       │     ↑ jne    50  
+</code></pre>
+
+<p>So we can see that there&rsquo;s a <code>lock</code> instruction prefix that increments a
+variable in each case. Googling for &ldquo;lock instruction finds us this <a href="http://x86.renejeschke.de/html/file_module_x86_id_159.html">x86 instruction set reference</a>:</p>
+
+<blockquote>
+<p>In a multiprocessor environment, the LOCK# signal insures that the
+processor has exclusive use of any shared memory while the signal is
+asserted.</p>
+</blockquote>
+
+<p>In both cases over 99% of the run time is spent in the instruction right
+after that instruction. I&rsquo;m not totally sure why that is, but it could
+be that the <code>lock</code> itself is fast, but then once it&rsquo;s done the memory it
+updated needs to be synchronized and the next instruction needs to wait
+for that to happen. That&rsquo;s mostly made up though. If you want to explain
+it to me I would be delighted.</p>
+
+<p>(If you&rsquo;ve heard about compare-and-swap, that&rsquo;s a similar instruction
+that lets you update variables without creating races)</p>
+
+<h3 id="we-are-now-slightly-closer-to-being-concurrency-wizards">We are now slightly closer to being concurrency wizards</h3>
+
+<p>This was really fun! In January I was talking to a (super nice!) company
+that built distributed systems about interviewing there, and they sent
+me some questions to answer. One of the questions was something like
+&ldquo;can you discuss the pros and cons of using a lock-free approach for
+implementing a thread-safe hashmap?&rdquo;</p>
+
+<p>My reaction at the time was WHAT ARE YOU EVEN ASKING ME HELP. But these
+concurrency explorations make me feel like that question is a lot more
+reasonable! Using atomic instructions in this case was way faster than
+using a mutex, and I feel like I have a slightly better sense of how all
+this works now.</p>
+
+<p>Also when I see a process waiting in a <code>futex(...</code> system call when I
+strace it, I understand what&rsquo;s going on a little better! This is
+wonderful.</p>
+
+<p>Thanks are due to <a href="https://twitter.com/kamalmarhubi">Kamal</a> for having
+lots of wonderful suggestions, and the people of the ever-amazing #rust
+IRC channel. You can see all the code for this post at
+<a href="https://github.com/jvns/fun-with-threads/">https://github.com/jvns/fun-with-threads/</a>.</p>]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[How does SQLite work? Part 2: btrees! (or: disk seeks are slow don&#39;t do them!)]]></title>
+    <link href="https://jvns.ca/blog/2014/10/02/how-does-sqlite-work-part-2-btrees/"/>
+    <updated>2014-10-02T23:29:14+00:00</updated>
+    <id>https://jvns.ca/blog/2014/10/02/how-does-sqlite-work-part-2-btrees/</id>
+    <content type="html"><![CDATA[<p>Welcome back to fun with databases! In
+<a href="http://jvns.ca/blog/2014/09/27/how-does-sqlite-work-part-1-pages/">Part 1</a>
+of this series, we learned that:</p>
+
+<ul>
+<li>SQLite databases are organized into fixed-size <strong>pages</strong>. I made an
+example database which had 1k pages.</li>
+<li>The pages are all part of a kind of tree called a <strong>btree</strong>.</li>
+<li>There are two kinds of pages: <strong>interior pages</strong> and <strong>leaf pages</strong>.
+Data is only stored in leaf pages.</li>
+</ul>
+
+<p>I mentioned last time that I put in some print statements to tell me
+every time I read a page, like this:</p>
+
+<pre><code>sqlite&gt; select * from fun where id = 10;
+Read a btree page, page number 4122
+Read a btree page, page number 900
+Read a btree page, page number 5
+</code></pre>
+
+<p>Let&rsquo;s understand a little bit more about how these btrees work! First,
+some theory.</p>
+
+<p>Normally when I think about tracking tree accesses, I think about it
+in terms of &ldquo;how many times you need to jump to a new node&rdquo;. So in a
+binary tree with depth 10, you might need to jump up to 10 times.</p>
+
+<p></p>
+
+<p>One of the most important things in database optimization is disk I/O.
+Reading more data than you absolutely need to read is really
+expensive, because seeking to a new location in a file takes a long
+time. It takes <strong>way less</strong> CPU time to search through your data than
+it does to read the data into memory (see:
+<a href="http://jvns.ca/blog/2014/05/12/computers-are-fast/">Computers are fast!</a>,
+<a href="https://gist.github.com/jboner/2841832">Latency Numbers Every Programmer Should Know</a>).</p>
+
+<p>So for a simple database scan, reading more data than you need is a
+huge problem</p>
+
+<p>So far we know that:</p>
+
+<ol>
+<li>Our database is organized into 1k pages</li>
+<li>We want to read as little of the database as possible to write a
+query, and</li>
+<li>My filesystem has a &ldquo;block size&rdquo; of 4k, which means that it&rsquo;s
+impossible to read less than 4k at a time.</li>
+</ol>
+
+<p>We can conclude from this that we want to read <strong>as few pages as
+possible</strong>. btrees are organized so that each node has lots of
+children, to keep the depth small, and so that we won&rsquo;t have to read
+too many pages to find a row.</p>
+
+<p>My 100,000 row SQLite database has a btree with depth 3, so to fetch a
+node I only need to read 3 pages. If I&rsquo;d used a binary tree I would
+have needed to do log(100000) / log(2) = 16 seeks! That&rsquo;s more than
+five times as many. So these btrees seem like a pretty good idea.</p>
+
+<h2 id="the-index-and-table-btrees">The index and table btrees</h2>
+
+<p>So far we&rsquo;ve been talking like there&rsquo;s only one btree. This isn&rsquo;t
+actually true at all! My database has one table, and two btrees.</p>
+
+<p>Each table has a btree, made up of interior and leaf nodes. Leaf nodes
+contain all the data, and interior nodes point to other child nodes.</p>
+
+<p>Every index for that table also has its own btree, where you can look
+up which row id a column value corresponds to. This is why maintaining
+lots of indexes is slow &ndash; every time you insert a row you need to
+update as many trees as you have indexes.</p>
+
+<p>Let&rsquo;s dive into a query a bit more deeply. It turns out SQLite does a
+binary search inside every page of every btree to find out what node
+to go to next. I&rsquo;ve printed out the indexes it tries while doing the
+binary search.</p>
+
+<pre><code>sqlite&gt; select * from fun where id = 1000;
+
+Read a btree page, page number 1
+
+Searching for 1000...
+
+Read a btree page, page number 4122
+Number of cells in page: 62
+idx: 30
+idx: 14
+idx: 6
+idx: 2
+idx: 0
+
+Read a btree page, page number 900
+Number of cells in page: 67
+idx: 33
+idx: 16
+idx: 7
+idx: 3
+idx: 1
+idx: 2
+
+Read a btree page, page number 7
+Number of cells in page: 69
+idx: 34
+idx: 16
+idx: 7
+idx: 3
+idx: 1
+idx: 2
+
+-------------------------------------
+Looking for key: 99001
+
+Read a btree page, page number 2
+Number of cells in page: 19
+Current key: index   9, value 51627
+Current key: index  14, value 75920
+Current key: index  16, value 86203
+Current key: index  17, value 91286
+Current key: index  18, value 95577
+
+Read a btree page, page number 4091
+Number of cells in page: 67
+Current key: index  33, value 97372
+Current key: index  50, value 98277
+Current key: index  58, value 98698
+Current key: index  62, value 98927
+Current key: index  64, value 99044
+Current key: index  63, value 98985
+
+Read a btree page, page number 4129
+Number of cells in page: 59
+Current key: index  29, value 99015
+Current key: index  14, value 99000
+Current key: index  21, value 99007
+Current key: index  17, value 99003
+Current key: index  15, value 99001
+1000|yummier
+
+</code></pre>
+
+<p>Wow, that was a lot of work. There were actually two separate searches
+here, in two different btrees.</p>
+
+<ol>
+<li>Look up the <strong>rowid</strong> associated with the number <code>1000</code> in the
+<strong>index btree</strong> &ndash; <code>99001</code>.
+(<a href="https://www.sqlite.org/lang_createtable.html#constraints">some rowid docs</a>).</li>
+<li>Look up <code>99001</code> in the <strong>table btree</strong>.</li>
+</ol>
+
+<p>It&rsquo;s really neat to see it doing the binary search for <code>99001</code> inside
+each page! I couldn&rsquo;t quite figure out how to get it to print out the
+comparisons it was doing when looking up 1000 in the index btree,
+because it does some weird function pointer magic to do comparisons.</p>
+
+<p><a href="https://twitter.com/kamalmarhubi">Kamal</a> is parsing SQLite databases
+with the Python construct module next to me right now and it is
+AMAZING. There may be future installments. Who knows!</p>]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[How does SQLite work? Part 1: pages!]]></title>
+    <link href="https://jvns.ca/blog/2014/09/27/how-does-sqlite-work-part-1-pages/"/>
+    <updated>2014-09-27T23:53:50+00:00</updated>
+    <id>https://jvns.ca/blog/2014/09/27/how-does-sqlite-work-part-1-pages/</id>
+    <content type="html"><![CDATA[<p>This evening the fantastic <a href="https://twitter.com/kamalmarhubi">Kamal</a>
+and I sat down to learn a little more about databases than we did
+before.</p>
+
+<p>I wanted to hack on <a href="https://www.sqlite.org/">SQLite</a>, because I&rsquo;ve
+used it before, it requires no configuration or separate server
+process, I&rsquo;d been told that its source code is well-written and
+approachable, and all the data is stored in one file. Perfect!</p>
+
+<p>
+To start out, I created a new database like this:</p>
+
+<pre><code class="language-sql">drop table if exists fun;
+create table fun (
+    id int PRIMARY KEY,
+    word string
+);
+</code></pre>
+
+<p>Just a primary key and a string! What could be simpler? I then wrote a
+little Python script to put the contents of <code>/usr/share/dict/words</code> in
+the database:</p>
+
+<pre><code class="language-python">import sqlite3
+c = sqlite3.connect(&quot;./fun.sqlite&quot;)
+with open('/usr/share/dict/words') as f:
+    for i, word in enumerate(f):
+        word = word.strip()
+        word = unicode(word, 'latin1')
+        c.execute(&quot;INSERT INTO fun VALUES (?, ?);&quot;, (i, word))
+c.commit()
+c.close()
+</code></pre>
+
+<p>Great! Now we have a 4MB database called <code>fun.sqlite</code> for
+experimentation. My favorite first thing to do with binary files is to
+<code>cat</code> them. That worked pretty well, but Kamal pointed out that of
+course <code>hexdump</code> is a better way to look at binary files. The output
+of <code>hexdump -C fun.sqlite</code> looks something like this:</p>
+
+<pre><code>|.............{.n|
+|.a.R.D.4.%......|
+|................|
+|...y.n._.N.&gt;.,.$|
+|................|
+|..............F.|
+|..EAcevedo.E...D|
+|Accra's.D...CAcc|
+|ra.C..#BAccentur|
+|e's.B...AAccentu|
+|re.A..!@Acapulco|
+|'s.@...?Acapulco|
+|.?...&gt;Acadia's.&gt;|
+|...=Aradia.=...&lt;|
+|Ac's.&lt;...;Ac.;..|
+|%:Abyssinian's.:|
+|..!9Abyssinian.9|
+|..#8Abyssinia's.|
+|8...7Abyssinia.7|
+</code></pre>
+
+<p>I&rsquo;ve pasted the first few thousand lines of the hexdump in
+<a href="https://gist.github.com/jvns/d21876d1388343c3a4a3">this gist</a>, so you
+can look more closely. You&rsquo;ll see that the file is alternately split
+into words and gibberish &ndash; there will be a sequence of mostly words,
+and then unreadable nonsense.</p>
+
+<p>Of course there&rsquo;s a rhyme to this reason! The wonderfully written
+<a href="https://www.sqlite.org/fileformat2.html">File Format for SQLite Databases</a>
+tells us that a SQLite database is split into <strong>pages</strong>, and that
+bytes 16 and 17 of our file are the <strong>page size</strong>.</p>
+
+<p>My <code>fun.sqlite</code> starts like this:</p>
+
+<pre><code>00000000  53 51 4c 69 74 65 20 66  6f 72 6d 61 74 20 33 00  |SQLite format 3.|
+00000010  04 00 01 01 00 40 20 20  00 00 00 27 00 00 0c be  |.....@  ...'....|
+          ^^ ^^
+        page size :)
+</code></pre>
+
+<p>so our page size is <code>0x0400</code> bytes, or 1024 bytes, or 1k. So this
+database is split into a bunch of 1k chunks called pages.</p>
+
+<p>There&rsquo;s an index on the <code>id</code> column of our <code>fun</code> table, which lets us
+run queries like <code>select * from fun where id = 100</code> quickly. To be a
+bit more precise: to find row 100, we don&rsquo;t need to read every page,
+we can just read a few pages. I&rsquo;ve always understood indexes in a
+pretty vague way &ndash; I know that they&rsquo;re &ldquo;some kind of tree&rdquo;, which
+lets you access data in O(log n), and in particular that databases use
+something called a <strong>btree</strong>. I still do not really know what a btree
+is. Let&rsquo;s see if we can do any better!</p>
+
+<p>Here&rsquo;s where it starts to get really fun! I downloaded the sqlite
+source code, and Kamal and I figured out how to get it to compile.
+(using nix, which is a totally other story)</p>
+
+<p>Then I put in a print statement so that it would tell me every time it
+accesses a page. There&rsquo;s about 140,000 lines of SQLite source code,
+which is a bit intimidating!</p>
+
+<p>It&rsquo;s also incredibly well commented, though, and includes adorable
+notes like this:</p>
+
+<pre><code class="language-c">/************** End of btree.c ***********************************************/
+/************** Begin file backup.c ******************************************/
+/*
+** 2009 January 28
+**
+** The author disclaims copyright to this source code.  In place of
+** a legal notice, here is a blessing:                                                                                                                                                   
+**
+**    May you do good and not evil.
+**    May you find forgiveness for yourself and forgive others.
+**    May you share freely, never taking more than you give.
+**
+*************************************************************************
+** This file contains the implementation of the sqlite3_backup_XXX()
+** API functions and the related features.
+</code></pre>
+
+<p>My next goal was to get SQLite to tell me how it was traversing the
+pages. Some careful grepping of the 140,000 lines led us to this
+function <code>btreePageFromDbPage</code>. All page reads need to go through this
+function, so we can just add some logging to it :)</p>
+
+<pre><code class="language-c">/*
+** Convert a DbPage obtained from the pager into a MemPage used by
+** the btree layer.
+*/
+static MemPage *btreePageFromDbPage(DbPage *pDbPage, Pgno pgno, BtShared *pBt){
+  MemPage *pPage = (MemPage*)sqlite3PagerGetExtra(pDbPage);
+  pPage-&gt;aData = sqlite3PagerGetData(pDbPage);
+  pPage-&gt;pDbPage = pDbPage;
+  pPage-&gt;pBt = pBt;
+  pPage-&gt;pgno = pgno;
+  printf(&quot;Read a btree page, page number %d\n&quot;, pgno); // added by me!
+  pPage-&gt;hdrOffset = pPage-&gt;pgno==1 ? 100 : 0;
+  return pPage;
+}
+</code></pre>
+
+<p>Now it&rsquo;ll notify us every time it reads a page! NEAT! Let&rsquo;s experiment
+a little bit.</p>
+
+<pre><code>sqlite&gt; select * from fun where id = 1;
+Read a btree page, page number 1
+Read a btree page, page number 5
+Read a btree page, page number 828
+Read a btree page, page number 10
+Read a btree page, page number 2
+Read a btree page, page number 76
+Read a btree page, page number 6
+1|A's
+
+sqlite&gt; select * from fun where id = 20;
+Read a btree page, page number 1
+Read a btree page, page number 5
+Read a btree page, page number 828
+Read a btree page, page number 10
+Read a btree page, page number 2
+Read a btree page, page number 76
+Read a btree page, page number 6
+20|Aaliyah
+</code></pre>
+
+<p>Those two rows (1 and 20) are in the same page, so it traverses the
+same path to get to both of them!</p>
+
+<pre><code>sqlite&gt; select * from fun where id = 200;
+Read a btree page, page number 1
+Read a btree page, page number 5
+Read a btree page, page number 828
+Read a btree page, page number 11
+Read a btree page, page number 2
+Read a btree page, page number 76
+Read a btree page, page number 2818
+200|Aggie
+</code></pre>
+
+<p>Apparently <code>200</code> is pretty close in the tree, but it needs to go to
+page <code>2818</code> instead at the end. And <code>80000</code> is much further away:</p>
+
+<pre><code>sqlite&gt; select * from fun where id = 80000;
+Read a btree page, page number 1
+Read a btree page, page number 5
+Read a btree page, page number 1198
+Read a btree page, page number 992
+Read a btree page, page number 2
+Read a btree page, page number 1813
+Read a btree page, page number 449
+80000|scarfs
+</code></pre>
+
+<p>If we go back and inspect the file, we can see that pages 1, 5, 1198,
+992, 2, and 1813 are <em>interior nodes</em> &ndash; they have no data in them,
+just pointers to other pages. Pages 6, 2818, and 449 are <em>leaf nodes</em>,
+and they&rsquo;re where the data is.</p>
+
+<p>I&rsquo;m still not super clear on how exactly the interior pages are
+structured and how the pointers to their child pages work. It&rsquo;s time
+to sleep now, but perhaps that will happen another day!</p>
+
+<p>Modifying open source programs to print out debug information to
+understand their internals better: SO FUN.</p>]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[How is a binary executable organized? Let&#39;s explore it!]]></title>
+    <link href="https://jvns.ca/blog/2014/09/06/how-to-read-an-executable/"/>
+    <updated>2014-09-06T11:18:38+00:00</updated>
+    <id>https://jvns.ca/blog/2014/09/06/how-to-read-an-executable/</id>
+    <content type="html"><![CDATA[<p>I used to think that executables were totally impenetrable. I&rsquo;d
+compile a C program, and then that was it! I had a Magical Binary
+Executable that I could no longer read.</p>
+
+<p>It is not so! Executable file formats are regular file formats that
+you can understand. I&rsquo;ll explain some simple tools to start! We&rsquo;ll be
+working on Linux, with ELF binaries. (binaries are kind of the
+definition of platform-specific, so this is all platform-specific.)
+We&rsquo;ll be using C, but you could just as easily look at output from any
+compiled language.</p>
+
+<p>Let&rsquo;s write a simple C program, <code>hello.c</code>:</p>
+
+<pre><code class="language-c">#include &lt;stdio.h&gt;
+
+int main() {
+    printf(&quot;Penguin!\n&quot;);
+}
+</code></pre>
+
+<p>Then we compile it (<code>gcc -o hello hello.c</code>), and we have a binary called
+<code>hello</code>. This originally seems impenetrable (how do we even binary?!),
+but let&rsquo;s see how we can investigate it! We&rsquo;re going to learn what
+<strong>symbols</strong>, <strong>sections</strong>, and <strong>segments</strong> are. At a high level:</p>
+
+<ul>
+<li><strong>symbols</strong> are like function names, and are used to answer &ldquo;If I call
+<code>printf</code> and it&rsquo;s defined somewhere else, how do I find it?&rdquo;</li>
+<li>symbols are organized into <strong>sections</strong> &ndash; code lives in one section
+(<code>.text</code>), and data in another (<code>.data</code>, <code>.rodata</code>)</li>
+<li>sections are organized into <strong>segments</strong></li>
+</ul>
+
+<p></p>
+
+<p>Throughout we&rsquo;ll use a tool called <code>readelf</code> to look at these.</p>
+
+<p>So, let&rsquo;s dive into our binary!</p>
+
+<h2 id="step-1-open-it-in-a-text-editor">Step 1: open it in a text editor!</h2>
+
+<p>This is most naive possible way to view a binary. If run <code>cat hello</code>,
+I get something like this:</p>
+
+<pre>
+ELF>@@H@8
+@@@@@@��88@@@@�� ((`(`�
+PP`P`��P�td@,,Q�tdR�td((`(`��/lib64/ld-linux-x86-64.so.2GNUGNUϨ�n��8�w�j7*oL�h��
+__gmon_start__libc.so.6puts__libc_start_mainGLIBC_2.2.5ui
+1```H��k����H���5 H�[]�fff.�H�=p
+UH��t�H��]�H`��]Ð�UH����@�����]Ð�����������H�l$�L�d$�H�- L�%
+L�l$�L�t$�L�|$�H�\$�H��8L)�A��I��H��I���s���H��t1@L��L��D��A��H��H9�u�H�\H�l$L�d$L�l$
+L�t$(L�|$0H��8��Ð�������������UH��SH�H�
+H���t�(`DH���H�H���u�H�[]Ð�H��o���H��Penguin!;,����H
+</pre>
+
+<p>There&rsquo;s text here, though! This was not a total failure. In particular
+it says &ldquo;Penguin!&rdquo; and &ldquo;ELF&rdquo;. ELF is the name of the binary format. So
+that&rsquo;s something! Then there are a bunch of unprintable symbols, which
+isn&rsquo;t a huge surprise because this is a binary.</p>
+
+<h2 id="step-2-use-readelf-to-see-the-symbol-table">Step 2: use <code>readelf</code> to see the symbol table</h2>
+
+<p>Throughout we&rsquo;re going to use a tool called <code>readelf</code> to explore our
+binary. Let&rsquo;s start by running <code>readelf --symbols</code> on it. (another
+popular tool to do this is <code>nm</code>)</p>
+
+<pre><code>$ readelf --symbols hello 
+   Num:    Value          Size Type    Bind   Vis      Ndx Name
+    48: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND puts@@GLIBC_2.2.5
+    59: 0000000000400410     0 FUNC    GLOBAL DEFAULT   13 _start
+    61: 00000000004004f4    16 FUNC    GLOBAL DEFAULT   13 main
+</code></pre>
+
+<p>(<a href="https://gist.github.com/jvns/0f82a7655d32bb6b331e">full output here</a>)</p>
+
+<p>Here we see three <em>symbols</em>: <code>main</code> is the address of my <code>main()</code>
+function. <code>puts</code> looks like a reference to the <code>printf</code> function I called
+in it (which I guess the compiler changed to <code>puts</code> as an
+optimization?). <code>_start</code> is pretty important.</p>
+
+<p>When the program starts running, you might think it starts at <code>main</code>.
+It doesn&rsquo;t! It <em>actually</em> goes to <code>_start</code>. This does a bunch of Very
+Important Things that I don&rsquo;t understand very well, including calling
+<code>main</code>. So I won&rsquo;t explain them.</p>
+
+<p>So, what&rsquo;s a symbol?</p>
+
+<h3 id="symbols">Symbols</h3>
+
+<p>When you write a program, you might write a function called <code>hello</code>.
+When you compile the program, the binary for that function is labelled
+with a <strong>symbol</strong> called <code>hello</code>. If I call a function (like <code>printf</code>)
+from a library, we need a way to look up the code for that function!
+The process of looking up functions from libraries is called
+<strong>linking</strong>. It can happen either just after we compile the program
+(&ldquo;static linking&rdquo;) or when we run the program (&ldquo;dynamic linking&rdquo;).</p>
+
+<p>So symbols are what allow linking to work! Let&rsquo;s find the symbol for
+printf! It&rsquo;ll be in <code>libc</code>, where all the C standard library
+functions are.</p>
+
+<p>If I run <code>nm</code> on my copy of libc, it tells me &ldquo;no symbols&rdquo;. But the
+internet tells me I can use <code>objdump -tT</code> instead! This works!
+<code>objdump -tT /lib/x86_64-linux-gnu/libc-2.15.so</code> gives me
+<a href="https://gist.github.com/jvns/13bae55c3d463cdad809">this output</a>.</p>
+
+<p>If you look at it, you&rsquo;ll see <code>sprintf</code>, <code>strlen</code>, <code>fork</code>, <code>exec</code>, and
+everything you might expect libc to have. From here we can start to
+imagine how dynamic linking works &ndash; we see that <code>hello</code> calls <code>puts</code>,
+and then we can look up the location of <code>puts</code> in libc&rsquo;s symbol table.</p>
+
+<h2 id="step-3-use-objdump-to-see-the-binary-and-learn-about-sections">Step 3: use <code>objdump</code> to see the binary, and learn about sections!</h2>
+
+<p>Opening our binary in a text editor was a bad way to open it.
+<code>objdump</code> is a better way. Here&rsquo;s an excerpt:</p>
+
+<pre><code>$ objdump -s hello
+Contents of section .text:
+ 400410 31ed4989 d15e4889 e24883e4 f0505449  1.I..^H..H...PTI
+ 400420 c7c0a005 400048c7 c1100540 0048c7c7  ....@.H....@.H..
+ 400430 f4044000 e8c7ffff fff49090 4883ec08  ..@.........H...
+Contents of section .interp:
+ 400238 2f6c6962 36342f6c 642d6c69 6e75782d  /lib64/ld-linux-
+ 400248 7838362d 36342e73 6f2e3200           x86-64.so.2.    
+Contents of section .rodata:
+ 4005f8 01000200 50656e67 75696e21 00        ....Penguin!.   
+</code></pre>
+
+<p>You can see that it shows us all the bytes in the file as hex on the
+left, and a translation into ASCII on the right.</p>
+
+<p>The are a whole bunch of <strong>sections</strong> here (see
+<a href="https://gist.github.com/jvns/64aa2c85e083e0031609">this gist</a> for the
+whole thing). This shows you all the bytes in your binary! Some
+sections we care about:</p>
+
+<ul>
+<li><code>.text</code> is the program&rsquo;s actual code (the assembly). <code>_start</code> and
+<code>main</code> are both part of the <code>.text</code> section.</li>
+<li><code>.rodata</code> is where some read-only data is stored (in this case, our
+string &ldquo;Penguin!&rdquo;)</li>
+<li><code>.interp</code> is the filename of the dynamic linker!</li>
+</ul>
+
+<p>The major difference between <em>sections</em> and <em>segments</em> is that
+sections are used at link time (by <code>ld</code>) and segments are used at
+execution time. <code>objdump</code> shows us the contents of the sections, which
+is nice, but doesn&rsquo;t give us as much metadata about the sections as
+I&rsquo;d like. Let&rsquo;s try <code>readelf</code> instead:</p>
+
+<pre><code>$ readelf --sections hello
+Section Headers:
+  [Nr] Name              Type             Address           Offset
+       Size              EntSize          Flags  Link  Info  Align
+  [13] .text             PROGBITS         0000000000400410  00000410
+       00000000000001d8  0000000000000000  AX       0     0     16
+  [15] .rodata           PROGBITS         00000000004005f8  000005f8
+       000000000000000b  0000000000000000   A       0     0     4
+  [24] .data             PROGBITS         0000000000601010  00001010
+       0000000000000010  0000000000000000  WA       0     0     8
+  [25] .bss              NOBITS           0000000000601020  00001020
+       0000000000000010  0000000000000000  WA       0     0     8
+  [26] .comment          PROGBITS         0000000000000000  00001020
+       000000000000002a  0000000000000001  MS       0     0     1
+Key to Flags:
+  W (write), A (alloc), X (execute), M (merge), S (strings), l (large)
+  I (info), L (link order), G (group), T (TLS), E (exclude), x (unknown)
+  O (extra OS processing required) o (OS specific), p (processor specific)
+</code></pre>
+
+<p>(<a href="https://gist.github.com/jvns/37ce4ad26758b403f6b3">full output</a>)</p>
+
+<p>Neat! We can see <code>.text</code> is executable and read-only, <code>.rodata</code> (&ldquo;read
+only data&rdquo;) is read-only, and <code>.data</code> is read-write.</p>
+
+<h2 id="step-4-look-at-some-assembly">Step 4: Look at some assembly!</h2>
+
+<p>We mentioned briefly that <code>.text</code> contains assembly code. We can
+actually look at what it is really easily. If we were magicians, we
+would already be able to read and understand this:</p>
+
+<pre><code>Contents of section .text:
+ 400410 31ed4989 d15e4889 e24883e4 f0505449  1.I..^H..H...PTI
+ 400420 c7c0a005 400048c7 c1100540 0048c7c7  ....@.H....@.H..
+ 400430 f4044000 e8c7ffff fff49090 4883ec08  ..@.........H...
+</code></pre>
+
+<p>It starts with <code>31ed4989</code>. Those are bytes that our CPU interprets as
+code! And runs! However we are not magicians (I don&rsquo;t know what <code>31
+ed</code> means!) and so we will use a disassembler instead.</p>
+
+<pre><code>$ objdump -d ./hello
+Disassembly of section .text:
+
+0000000000400410 &lt;_start&gt;:
+  400410:       31 ed                   xor    %ebp,%ebp
+  400412:       49 89 d1                mov    %rdx,%r9
+  400415:       5e                      pop    %rsi
+  400416:       48 89 e2                mov    %rsp,%rdx
+  400419:       48 83 e4 f0             and    $0xfffffffffffffff0,%rsp
+</code></pre>
+
+<p><a href="https://gist.github.com/jvns/75298b0a5b6cde5de175">full output here</a></p>
+
+<p>So we see that <code>31 ed</code> is xoring two things. Neat! That&rsquo;s all the
+assembly we&rsquo;ll do for now.</p>
+
+<h2 id="step-5-segments">Step 5: Segments!</h2>
+
+<p>Finally, a program is organized into <strong>segments</strong> or <strong>program
+headers</strong>. Let&rsquo;s look at the segments for our program using <code>readelf
+--segments hello</code>.</p>
+
+<pre><code>Program Headers:
+  [... removed ...]
+  INTERP         0x0000000000000238 0x0000000000400238 0x0000000000400238
+                 0x000000000000001c 0x000000000000001c  R      1
+      [Requesting program interpreter: /lib64/ld-linux-x86-64.so.2]
+  LOAD           0x0000000000000000 0x0000000000400000 0x0000000000400000
+                 0x00000000000006d4 0x00000000000006d4  R E    200000
+  LOAD           0x0000000000000e28 0x0000000000600e28 0x0000000000600e28
+                 0x00000000000001f8 0x0000000000000208  RW     200000
+  [... removed ...]
+
+ Section to Segment mapping:
+  Segment Sections...
+   00     
+   01     .interp 
+   02 .interp .note.ABI-tag .note.gnu.build-id .gnu.hash .dynsym
+       .dynstr .gnu.version .gnu.version_r .rela.dyn .rela.plt .init .plt
+       .text .fini .rodata .eh_frame_hdr .eh_frame
+   03     .ctors .dtors .jcr .dynamic .got .got.plt .data .bss 
+   04     .dynamic 
+   05     .note.ABI-tag .note.gnu.build-id 
+   06     .eh_frame_hdr 
+   07     
+   08     .ctors .dtors .jcr .dynamic .got 
+
+</code></pre>
+
+<p>Segments are used to determine how to separate different parts of the
+program into memory. The first <code>LOAD</code> segment is marked R E (read /
+execute) and the second is <code>RW</code> (read/write). <code>.text</code> is in the first
+segment (we want to read it but never write to it), and <code>.data</code>,
+<code>.bss</code> are in the second (we need to write to them, but not execute
+them).</p>
+
+<h2 id="not-magic">Not magic!</h2>
+
+<p>Executables aren&rsquo;t magic. ELF is a file format like any other! You can
+use <code>readelf</code>, <code>nm</code>, and <code>objdump</code> to inspect your Linux binaries. Try
+it out! Have fun.</p>
+
+<p>Other resources:</p>
+
+<ul>
+<li>I found
+<a href="http://www.bottomupcs.com/elf.html">this introduction to ELF</a>
+helpful for explaining sections and segments</li>
+<li>There&rsquo;s a wonderful
+<a href="https://code.google.com/p/corkami/wiki/ELF101">graphic showing the structure of an ELF binary</a>.</li>
+<li>For learning more about how linkers work, there&rsquo;s a wonderful
+<a href="http://lwn.net/Articles/276782/">20 part series about linkers</a>,
+which I wrote about
+<a href="http://jvns.ca/blog/2013/12/10/day-40-learning-about-linkers/">here</a>
+and
+<a href="http://jvns.ca/blog/2013/12/10/day-40-12-things-i-learned-today-about-linkers/">here</a>.</li>
+<li>I haven&rsquo;t talked much about assembly at all here! Read Dan Luu&rsquo;s
+<a href="http://danluu.com/edit-binary/">Editing Binaries: Easier than it sounds</a></li>
+</ul>
+
+<p><small> Thanks very much to the amazing
+<a href="http://akaptur.github.io">Allison Kaptur</a> and
+<a href="http://danluu.com">Dan Luu</a> for reading a draft of this.</small></p>]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[What happens if you write a TCP stack in Python?]]></title>
+    <link href="https://jvns.ca/blog/2014/08/12/what-happens-if-you-write-a-tcp-stack-in-python/"/>
+    <updated>2014-08-12T08:52:30+00:00</updated>
+    <id>https://jvns.ca/blog/2014/08/12/what-happens-if-you-write-a-tcp-stack-in-python/</id>
+    <content type="html"><![CDATA[<p>During Hacker School, I wanted to understand networking better, and I
+decided to write a miniature TCP stack as part of that. I was much
+more comfortable with Python than C and I&rsquo;d recently discovered the
+<a href="http://www.secdev.org/projects/scapy/">scapy</a> networking library
+which made sending packets
+<a href="http://jvns.ca/blog/2013/10/31/day-20-scapy-and-traceroute/">really easy</a>.</p>
+
+<p>So I started writing <a href="https://github.com/jvns/teeceepee">teeceepee</a>!</p>
+
+<p>The basic idea was</p>
+
+<ol>
+<li>open a raw network socket that lets me send TCP packets</li>
+<li>send a HTTP request to <code>GET</code> google.com</li>
+<li>get and parse a response</li>
+<li>celebrate!</li>
+</ol>
+
+<p>I didn&rsquo;t care much about proper error handling or anything; I just
+wanted to get one webpage and declare victory :)</p>
+
+<p></p>
+
+<h2 id="step-1-the-tcp-handshake">Step 1: the TCP handshake</h2>
+
+<p>I started out by doing a TCP handshake with Google! (this won&rsquo;t
+necessarily run correctly, but illustrates the principles). I&rsquo;ve
+commented each line.</p>
+
+<p>The way a TCP handshake works is:</p>
+
+<ul>
+<li>me: SYN</li>
+<li>google: SYNACK!</li>
+<li>me: ACK!!!</li>
+</ul>
+
+<p>Pretty simple, right? Let&rsquo;s put it in code.</p>
+
+<pre><code class="language-python"># My local network IP
+src_ip = &quot;192.168.0.11&quot;
+# Google's IP
+dest_ip = &quot;96.127.250.29&quot;
+# IP header: this is coming from me, and going to Google
+ip_header = IP(dst=dest_ip, src=src_ip)
+# Specify a large random port number for myself (59333),
+# and port 80 for Google The &quot;S&quot; flag means this is
+# a SYN packet
+syn = TCP(dport=80, sport=59333, 
+          ack=0, flags=&quot;S&quot;)
+# Send the SYN packet to Google
+# scapy uses '/' to combine packets with headers
+response = srp(ip_header / syn)
+# Add the sequence number 
+ack = TCP(dport=80, sport=self.src_port, 
+          ack=response.seq, flags=&quot;A&quot;) 
+# Reply with the ACK
+srp(ip_header / ack)
+</code></pre>
+
+<h3 id="wait-sequence-numbers">Wait, sequence numbers?</h3>
+
+<p>What&rsquo;s all this about sequence numbers? The whole point of TCP is to
+make sure you can resend packets if some of them go missing. Sequence
+numbers are a way to check if you&rsquo;ve missed packets. So let&rsquo;s say that
+Google sends me 4 packets, size 110, 120, 200, and 500 bytes. Let&rsquo;s
+pretend the initial sequence number is 0. Then those packets will have
+sequence numbers 0, 110, 230, and 430.</p>
+
+<p>So if I suddenly got a 100-byte packet with a sequence number of 2000,
+that would mean I missed a packet! The next sequence number should be
+930!</p>
+
+<p>How can Google know that I missed the packet? Every time I receive a
+packet from Google, I need to send an ACK (&ldquo;I got the packet with
+sequence number 230, thanks!&ldquo;). If the Google server notices I haven&rsquo;t
+ACKed a packet, then it can resend it!</p>
+
+<p>The TCP protocol is extremely complicated and has all kinds of rate
+limiting logic in it, but we&rsquo;re not going to talk about any of that.
+This is all you&rsquo;ll need to know about TCP for this post!</p>
+
+<p>For a more in-depth explanation, including how SYN
+packets affect sequence numbers, I found
+<a href="http://packetlife.net/blog/2010/jun/7/understanding-tcp-sequence-acknowledgment-numbers/">Understanding TCP sequence numbers</a>
+very clear.</p>
+
+<h2 id="step-2-oh-no-i-already-have-a-tcp-stack">Step 2: OH NO I already have a TCP stack</h2>
+
+<p>So I ran the code above, and I had a problem. IT DIDN&rsquo;T WORK.</p>
+
+<p>But in a kind of funny way! I just didn&rsquo;t get any responses. I looked
+in Wireshark (a wonderful tool for spying on your packets) and it
+looked like this:</p>
+
+<pre><code>me: SYN
+google: SYNACK
+me: RST
+</code></pre>
+
+<p>Wait, what? I never sent a <code>RST</code> packet?! <code>RST</code> means STOP THE
+CONNECTION IT&rsquo;S OVER. That is not in my code at all!</p>
+
+<p>This is when I remembered that I <em>already</em> have a TCP stack on my
+computer, in my kernel. So what was actually happening was:</p>
+
+<pre><code>my Python program: SYN
+google: SYNACK
+my kernel: lol wtf I never asked for this! RST!
+my Python program: ... :(
+</code></pre>
+
+<p>So how do we bypass the kernel? I talked to the delightful
+<a href="https://github.com/jtakkala">Jari Takkala</a> about this, and he
+suggested using
+<a href="http://jvns.ca/blog/2013/10/29/day-18-in-ur-connection/">ARP spoofing</a>
+to pretend I had a different IP address (like <code>192.168.0.129</code>).</p>
+
+<p>The new exchange was like this:</p>
+
+<pre><code>me: hey router! send packets for 192.168.0.129 to my MAC address
+router: (does it silently)
+my Python program: SYN (from 192.168.0.129)
+google: SYNACK
+kernel: this isn't my IP address! &lt;ignore&gt;
+my Python program: ACK YAY
+</code></pre>
+
+<p>And it worked! Okay, awesome, we can now send packets AND GET
+RESPONSES without my kernel interfering! AWESOME.</p>
+
+<h2 id="step-3-get-a-webpage">Step 3: get a webpage!</h2>
+
+<p>There is an intervening step here where I fix tons of irritating bugs
+preventing Google from sending me the HTML for <a href="http://google.com">http://google.com</a>. I
+eventually fixed all of these, and emerge victorious!</p>
+
+<p>I needed to</p>
+
+<ul>
+<li>put together a packet containing a HTTP GET request</li>
+<li>make sure I can listen for <em>lots</em> of packets in response, not just
+one</li>
+<li>spend a lot of time fixing bugs with sequence numbers</li>
+<li>try to close the connection properly</li>
+</ul>
+
+<h2 id="step-4-realize-python-is-slow">Step 4: realize Python is slow</h2>
+
+<p>Once I had everything working, I used Wireshark again to look at what
+packets were being sent back and forth. It looked something like this:</p>
+
+<pre><code>me/google: &lt;tcp handshake&gt;
+me: GET google.com
+google: 100 packets
+me: 3 ACKs
+google: &lt;starts resending packets&gt;
+me: a few more ACKs
+google: &lt;reset connection&gt;
+</code></pre>
+
+<p>The sequences of packets from Google and ACKs from me looked something
+like: P P P A P P P P P A P P A P P P P A. Google was sending me
+packets <em>way</em> faster than my program could keep up and send ACKs.
+Then, hilariously, Google&rsquo;s server would assume that there were
+network problems causing me to not ACK its packets.</p>
+
+<p>And it would eventually reset the connection because it would decide
+there were connection problems.</p>
+
+<p>But the connection was fine! My program was totally responding! It was
+just that my Python program was way too slow to respond to packets in
+the millisecond times it expected.</p>
+
+<p>(edit: this diagnosis seems to be incorrect :) you can
+<a href="https://news.ycombinator.com/item?id=8167546">read some discussion</a>
+about what may be actually going on here)</p>
+
+<h2 id="life-lessons">life lessons</h2>
+
+<p>If you&rsquo;re actually writing a production TCP stack, don&rsquo;t use Python.
+(surprise!) Also, the TCP spec is really complicated, but you can get
+servers to reply to you even if your implementation is extremely sketchy.</p>
+
+<p>I was really happy that it actually worked, though! The ARP spoofing
+was extremely finicky, but I wrote a version of <code>curl</code> using it which
+worked about 25% of the time. You can see all the absurd code at
+<a href="https://github.com/jvns/teeceepee/">https://github.com/jvns/teeceepee/</a>.</p>
+
+<p>I think this was actually way more fun and instructive than trying to
+write a TCP stack in an appropriate language like C :)</p>]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 40: 12 things I learned today about linkers.]]></title>
+    <link href="https://jvns.ca/blog/2013/12/10/day-40-12-things-i-learned-today-about-linkers/"/>
+    <updated>2013-12-10T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/12/10/day-40-12-things-i-learned-today-about-linkers/</id>
+    <content type="html"><![CDATA[<p>I read 11 parts of
+<a href="http://lwn.net/Articles/276782/">this series on linkers</a> today. I
+also wrote an
+<a href="http://jvns.ca/blog/2013/12/10/day-40-learning-about-linkers/">epic blog post</a>,
+but here is the tl;dr version (trying to synthesize&hellip;). This is all
+about ELF. I use &ldquo;ELF file&rdquo; and &ldquo;object file&rdquo; interchangeably.</p>
+
+<p>In no particular order:</p>
+
+<ol>
+<li>To inspect an ELF object file, you can use <code>objdump</code>, <code>readelf</code>
+and/or <code>nm</code>.</li>
+<li>Executable files have <strong>segments</strong> and <strong>sections</strong>. Each segment has
+many sections. The operating system looks at the segments, not the
+sections. Read/Write/Execute permissions are controlled per
+segment, not per section.
+<a href="http://www.airs.com/blog/archives/45">[Part 8]</a></li>
+<li>ELF symbols have types! And different visibility options!
+<a href="http://www.airs.com/blog/archives/42">[Part 5]</a></li>
+<li>The linker knows about threading, and does optimizations to make
+threading easier. <a href="http://www.airs.com/blog/archives/44">[Part 7]</a></li>
+<li>An object file can define two symbols with the same name and
+different symbols, for backwards compatibility.
+<a href="http://www.airs.com/blog/archives/46">[Part 9]</a></li>
+<li>Those <code>.a</code> files? Those are just collections of <code>.o</code> object files,
+and they&rsquo;re called &ldquo;archives&rdquo;!
+<a href="http://www.airs.com/blog/archives/48">[Part 11]</a></li>
+<li>Linkers can work in parallel to some extent.
+<a href="http://www.airs.com/blog/archives/47">[Part 10]</a></li>
+<li>Linkers actually have to do fairly complicated stuff to allow the
+code in a shared library to be shared between different programs
+and save memory. <a href="http://www.airs.com/blog/archives/43">[Part 6]</a>
+for memory savings,
+<a href="http://www.airs.com/blog/archives/41">[Part 4]</a> for the PLT/GOT</li>
+<li>There&rsquo;s more than one way to link a shared library, and the choices
+you make affect how quickly it loads
+<a href="http://www.airs.com/blog/archives/41">[Part 4]</a></li>
+<li>In the Mach-O executable format you can have assembly code for
+<em>differerent architectures</em> in the same executable. Nuts. And
+there&rsquo;s <a href="https://icculus.org/fatelf/">FatELF</a> that extends ELF to
+do the same thing. (edit: and isn&rsquo;t being developed anymore)</li>
+<li>Every <code>.o</code> file has a &ldquo;relocation table&rdquo; listing every single
+reference to a symbol that the linker will need to update, and how
+it will need to update it.
+<a href="http://www.airs.com/blog/archives/39">[Part 2]</a></li>
+<li>If you&rsquo;re making a speed comparison for a linker, you might
+compare it to <code>cat</code>. <a href="http://www.airs.com/blog/archives/38">[Part 1]</a></li>
+</ol>
+
+<p>I&rsquo;m curious about these ELF symbol versions &ndash; they sound kind of like
+polymorphism to me, and I&rsquo;m wondering why people use symbol name
+mangling to implement polymorphism instead of symbol versions.
+Probably very good reasons!</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 20: Traceroute in 15 lines of code using Scapy]]></title>
+    <link href="https://jvns.ca/blog/2013/10/31/day-20-scapy-and-traceroute/"/>
+    <updated>2013-10-31T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/10/31/day-20-scapy-and-traceroute/</id>
+    <content type="html"><![CDATA[<p>Today Jari and Brian explained a whole bunch of things to me about networks!
+It was fantastic. It&rsquo;s amazing to have people with so much experience to ask
+questions.</p>
+
+<p>At the end they mentioned that I should look up how <code>traceroute</code> works and
+that it&rsquo;s a pretty popular networking-job-interview question. And I&rsquo;d just
+discovered this super cool Python networking library called
+<a href="http://www.secdev.org/projects/scapy/">Scapy</a> which lets you construct
+packets really easily. So I thought I&rsquo;d implement traceroute using scapy!</p>
+
+<p>I thought it would take a long time, but turns out that (a basic version) is
+really easy.</p>
+
+<p>So using scapy, you can create IP and UDP packets like this:</p>
+
+<pre><code>from scapy.all import *
+ip_packet = IP(dst=&quot;hackerschool.com&quot;, ttl=10)
+udp_packet = UDP(dport=40000)
+full_packet = IP(dst=&quot;hackerschool.com&quot;, ttl=10) / UDP(dport=40000)
+</code></pre>
+
+<p>Then you can send a packet like this:</p>
+
+<p><code>
+send(full_packet)
+</code></p>
+
+<p>So IP packets have a <code>ttl</code> attribute, which stands for &ldquo;Time-To-Live&rdquo;. Every
+time a machine receives an IP packet, it decreases the <code>ttl</code> by 1 and passes
+it on. Basically this is a super smart way to make sure that packets don&rsquo;t get
+into infinite loops.</p>
+
+<p>If a packet&rsquo;s <code>ttl</code> runs out before it replies, the last machine sends back an
+ICMP packet saying &ldquo;sorry, failed!&rdquo;.</p>
+
+<p>To implement traceroute, we send out a UDP packet with <code>ttl=i</code> for <code>i =
+1,2,3,...</code>. Then we look at the reply packet and see if it&rsquo;s a &ldquo;Time ran out&rdquo;
+or &ldquo;That port doesn&rsquo;t exist&rdquo; error message. In the first case, we keep going,
+and in the second case we&rsquo;re done.</p>
+
+<p>Here&rsquo;s the code! It&rsquo;s 16 lines including comments and everything.</p>
+
+<pre><code>from scapy.all import *
+hostname = &quot;google.com&quot;
+for i in range(1, 28):
+    pkt = IP(dst=hostname, ttl=i) / UDP(dport=33434)
+    # Send the packet and get a reply
+    reply = sr1(pkt, verbose=0)
+    if reply is None:
+        # No reply =(
+        break
+    elif reply.type == 3:
+        # We've reached our destination
+        print &quot;Done!&quot;, reply.src
+        break
+    else:
+        # We're in the middle somewhere
+        print &quot;%d hops away: &quot; % i , reply.src
+</code></pre>
+
+<p>The output looks like:</p>
+
+<pre>
+<code>
+1 hops away:  192.168.1.1
+2 hops away:  24.103.20.129
+3 hops away:  184.152.112.73
+4 hops away:  184.152.112.73
+5 hops away:  107.14.19.22
+...
+</code>
+</pre>
+
+<p>So it turns out traceroute is kind of easy! Apparently the difference between
+traceroute on Windows and Unix is that Unix generally sends UDP packets and
+Windows sends ICMP packets.</p>
+
+<p>There&rsquo;s also <code>tcptraceroute</code> which, well, sends TCP packets.</p>
+]]></content>
+  </entry>
+  
+</feed>

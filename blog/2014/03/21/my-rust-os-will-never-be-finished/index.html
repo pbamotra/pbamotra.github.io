@@ -1,0 +1,192 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>My Rust OS will never be finished (and it&#39;s a success!) - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="My Rust OS will never be finished (and it&#39;s a success!)">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2014/03/21/my-rust-os-will-never-be-finished/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">My Rust OS will never be finished (and it&#39;s a success!)</h1>
+
+<div class="post-tags">
+  
+  •
+  
+    <a class="post-tag" href="/categories/kernel">kernel</a> 	•
+  
+    <a class="post-tag" href="/categories/rust">rust</a> 	•
+  
+  
+</div>
+<p class="meta">
+<time datetime="2014-03-21T07:38:59" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     <p>In November/December last year, I spent 3 weeks working on a toy
+operating system in Rust. (for more, see
+<a href="http://jvns.ca/blog/2014/03/12/the-rust-os-story/">Writing an OS in Rust in tiny steps</a>,
+and <a href="http://jvns.ca/blog/categories/kernel/">more</a>).</p>
+
+<p>I wrote a ton of blog posts about it, and I gave a talk about the
+process at Mozilla last week
+(<a href="https://air.mozilla.org/rust-meetup-march-2014/">the video</a>). At
+that talk, a few people asked me if I was going to finish the project.
+I said no, and here&rsquo;s why.</p>
+
+<p>There are lots of reasons for working on programming projects. Just a
+few:</p>
+
+<ul>
+<li>to end up with useful code</li>
+<li>to learn something</li>
+<li>to explore a new concept (see: Bret Victor&rsquo;s demos)</li>
+</ul>
+
+<p>The reason I wrote an operating system in Rust wasn&rsquo;t so that I could
+have an operating system written in Rust.
+
+I already have an kernel on
+my computer (Linux), and other people have already written Rust
+operating systems better than I have. Any code that I write in 3 weeks
+is at best a duplication of someone else&rsquo;s work, and mimicking
+the state of the art 20 years ago.</p>
+
+<p>I worked on that project to learn about how operating systems work,
+and that was a huge success. I read a 20-part essay about linkers, and
+learned about virtual memory, how executables are structured, how
+program execution works, how system calls work, the x86 boot process,
+interrupt handlers, keyboard drivers, and a ton of other things.</p>
+
+<p>Another amazing example of a project like this is
+<a href="http://twitter.com/kellabyte">@kellabyte</a>&rsquo;s
+<a href="https://github.com/kellabyte/Haywire">Haywire</a>, a HTTP server in C
+she wrote to learn more about writing performant code. It actually
+compiles and you can benchmark it yourself, but her blog posts are
+more useful to me than her code &ndash;
+<a href="http://kellabyte.com/2013/08/16/hello-haywire/">Hello haywire</a>
+<a href="http://kellabyte.com/2013/08/20/http-response-caching-in-haywire/">HTTP response caching in Haywire</a>,
+<a href="http://kellabyte.com/2013/08/22/further-reducing-memory-allocations-and-use-of-string-functions-in-haywire/">Further reducing memory allocations and use of string functions in Haywire</a>.</p>
+
+<p>So when people ask me why my code doesn&rsquo;t compile, it&rsquo;s because the
+code is basically a trivial output of the process. The
+<a href="http://jvns.ca/blog/categories/kernel/">blog posts I wrote</a> are
+<em>much</em> more important, because they talk about what I learned. My code
+probably won&rsquo;t be useful to you &ndash; it would be better to start with
+<a href="https://github.com/charliesome/rustboot">rustboot</a> and take your own
+path.</p>
+
+<p>Not finishing your project doesn&rsquo;t mean it&rsquo;s not a success. It depends
+what your goals are the for the project! I wrote an operating system
+in Rust to learn, and I learned a ton. It&rsquo;s not finished, and it won&rsquo;t
+be. How could it ever be? I hope to not ever finish learning.</p>
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2014/03/21/my-rust-os-will-never-be-finished/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2014/03/21/my-rust-os-will-never-be-finished/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2014/03/23/recovering-files-using-slash-proc-and-other-useful-facts/" title="Previous Post: Recovering files using /proc (and spying, too!)">Recovering files using /proc (and spying, too!)</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2014/03/12/the-rust-os-story/" title="Next Post: Writing an OS in Rust in tiny steps (Steps 1-5)">Writing an OS in Rust in tiny steps (Steps 1-5)</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

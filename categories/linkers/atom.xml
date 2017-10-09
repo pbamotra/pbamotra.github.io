@@ -1,0 +1,415 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title><![CDATA[Julia Evans]]></title>
+  <link href="http://jvns.ca/atom.xml" rel="self"/>
+  <link href="http://jvns.ca"/>
+  <updated>2013-12-12T00:00:00+00:00</updated>
+  <id>http://jvns.ca</id>
+  <author>
+    <name><![CDATA[Julia Evans]]></name>
+  </author>
+  <generator uri="http://gohugo.io/">Hugo</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[Day 41: Linkers are upsetting]]></title>
+    <link href="https://jvns.ca/blog/2013/12/12/day-41-linkers-are-still-upsetting/"/>
+    <updated>2013-12-12T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/12/12/day-41-linkers-are-still-upsetting/</id>
+    <content type="html"><![CDATA[<p>Today I spent pretty much the whole day trying to figure out what&rsquo;s
+going on with a
+<a href="http://jvns.ca/blog/2013/12/06/day-38-after-7-days/">linker problem I&rsquo;m having</a>.
+I&rsquo;ve fixed it, but I don&rsquo;t understand <em>why</em> it&rsquo;s fixed, and I am
+having no luck.</p>
+
+<p><a href="http://akaptur.github.io/">Allison</a> and I paired on it for a bit, and
+we discovered that if we order the sections <code>.text .rodata .data
+.bss</code>, then the ELF file works correctly, but if they&rsquo;re in any other
+order it doesn&rsquo;t work.
+<a href="https://gist.github.com/jvns/ec07560a4484edd30d70">There&rsquo;s a gist</a>
+with the offending linker scripts.</p>
+
+<p>I also created
+<a href="http://stackoverflow.com/questions/20526765/linker-scripts-strategies-for-debugging">a StackOverflow question</a>
+but it is not getting any love.</p>
+
+<p>To compensate, I wrote a
+<a href="http://gist.io/7923908">tiny start of a tutorial about binary formats</a>.</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 40: Linkers are amazing.]]></title>
+    <link href="https://jvns.ca/blog/2013/12/10/day-40-learning-about-linkers/"/>
+    <updated>2013-12-10T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/12/10/day-40-learning-about-linkers/</id>
+    <content type="html"><![CDATA[
+
+<p>I have a linker bug in my kernel which is kind of infuriating me. So
+I&rsquo;ve spent the whole day so far reading the first 11 parts of this
+<a href="http://lwn.net/Articles/276782/">excellent 20-part series about how linkers work</a>
+by Ian Lance Taylor.</p>
+
+<p>Here are some notes on the series. This is gigantic and basically just
+for my own reference, but summarizes what he talks about in the first
+half of the series.</p>
+
+<p>I&rsquo;m not going to describe the basics of what a linker does because I
+know already. I talk a little about linkers in
+<a href="http://jvns.ca/blog/2013/12/01/how-to-call-rust-from-assembly/">How to call Rust from assembly</a>,
+and I found this
+<a href="http://www.lurklurk.org/linkers/linkers.html">Beginner&rsquo;s guide to linkers</a>
+pretty helpful. Parts <a href="http://www.airs.com/blog/archives/38">[1]</a> and
+<a href="http://www.airs.com/blog/archives/39">[2]</a> of the essay also discuss
+&ldquo;what&rsquo;s a linker?&rdquo;.</p>
+
+<p>For context: Right now I have a bug while statically linking a
+single-threaded ELF file. So I will read about dynamic linking and
+threading and things other than ELF, but I will mostly ignore it.</p>
+
+<h1 id="1-basic-linker-data-types-symbols-relocations-and-contents">1. Basic linker data types: symbols, relocations, and contents</h1>
+
+<p>There are <strong>symbols</strong>, <strong>relocations</strong> and <strong>contents</strong> in object
+files. I knew about symbols and contents already, but relocations are
+new to me. The contents are the contents of a variable or function. A
+key insight here is that the linker doesn&rsquo;t actually care too much
+about the contents &ndash; it&rsquo;s just concerned with putting the contents in
+the right place.</p>
+
+<p>Linkers don&rsquo;t care about your functions and variables! They&rsquo;re just
+bytes. :) In the first article he talks about linker speed &ndash; a
+benchmark you could compare a linker to is <code>cat</code>, because it&rsquo;s just
+combining the bytes together, and making some replacements along the
+way.</p>
+
+<p><strong>Relocations</strong> were new to me. The story here is that when you have
+  an object file, the assembly code often refer to a symbol like this:</p>
+
+<pre><code>call awesome_function
+</code></pre>
+
+<p><code>awesome_function</code> might be undefined &ndash; it could be a function
+defined in a library that we&rsquo;re planning to link against later.</p>
+
+<p>So after linking, <code>awesome_function</code> will be somewhere new, and we
+need to put a memory address in <code>call awesome_function</code>! So there&rsquo;s a
+<strong>relocation table</strong> which keeps track of everything that needs to be
+moved.</p>
+
+<p>To make this a bit more concrete, I looked at <code>man objdump</code>. Turns out
+you can look at the relocations in an object file by running <code>objdump
+-r file.o</code>. When you look at the relocations in an ELF file, there are
+a bunch of scary-looking things like <code>R_386_PC32</code> and <code>R_386_GOTPC</code>.
+Here&rsquo;s
+<a href="http://netwinder.osuosl.org/users/p/patb/public_html/elf_relocs.html">a page explaining what those things mean</a>.
+For example, I got this as an output from <code>objdump -r</code></p>
+
+<pre><code>00001a76 R_386_GOTPC       _GLOBAL_OFFSET_TABLE_
+00001a7f R_386_GOTOFF      _ZN3mem4base18he097c5c5c82e35fah4v0.0E
+00001a95 R_386_GOTOFF      _ZN3mem4base18he097c5c5c82e35fah4v0.0E
+00001ac4 R_386_PC32        __morestack
+</code></pre>
+
+<p>I think the last line of that means &ldquo;At <code>00001ac4</code>, there&rsquo;s a
+reference to <code>__morestack</code>. I&rsquo;m going to need you to figure out the
+distance from <code>00001ac4</code> to <code>__morestack</code> and add it to the dword at
+<code>00001ac4</code>.</p>
+
+<p>Basically <code>R_386_PC32</code> and friends are different rules that the linker
+has to follow. Some possible things that relocation rules might do:</p>
+
+<ul>
+<li>Put a relative memory address somewhere</li>
+<li>Put an absolute memory address somewhere</li>
+<li>Add something to the Global Offset Table (GOT)</li>
+<li>Add something to the Procedure Lookup Table (PLT)</li>
+</ul>
+
+<p>I don&rsquo;t know what the GOT/PLT are yet but hopefully as I keep reading
+I&rsquo;ll learn. (I did! See part 4)</p>
+
+<p>From <a href="http://www.airs.com/blog/archives/39">Part 2</a>.</p>
+
+<h1 id="2-object-file-formats">2. Object file formats</h1>
+
+<p>Apparently there are many different kinds of object file formats
+(COFF, ELF, PE, a.out, IEEE-695, Mach-O, etc.). They can be either
+<strong>section-based</strong> or <strong>record-based</strong>. I only care about ELF. ELF is
+section-based. This means that the file is split up into sections.</p>
+
+<p>You can use <code>readelf --sections myfile.o</code> to list the sections in an
+ELF file, and <code>objdump -t</code> to list the symbol table and which section
+each symbol belongs to.</p>
+
+<p>Here are <a href="http://sprunge.us/hEDd">the sections</a> and
+<a href="http://sprunge.us/ZIgG">the symbol table</a> for an OCaml object file I
+found on my machine. You can see that the sections that have
+most of the symbols in them are <code>.data</code>, <code>.text</code>, and <code>.bss</code>. And
+there&rsquo;s a section called <code>.symtab</code>, which I guess is the symbol table!
+Neat.</p>
+
+<p><code>.text</code> is the &ldquo;code&rdquo; of the program, and <code>.data</code>, <code>.bss</code>, and
+<code>.rodata</code> contain different kinds of globals.</p>
+
+<h1 id="3-debugging-symbols">3. Debugging symbols</h1>
+
+<p>It says</p>
+
+<blockquote>
+<p>The ELF object file format stores debugging information in sections
+with special names.</p>
+</blockquote>
+
+<p>It mentions debugging formats like &ldquo;stabs strings&rdquo; and &ldquo;the DWARF
+debugging format&rdquo;, but not going down that rabbit hole right now.</p>
+
+<p>File formats and debugging symbols were in
+<a href="http://www.airs.com/blog/archives/40">Part 3</a>.</p>
+
+<h1 id="4-shared-libraries-and-position-independence">4. Shared libraries and position independence</h1>
+
+<p>A shared library is a <code>.dll</code> on Windows or a <code>.so</code> file on Linux.</p>
+
+<p>The deal with a shared library is when you create the library, you
+don&rsquo;t know what address in memory it&rsquo;s going to be loaded at. (it
+depends on what the dynamic linker decides to do). So some calculation
+(addition!) needs to happen no matter what.</p>
+
+<p>So there are two different strategies to deal with this.</p>
+
+<p><strong>Strategy 1</strong>: Make it <strong>position dependent</strong>. This basically means
+  &ldquo;write a huge relocation table and let the dynamic linker figure out
+  where everything should go&rdquo;. Because there is a huge relocation
+  table, this means the library will take longer to load.</p>
+
+<p><strong>Strategy 2</strong>: Make it <strong>position independent</strong>. This means &ldquo;don&rsquo;t
+  write a relocation table, but every time you call a function or
+  reference a variable, look up where it should be in a table&rdquo;. So the
+  library loads more quickly, but runs more slowly. Tradeoffs!</p>
+
+<p>This brings us back to the &ldquo;Global Offset Table&rdquo; and &ldquo;Procedure Lookup
+Table&rdquo; from before! So in position independent code, the &ldquo;Global
+Offset Table&rdquo; is where look up our global and static variables, and
+the &ldquo;Procedure Lookup Table&rdquo; is where we look up functions.</p>
+
+<p>The other super important thing here (discussed more in
+<a href="http://www.airs.com/blog/archives/43">Part 6</a>) is that in position
+independent code, the assembly instructions always the <em>same</em>, and
+only the PLT and the GOT need be different. This means that if you
+have a huge library two different processes can reference the same
+(read-only) assembly instructions and they only need to have their own
+copy of the PLT and GOT.</p>
+
+<p>This is super neat! In my object file, I have</p>
+
+<pre><code>00001a76 R_386_GOTPC       _GLOBAL_OFFSET_TABLE_
+</code></pre>
+
+<p>I guess that means the object file I am looking at is position
+independent!</p>
+
+<p>Another neat thing about position independent code is that the dynamic
+linker can do lazy loading &ndash; it can wait to put the address of a
+function in the PLT until it is actually loaded. So if you run a
+program that links against all of the math library, but only calls
+<code>sin</code>, it only needs to figure out the address of <code>sin</code>.</p>
+
+<p>All this about shared libraries is in
+<a href="http://www.airs.com/blog/archives/41">Part 4</a>.</p>
+
+<h1 id="5-what-can-go-wrong-with-shared-libraries">5. What can go wrong with shared libraries</h1>
+
+<p>There&rsquo;s a super interesting discussion of a kind of bug you can have
+with shared libraries in
+<a href="http://www.airs.com/blog/archives/42">Part 5</a>.</p>
+
+<p>In C, you can take the address of a function (<code>&amp;f</code>). The natural
+address for <code>f</code> is its entry in the PLT, because that&rsquo;s where you jump
+to when the function is called. But different shared libraries have
+different <code>PLT</code>s, so you might end up with two different addresses for
+the function, and if you compared them you would get different
+answers. Oh no! I did not know that this was even a thing. Cool!</p>
+
+<p>You can go read about the solution in the essay.</p>
+
+<p>All this stuff about dynamic linking is really interesting and
+complicated, but I&rsquo;m actually reading this in an effort to solve a
+static linking problem that I have, so I&rsquo;m not reading it with 100%
+attention.</p>
+
+<h1 id="6-elf-symbol-visibility-and-types">6. ELF symbol visibility and types</h1>
+
+<p>I didn&rsquo;t know that symbols had visibility and types! I thought
+everything was global and pretty much the same type. I don&rsquo;t care too
+much about this right now, though.</p>
+
+<p>Also from <a href="http://www.airs.com/blog/archives/42">Part 5</a>.</p>
+
+<h1 id="7-linkers-are-architecture-dependent">7. Linkers are architecture-dependent</h1>
+
+<p>How a linker deals with relocations depends on the architecture of the
+machine the binaries are for! When you&rsquo;re writing an OS, you need a
+cross-compiler that targets your target architecture. But you also
+need a cross-linker! Here&rsquo;s why.</p>
+
+<p>C code: <code>g = 0</code>.</p>
+
+<p>Corresponding 386 code: <code>movl 0 g</code>.</p>
+
+<p>Corresponding RISC code:</p>
+
+<pre><code>li 1,0 // Set register 1 to 0
+lis 9,g@ha // Load high-adjusted part of g into register 9
+stw 1,g@l(9) // Store register 1 to address in register 9 plus low adjusted part g
+</code></pre>
+
+<p>Here <code>g</code> is referenced twice! So the linker is going to need to know
+about how RISC works and the relocation is going to look different
+than it would on 386.</p>
+
+<p>This was <a href="http://www.airs.com/blog/archives/43">Part 6</a>.</p>
+
+<h1 id="8-thread-local-storage">8. Thread Local Storage</h1>
+
+<p><a href="http://www.airs.com/blog/archives/44">Part 7</a> is an extremely cool
+explanation of how ELF systems have special support for making
+threading more efficient. I had no idea this was a thing the linker
+did. Linkers are crazy.</p>
+
+<p>The idea here is that you can just mark a variable thread-local in C
+like this:</p>
+
+<pre><code>__thread int i;
+</code></pre>
+
+<p>and the compiler and linker will do a bunch of stuff so that every
+thread has its own copy of the variable.</p>
+
+<p>The alternative here (I think) is to use <code>pthread_key_create</code>,
+<code>pthread_get_specific</code> and <code>pthread_set_specific</code>. I&rsquo;ve never used
+pthreads, but this is cool and definitely seems easier. There&rsquo;s a
+discussion of when it is more efficient in the essay. (tl;dr: never
+slower, sometimes faster)</p>
+
+<h1 id="9-elf-segments">9. ELF segments</h1>
+
+<p>More on &ldquo;oh man ELF is complicated!&rdquo;
+<a href="http://www.airs.com/blog/archives/45">Part 8</a> has a description of
+all the section and segment types.</p>
+
+<p>Okay, so what is a <strong>segment</strong>, anyway? We talked about <strong>sections</strong>
+before &ndash; we said that they were <code>.text</code>, <code>.data</code>, <code>.rodata</code>, etc. &ndash;
+to separate out read-only data from read-write data from program code.
+<strong>Segments</strong> are collections of sections.</p>
+
+<p>ELF is an format for object files, and also executables. Apparently
+the operating system doesn&rsquo;t use the sections at all to run programs,
+just the segments.</p>
+
+<p>I&rsquo;m a bit confused here, so let&rsquo;s make this more concrete by looking
+at a simple &ldquo;Hello World&rdquo; C program. I couldn&rsquo;t figure out how to use
+<code>objdump</code> to look at segments, but my awesome friend
+<a href="https://twitter.com/djvasi">Dave</a> suggested using <code>readelf</code> instead.
+That totally works!</p>
+
+<p>Here&rsquo;s the
+<a href="http://sprunge.us/JFZJ">the entire output of <code>readelf --segments a.out</code></a>.
+Here&rsquo;s an excerpt:</p>
+
+<pre><code>  Segment Sections...
+   00     
+   01     .interp 
+   02     .interp .note.ABI-tag .note.gnu.build-id .gnu.hash .dynsym .dynstr .gnu.version .gnu.version_r .rela.dyn .rela.plt .init .plt .text .fini .rodata .eh_frame_hdr .eh_frame 
+   03     .ctors .dtors .jcr .dynamic .got .got.plt .data .bss 
+   04     .dynamic 
+   05     .note.ABI-tag .note.gnu.build-id 
+   06     .eh_frame_hdr 
+   07     
+   08     .ctors .dtors .jcr .dynamic .got 
+</code></pre>
+
+<p>So here it looks like <code>.text</code> is in a segment with a bunch of stuff,
+and <code>.data</code> and <code>.bss</code> are in a segment together. There are a bunch of
+possible segment types. One of the most important ones seems to be
+<code>LOAD</code>. I think that means &ldquo;load into memory&rdquo;. The two segments marked
+<code>LOAD</code> are segment <code>02</code> and <code>03</code>. This makes sense, because those are
+the segments with <code>.text</code> and <code>.data</code> in them!</p>
+
+<p>The other segment types in <a href="http://sprunge.us/JFZJ">the output of readelf</a> are:</p>
+
+<ul>
+<li><code>INTERP</code>: Which dynamic loader to use
+(<code>/lib64/ld-linux-x86-64.so.2</code>). I checked and this is an actual
+file. &lt;3.</li>
+<li><code>NOTE</code>: I guess this is a note.</li>
+<li><code>GNU_EH_FRAME</code>, <code>GNU_STACK</code>, <code>GNU_RELRO</code>: Some GNU extensions. I
+don&rsquo;t really know.</li>
+<li><code>DYNAMIC</code>: Some stuff that the dynamic linker needs.</li>
+<li><code>PHDR</code>: I quote: &ldquo;This indicates the address and size of the segment
+table. This is not too useful in practice as you have to have
+already found the segment table before you can find this segment.&rdquo;
+lulz. What.</li>
+</ul>
+
+<p>The last thing I want to note about this example is that section <code>02</code>
+(the one with <code>.text</code> and <code>.rodata</code> in it) has flags <code>RE</code>, so it can
+be executed. I&rsquo;m wondering if you could trick the program into
+executing something from <code>.rodata</code>, and if that could be bad. Section
+<code>03</code> has flags <code>RW</code>, so it can be written to but not executed.</p>
+
+<p>So the reason that <code>.text</code> and <code>.data</code> aren&rsquo;t in the same section is
+that <code>.text</code> has to be read-only and <code>.data</code> needs to be read-write.</p>
+
+<p>Here&rsquo;s another example of <a href="http://sprunge.us/HIGL">the segments</a> and
+<a href="http://sprunge.us/VAUH">the symbol table</a> in the same program, but
+this time statically linked. There are way less segments (the file is
+less complicated), but the symbol table is much bigger.</p>
+
+<p>Okay I think I&rsquo;m pretty good with segments. This is cool!</p>
+
+<h1 id="9-symbol-versions">9. Symbol versions</h1>
+
+<p>Apparently in an ELF file, you can have two different versions of the
+same symbol, in case the function signature has changed! This is
+crazy. I thought that if you had <code>sin</code>, there was only one <code>sin</code>.</p>
+
+<p>Could you abuse this to have polymorphism in object files without
+doing name mangling? Huh.</p>
+
+<p>The actual use case described for this is providing two versions for
+<code>stat</code>: <code>LIBC_1.0</code> and <code>LIBC_2.0</code> after it changed to support 64-bit
+file offsets (whatever that means).</p>
+
+<p>From <a href="http://www.airs.com/blog/archives/46">Part 9</a>.</p>
+
+<h1 id="10-parallel-linking">10. Parallel linking</h1>
+
+<p>You can do linking in parallel to some extent. Also, once the output
+file is laid out and its size is determined, you can use <code>mmap</code> and do
+the I/O in parallel that way. Yay <code>mmap</code>!</p>
+
+<p>From <a href="http://www.airs.com/blog/archives/47">Part 10</a>.</p>
+
+<h1 id="11-archives">11. Archives</h1>
+
+<p>Apparently you can package a whole bunch of object files together into
+an <strong>archive</strong>. This is what files with the <code>.a</code> extension are. Neat!
+I&rsquo;ve seen those, but didn&rsquo;t know what they were. They&rsquo;re created with
+the <code>ar</code> utility.</p>
+
+<p>I looked for archive files on my computer using <code>locate .a | egrep
+'.a$' | head</code>, and I found one in <code>/etc/alternatives/libblas.a</code>. It
+kind of makes sense that BLAS is made of a whole bunch of object
+files.</p>
+
+<p>I used <code>objdump -t /etc/alternatives/libblas.a</code> to look at is symbol
+table. In <a href="http://sprunge.us/YCgc">the output</a>, it lists the symbol
+table for each object file. Here&rsquo;s
+<a href="http://sprunge.us/XNjd">just the list of object files</a>.
+<code>libblas.a</code> is made up of 313 object files.</p>
+
+<p>From <a href="http://www.airs.com/blog/archives/48">Part 11</a>.</p>
+]]></content>
+  </entry>
+  
+</feed>

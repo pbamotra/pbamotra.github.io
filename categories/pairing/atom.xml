@@ -1,0 +1,276 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title><![CDATA[Julia Evans]]></title>
+  <link href="http://jvns.ca/atom.xml" rel="self"/>
+  <link href="http://jvns.ca"/>
+  <updated>2014-08-05T19:22:54+00:00</updated>
+  <id>http://jvns.ca</id>
+  <author>
+    <name><![CDATA[Julia Evans]]></name>
+  </author>
+  <generator uri="http://gohugo.io/">Hugo</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[Pair programming is amazing! Except... when it&#39;s not.]]></title>
+    <link href="https://jvns.ca/blog/2014/08/05/pair-programming-is-amazing-except-when-its-not/"/>
+    <updated>2014-08-05T19:22:54+00:00</updated>
+    <id>https://jvns.ca/blog/2014/08/05/pair-programming-is-amazing-except-when-its-not/</id>
+    <content type="html"><![CDATA[<p>I wrote a blog post in March about
+<a href="/blog/2014/03/01/pair-programming/">why I find pair programming useful</a>
+as a tool and why I enjoy it. There are entire companies like Pivotal
+that do pair programming 100% of the time, and they find it useful.</p>
+
+<p>To get our terms straight, by &ldquo;pair programming&rdquo;, I mean &ldquo;two people
+are trying to accomplish a task by sitting at a single computer
+together&rdquo;.</p>
+
+<p>Some people mentioned after I wrote that blog post that they disliked
+pair programming, sometimes strongly! Obviously these people aren&rsquo;t
+wrong to not like it. So I asked people about their experiences:</p>
+
+<blockquote class="twitter-tweet" lang="en"><p>I&#39;m pretty
+interested in why people find pair programming hard or scary or not
+useful. (I find it not-always-appropriate but a good tool.)</p>&mdash;
+Julia Evans (@b0rk) <a
+href="https://twitter.com/b0rk/statuses/440023032178814976">March 2,
+2014</a></blockquote>
+
+<p>People responded <em>wonderfully</em>. You can see about 160 thoughtful
+tweets about what people find hard or difficult in this Storify
+<a href="http://storify.com/jvns/what-do-you-find-hard-about-pair-programming/">What do you find hard about pair programming?</a>.
+I learned a ton, and my view that &ldquo;pair programming is great and you
+totally should try it!!!&rdquo; got tempered a little bit :)</p>
+
+<p></p>
+
+<p>If you&rsquo;re not up to reading all that, here are the broad categories
+that the difficulties fell into. Thanks very much to everyone who
+responded for giving permission for me to post their comments!</p>
+
+<h3 id="i-m-completely-drained-after-an-hour-or-two">&ldquo;I&rsquo;m completely drained after an hour or two&rdquo;</h3>
+
+<p>Pair programming is really intense. You concentrate really hard, don&rsquo;t
+take a lot of breaks, and it&rsquo;s very mentally taxing. <em>Tons</em> of people
+brought this up. And this seems to be true for everyone, even people
+who find it a useful tool.</p>
+
+<ul>
+<li>&ldquo;it can be very stressful and draining for an introvert, both
+productivity killers in the long run.&rdquo; -
+<a href="http://twitter.com/hoxworth">@hoxworth</a></li>
+<li>&ldquo;I used to work at Pivotal (100% pairing). IME pairing makes
+everything go faster. Also exhausting.&rdquo; -
+<a href="http://twitter.com/shifrapr">@shifrapr</a></li>
+<li>&ldquo;definitely would not like my entire project to be pair programmed
+though; even 2-3 days would be exhausting.&rdquo; -
+<a href="http://twitter.com/lojikil">@lojikil</a></li>
+<li>&ldquo;Downsides I hear a lot when teaching workshops on pairing:
+exhausting&rdquo; - <a href="http://twitter.com/moss">@moss</a></li>
+<li>&ldquo;I find it sometimes awesome &amp; sometimes really frustrating,
+honestly. It can be exhausting,but also a way to discover unknown
+unknowns&rdquo; - <a href="http://twitter.com/DanielleSucher">@DanielleSucher</a></li>
+<li>&ldquo;that being sad: pairing is great. All the time though would be
+exhausting (for me)&rdquo; - <a href="http://twitter.com/qrush">@qrush</a></li>
+<li>&ldquo;It is hard sometimes because you need to be on the same wavelength
+as another person which can be tiring.&rdquo; -
+<a href="http://twitter.com/zmanji">@zmanji</a></li>
+</ul>
+
+<h3 id="i-can-t-type-when-there-s-somebody-looking-i-hate-pairing">&ldquo;I can&rsquo;t type when there&rsquo;s somebody looking. I hate pairing.&rdquo;</h3>
+
+<p>Anxiety around pairing is <em>really</em> common. Some people say that they
+found it easier as time went on. Some people also didn&rsquo;t! It can be
+good to encourage someone to try something, but if someone&rsquo;s tried and
+it just makes them super-anxious, respect that!</p>
+
+<ul>
+<li>&ldquo;I hate pairing because I can&rsquo;t type when there&rsquo;s somebody looking
+and I get anxious when I watch somebody else typing for long D:&rdquo; -
+<a href="https://twitter.com/seaandsailor">@seaandsailor</a></li>
+<li>&ldquo;I type somewhat slow and I always feel pressure (real or imagined)
+from the other person.&rdquo; - <a href="https://twitter.com/Torwegia">@Torwegia</a></li>
+<li>&rdquo; I have seen seasoned vim users writhe in pain upon having to watch
+a normal user type at a typically glacial human speed :)&rdquo; -
+<a href="http://twitter.com/brandon_rhodes">@brandon_rhodes</a></li>
+<li>&ldquo;I suffer keyboard anxiety when I haven&rsquo;t paired in a while.&rdquo; -
+<a href="http://twitter.com/meangrape">@meangrape</a></li>
+<li>&ldquo;anxiety, fear of being judged&rdquo; - <a href="http://twitter.com/qrush">@qrush</a></li>
+<li>&ldquo;i get self-conscious, make dumb mistakes, confuse myself.. :(
+pairing is the worst&rdquo; -
+<a href="http://twitter.com/wirehead2501">@wirehead2501</a></li>
+<li>&ldquo;it&rsquo;s something about having someone see my process, like when
+you&rsquo;re writing an email with someone reading over your shoulder.&rdquo; -
+<a href="http://twitter.com/wirehead2501">@wirehead2501</a></li>
+</ul>
+
+<h3 id="i-only-like-pairing-when-my-partner-is-a-pleasure-to-work-with">&ldquo;I only like pairing when my partner is a pleasure to work with&rdquo;</h3>
+
+<p>This is pretty key. Pairing is a pretty intimate thing to do &ndash; you&rsquo;re
+letting people see exactly how you work. If you don&rsquo;t trust and
+respect the person that you&rsquo;re pairing with, it doesn&rsquo;t work. There
+also seems to be some mystical magical pairing juice where with some
+people it just doesn&rsquo;t work, and with some people it&rsquo;s amazing.</p>
+
+<ul>
+<li>&rdquo; once you&rsquo;re pairing with an asshole, you might as well stop.
+There&rsquo;s no point.&rdquo; - <a href="http://twitter.com/hsjuju2">@hsjuju2</a></li>
+<li>&ldquo;I only like pairing when my partner is a pleasure to work with. So
+I try to be too.&rdquo; - <a href="http://twitter.com/rkulla">@rkulla</a></li>
+<li>&ldquo;if you feel like someone will see you as less competent for voicing
+your thoughts, I&rsquo;d rather code by myself&rdquo; -
+<a href="http://twitter.com/hsjuju2">@hsjuju2</a></li>
+<li>&ldquo;I think the social rules of [Hacker School] make pairing a lot more
+helpful and fun.&rdquo; - <a href="http://twitter.com/hsjuju2">@hsjuju2</a></li>
+<li>&ldquo;yeah it really has to be a safe space. Done among people who trust
+and respect one another. It also builds trust and respect.&rdquo; -
+<a href="http://twitter.com/gigachurch">@gigachurch</a></li>
+</ul>
+
+<h3 id="talking-through-something-doesn-t-help-me-think">&ldquo;Talking through something doesn&rsquo;t help me think&rdquo;</h3>
+
+<p>A lot of the reason that I like pairing is that talking helps me work
+through problems. People are different! Some people <em>hate</em> talking
+about things to think. Something to be aware of.</p>
+
+<ul>
+<li>&ldquo;personally I only make progress on problems when talking to
+someone.&rdquo; - <a href="http://twitter.com/cartazio">@cartazio</a></li>
+<li>&ldquo;I am <em>not</em> someone who thinks out loud, and i feel like that&rsquo;s one
+reason pairing is hard for me.&rdquo; -
+<a href="http://twitter.com/wirehead2501">@wirehead2501</a></li>
+<li>&ldquo;like, not only do i not understand by talking, but trying to talk
+through something before i think = more confused&rdquo; -
+<a href="http://twitter.com/wirehead2501">@wirehead2501</a></li>
+<li>&ldquo;I&rsquo;m someone who thinks out loud, and understands by talking,
+whereas some people take that as bad&rdquo; -
+<a href="http://twitter.com/hsjuju2">@hsjuju2</a></li>
+</ul>
+
+<p>This is also relevant to interviewing: advice like &ldquo;try to talk
+through your issue!&rdquo; works really well for some people, and badly
+for others.</p>
+
+<h3 id="it-s-bad-when-one-person-dominates">&ldquo;It&rsquo;s bad when one person dominates&rdquo;</h3>
+
+<p>My first pairing experience (years ago) was with someone who was a
+much better programmer than me, and basically bulldozed through the
+problem and left me no room to contribute. This really undermined my
+confidence and was awful.</p>
+
+<p>When pairing with people with significantly less experience than me, I
+try to be really careful about this. One good trick that I learned
+from Zach Allaun at Hacker School is to always pair on the less
+experienced person&rsquo;s project and/or let the newer person drive. If
+you&rsquo;re working on their project then they&rsquo;re at least the expert on
+how their project works, which helps a lot.</p>
+
+<h3 id="i-love-pair-debugging-not-pair-programming">&ldquo;I love pair <em>debugging</em>, not pair programming&rdquo;</h3>
+
+<p>Variations on this were pretty common. A few people said that they
+like working together, but not for producing code. It&rsquo;s totally okay
+to use pairing in specific ways (for teaching or for debugging or for
+debugging), and not for other things.</p>
+
+<ul>
+<li>&rdquo;+1 for loving code reviews, pair programming, not do much. Pair
+<em>debugging</em> on the other hand can be excellent.&rdquo; -
+<a href="http://twitter.com/pphaneuf">@pphaneuf</a></li>
+<li>&ldquo;i actually find it really useful as a &ldquo;let&rsquo;s get to know how each
+other&rsquo;s brain works&rdquo; &amp; a shortcut for coming up to speed on a
+codebase or a new language. otherwise&ndash;i haven&rsquo;t had really awesome
+experiences with it.&rdquo; - <a href="http://twitter.com/zmagg">@zmagg</a></li>
+<li>&ldquo;I&rsquo;m not sold on <em>always</em> pairing, but being able to debug or design
+w/ a second pair of eyes is often useful, &amp; it helps share
+skills.&rdquo; - <a href="http://twitter.com/silentbicycle">@silentbicycle</a></li>
+<li>&ldquo;Can be a good way to learn. I was pretty much taught perl via pair
+programming years ago by a very patient coworker.&rdquo; -
+<a href="http://twitter.com/wendyck">@wendyck</a></li>
+<li>&ldquo;I spend half my day staring into space letting solutions pop into
+my head. Hard to do that with a partner there.&rdquo; -
+<a href="https://twitter.com/aconbere">@aconbere</a></li>
+</ul>
+
+<h2 id="pair-programming-is-amazing-sometimes">Pair programming is amazing&hellip; sometimes</h2>
+
+<p>Pair programming can be a super useful tool. If you understand why
+people (such as yourself, maybe!) might find it hard or stressful, you
+can have more productive pairing sessions, and decide when pair
+programming is a good way to get a task done!</p>]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Reports from remote-land: remote pairing works great!]]></title>
+    <link href="https://jvns.ca/blog/2014/03/29/reports-from-remote-land-remote-pairing-works-great/"/>
+    <updated>2014-03-29T08:54:53+00:00</updated>
+    <id>https://jvns.ca/blog/2014/03/29/reports-from-remote-land-remote-pairing-works-great/</id>
+    <content type="html"><![CDATA[<p>I&rsquo;ve been working remote for 2 weeks now. The things that have surprised
+me the most are</p>
+
+<ul>
+<li>I&rsquo;m less lonely and disconnected than I expected (it turns out I&rsquo;m
+an extrovert&hellip;)</li>
+<li>how well remote pairing works!</li>
+</ul>
+
+<p>I did a lot of pair programming while at
+<a href="https://www.hackerschool.com/">Hacker School</a> and I found it to be a
+really productive way to work. When I got a remote job (I live in
+Montreal and work with people mostly in SF), I thought it would be
+impossible to do pairing, or at the very least it would be a terrible
+experience.</p>
+
+<p>This is not so! Here&rsquo;s what I&rsquo;ve been using:</p>
+
+<p></p>
+
+<ul>
+<li><a href="http://tmate.io/">tmate</a> for sharing my terminal (I use vim in the
+terminal). The other person only needs a ssh client to use tmate.</li>
+<li>Google Hangouts or Skype for talking, and sometimes for
+screensharing</li>
+<li>an internal alias <code>http://go/julia</code> that redirects to a Google
+hangout to make it extra easy to talk to me</li>
+<li>a lot of scheduling pairing dates with Google calendar</li>
+</ul>
+
+<p>My experience so far with Google Hangouts / Skype is that neither one
+is really better, and both of them sometimes don&rsquo;t work. I tried
+<a href="http://appear.in">appear.in</a> once and that didn&rsquo;t work <em>at all</em>. One
+person&rsquo;s sound and video was 2 minutes behind the entire time.</p>
+
+<p>tmate mostly works beautifully. Sometimes it will work perfectly and
+it&rsquo;s amazing and sometimes it will freeze for me 5 times in an hour.
+I&rsquo;m not sure if it doesn&rsquo;t like inconsistent internet connections or
+what. The other problem with tmate is that some people have security
+concerns with it, so I&rsquo;m thinking of making an internal tmate that
+goes through our servers.</p>
+
+<p>I&rsquo;ve also been using screensharing to remote pair. Screensharing is
+great because it means you can use any editor you want (not just a
+terminal editor), you can use more than one window, and nobody needs
+any special software. Both Skype and Google Hangouts have it and
+they&rsquo;re both a little wonky. A lot of people have retina Macbooks
+and their screen resolution is way higher than mine, so I have to ask
+them to zoom in a lot. The bigger you make the text, the less you&rsquo;ll
+have trouble when the internet connection wavers.</p>
+
+<p>If you&rsquo;re screensharing, be proactive about asking your partner to
+zoom in :)</p>
+
+<p>The worst thing about remote pairing is that it&rsquo;s really disruptive to
+the flow of the pairing session when your internet connection keeps
+dropping or if one of your tools freezes, and that never happens with
+in-person pairing.</p>
+
+<p>As long as the technology works, though, remote pairing has been
+great! I find that it feels just as productive than in-person pairing,
+which surprised me a lot. The only thing I wish for is an extra
+screen so I could see my pairing-partner&rsquo;s face at the same time.</p>
+
+<p>Are you doing remote pairing? I&rsquo;d love ideas of how to mitigate any of
+the problems I&rsquo;m having :) I&rsquo;m <a href="http://twitter.com/b0rk">@bork</a> on
+Twitter.</p>]]></content>
+  </entry>
+  
+</feed>

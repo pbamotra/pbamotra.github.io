@@ -1,0 +1,468 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>How Kubernetes certificate authorities work - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="How Kubernetes certificate authorities work">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2017/08/05/how-kubernetes-certificates-work/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">How Kubernetes certificate authorities work</h1>
+
+<div class="post-tags">
+  
+  •
+  
+    <a class="post-tag" href="/categories/kubernetes">kubernetes</a> 	•
+  
+  
+</div>
+<p class="meta">
+<time datetime="2017-08-05T09:11:50" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     
+
+<p>Today, let&rsquo;s talk about Kubernetes private/public keys &amp; certificate authorities!</p>
+
+<p>This blog post is about how to take your own requirements about how certificate
+authorities + private keys should be organized and set up your Kubernetes
+cluster the way you need to.</p>
+
+<p>The various Kubernetes components have a TON of different places where
+you can put in a certificate/certificate authority. When we were setting up a
+cluster I felt like there were like 10 billion different command line arguments
+for certificates and keys and certificate authorities and I didn&rsquo;t understand
+how they all fit together.</p>
+
+<p>There are not actually 10 billion command line arguments but there are quite a lot. For example! Let&rsquo;s just look at the command line arguments to the API server.</p>
+
+<p>The API server has more than 16 different command line arguments to do with
+certificates or keys (I actually deleted a bunch to cut it down to this
+list).</p>
+
+<pre><code>--cert-dir string                           The directory where the TLS certs are located. If --tls-cert-file and --tls-private-key-file are provided, this flag will be ignored. (default &quot;/var/run/kubernetes&quot;)
+--client-ca-file string                     If set, any request presenting a client certificate signed by one of the authorities in the client-ca-file is authenticated with an identity corresponding to the CommonName of the client certificate.
+--etcd-certfile string                      SSL certification file used to secure etcd communication.
+--etcd-keyfile string                       SSL key file used to secure etcd communication.
+--kubelet-certificate-authority string      Path to a cert file for the certificate authority.
+--kubelet-client-certificate string         Path to a client cert file for TLS.
+--kubelet-client-key string                 Path to a client key file for TLS.
+--proxy-client-cert-file string             Client certificate used to prove the identity of the aggregator or kube-apiserver when it must call out during a request. This includes proxying requests to a user api-server and calling out to webhook admission plugins. It is expected that this cert includes a signature from the CA in the --requestheader-client-ca-file flag. That CA is published in the 'extension-apiserver-authentication' configmap in the kube-system namespace. Components recieving calls from kube-aggregator should use that CA to perform their half of the mutual TLS verification.
+--proxy-client-key-file string              Private key for the client certificate used to prove the identity of the aggregator or kube-apiserver when it must call out during a request. This includes proxying requests to a user api-server and calling out to webhook admission plugins.
+--requestheader-allowed-names stringSlice   List of client certificate common names to allow to provide usernames in headers specified by --requestheader-username-headers. If empty, any client certificate validated by the authorities in --requestheader-client-ca-file is allowed.
+--requestheader-client-ca-file string       Root certificate bundle to use to verify client certificates on incoming requests before trusting usernames in headers specified by --requestheader-username-headers
+--service-account-key-file stringArray      File containing PEM-encoded x509 RSA or ECDSA private or public keys, used to verify ServiceAccount tokens. If unspecified, --tls-private-key-file is used. The specified file can contain multiple keys, and the flag can be specified multiple times with different files.
+--ssh-keyfile string                        If non-empty, use secure SSH proxy to the nodes, using this user keyfile
+--tls-ca-file string                        If set, this certificate authority will used for secure access from Admission Controllers. This must be a valid PEM-encoded CA bundle. Alternatively, the certificate authority can be appended to the certificate provided by --tls-cert-file.
+--tls-cert-file string                      File containing the default x509 Certificate for HTTPS. (CA cert, if any, concatenated after server cert). If HTTPS serving is enabled, and --tls-cert-file and --tls-private-key-file are not provided, a self-signed certificate and key are generated for the public address and saved to /var/run/kubernetes.
+--tls-private-key-file string               File containing the default x509 private key matching --tls-cert-file.
+--tls-sni-cert-key namedCertKey             A pair of x509 certificate and private key file paths, optionally suffixed with a list of domain patterns which are fully qualified domain names, possibly with prefixed wildcard segments. If no domain patterns are provided, the names of the certificate are extracted. Non-wildcard matches trump over wildcard matches, explicit domain patterns trump over extracted names. For multiple key/certificate pairs, use the --tls-sni-cert-key multiple times. Examples: &quot;example.crt,example.key&quot; or &quot;foo.crt,foo.key:*.foo.com,foo.com&quot;. (default [])
+</code></pre>
+
+<p>and here are the arguments for the controller manager:</p>
+
+<pre><code>--cluster-signing-cert-file string          Filename containing a PEM-encoded X509 CA certificate used to issue cluster-scoped certificates (default &quot;/etc/kubernetes/ca/ca.pem&quot;)
+--cluster-signing-key-file string           Filename containing a PEM-encoded RSA or ECDSA private key used to sign cluster-scoped certificates (default &quot;/etc/kubernetes/ca/ca.key&quot;)
+--root-ca-file string                       If set, this root certificate authority will be included in service account's token secret. This must be a valid PEM-encoded CA bundle.
+--service-account-private-key-file string   Filename containing a PEM-encoded private RSA or ECDSA key used to sign service account tokens.
+</code></pre>
+
+<p>and for the kubelet:</p>
+
+<pre><code>--client-ca-file string                   If set, any request presenting a client certificate signed by one of the authorities in the client-ca-file is authenticated with an identity corresponding to the CommonName of the client certificate.
+--tls-cert-file string                    File containing x509 Certificate used for serving HTTPS (with intermediate certs, if any, concatenated after server cert). If --tls-cert-file and --tls-private-key-file are not provided, a self-signed certificate and key are generated for the public address and saved to the directory passed to --cert-dir.
+--tls-private-key-file string             File containing x509 private key matching --tls-cert-file.
+</code></pre>
+
+<p>In this post I&rsquo;m going to assume you know basically how TLS certificates and
+certificate authorities (&ldquo;CAs&rdquo;) work. When setting this up, I knew how certs
+work but I did not understand how all the different Kubernetes certificate
+authorities fit together.</p>
+
+<p>In this post I&rsquo;ll explain some of the main CAs you can set in Kubernetes and
+how they fit together.</p>
+
+<p>I&rsquo;ll also tell you about a few things I learned while setting all of this up:</p>
+
+<ul>
+<li>You can&rsquo;t use a CA to check the validity of the service account key. The service account key is a weird key which is handled differently from literally every other key.</li>
+<li>You can (and should!!) use an authenticating proxy if the way Kubernetes maps client certificates to usernames and groups doesn&rsquo;t work for you</li>
+<li>Setting up the API server to support too many different authentication methods (&ldquo;more than 2&rdquo;) makes things confusing (though maybe this isn&rsquo;t too surprising :))</li>
+</ul>
+
+<p>(as usual, let me know what mistakes you find in here, I think most of this is
+right but it&rsquo;s a complicated topic!)</p>
+
+<h3 id="pki-kubernetes">PKI &amp; Kubernetes</h3>
+
+<p>When I started reading about kubernetes I saw this term &ldquo;PKI&rdquo; a lot and I
+wasn&rsquo;t sure what it meant.</p>
+
+<p>If you have a Kubernetes cluster, you might have hundreds or thousands of
+private &amp; public keys (in client certificates, server certificates, anywhere!).
+That is a lot of private keys!</p>
+
+<p>If you just had thousands of unrelated independent keys that would be chaos.
+Chaos is not great for security.  So instead the way you manage private/public
+keys is you have certificate authorities (&ldquo;CAs&rdquo;) issue certificates saying
+&ldquo;hey, this public key is OK, it&rsquo;s from me, you should trust it&rdquo;.</p>
+
+<p>Your PKI (&ldquo;public key infrastructure&rdquo;) is how you organize all of your keys &ndash;
+which keys are signed by which certificate authorities.</p>
+
+<p>For example:</p>
+
+<ul>
+<li>You could have one CA per Kubernetes cluster, that&rsquo;s responsible for signing all the private keys in that cluster (this is the model Kubernetes docmentation usually assumes)</li>
+<li>You could have one global CA that&rsquo;s responsible for signing ALL your private keys</li>
+<li>You could have one CA you use for services that are externally visibile and another CA you use for internal-only services</li>
+<li>&hellip; something else</li>
+</ul>
+
+<p>I&rsquo;m not a security expert and I&rsquo;m <strong>not gonna try to tell you how you should
+manage the private keys + certificate authorities</strong> in your infrastructure. But!
+No matter what PKI model you want to use, I&rsquo;m pretty sure you can make it work with Kubernetes.</p>
+
+<p>This blog post is about how to take your own requirements about how certificate
+authorities + private keys should be organized and set up your Kubernetes
+cluster the way you need to.</p>
+
+<h3 id="does-a-kubernetes-cluster-have-to-have-a-single-root-certificate-authority-no">Does a Kubernetes cluster have to have a single root certificate authority? (no)</h3>
+
+<p>If you read a lot of guides to how to set up Kubernetes, you&rsquo;ll see a step like
+&ldquo;set up a certificate authority&rdquo;. Kelsey Hightower&rsquo;s great &ldquo;kubernetes the hard way&rdquo; doc has it as <a href="https://github.com/kelseyhightower/kubernetes-the-hard-way/blob/2983b28f13b294c6422a5600bb6f14142f5e7a26/docs/02-certificate-authority.md">Step 2</a>, and the <a href="https://kubernetes.io/docs/tasks/tls/managing-tls-in-a-cluster/">Trusting TLS in a cluster</a> guide says:</p>
+
+<blockquote>
+<p>Every Kubernetes cluster has a cluster root Certificate Authority
+(CA). The CA is generally used by cluster components to validate the
+API server’s certificate, by the API server to validate kubelet client
+certificates, etc.</p>
+</blockquote>
+
+<p>The way this basically works is:</p>
+
+<ol>
+<li>Set up a certificate authority</li>
+<li>Use that certificate authority to generate a bunch of different certificates that you&rsquo;ll give to different parts of the Kubernetes infrastructure.</li>
+</ol>
+
+<p>But what if you don&rsquo;t want to set up a new certificate authority for
+each kubernetes cluster? We didn&rsquo;t want to do this for various reasons that I won&rsquo;t go into,
+and at first I was worried that you <strong>had</strong> to set up a single root cluster CA.</p>
+
+<p>It turns out that this sentence (&ldquo;every Kubernetes cluster has a
+[single] cluster root Certificate Authority&rdquo;) is not true &ndash; you can
+actually use certificates issued by several completely different CAs to
+manage your Kubernetes cluster and it&rsquo;s fine.</p>
+
+<p>To be clear &ndash; I&rsquo;m not saying you <strong>shouldn&rsquo;t</strong> have a single root certificate
+for your Kubernetes cluster, I&rsquo;m just saying you don&rsquo;t have to if for whatever
+reason that way doesn&rsquo;t meet your requirements.</p>
+
+<p>Let&rsquo;s break down some of these command line arguments about certificates and
+how they relate to each other. Each of these sections is about one certificate
+authority you can define. They&rsquo;re all independent &ndash; none of them need to be the
+same as any other one. (though in practice you will probably want to make some
+of them the same, you don&rsquo;t want to be managing like 6 CAs probably).</p>
+
+<h3 id="the-api-server-s-tls-certificate-and-certificate-authority">The API server&rsquo;s TLS certificate (and certificate authority)</h3>
+
+<pre><code> --tls-cert-file string             
+    File containing the default x509 Certificate for HTTPS. (CA cert, if any,
+    concatenated after server cert). If HTTPS serving is enabled, and
+    --tls-cert-file and --tls-private-key-file are not provided, a self-signed
+    certificate and key are generated for the public address and saved to
+    /var/run/kubernetes.
+ --tls-private-key-file string      
+    File containing the default x509 private key matching --tls-cert-file.
+</code></pre>
+
+<p>You&rsquo;re probably using TLS to connect to your Kubernetes API server. These two
+options (to the API server) let you pick what certificate the API server should use.</p>
+
+<p>Once you set a TLS cert, you&rsquo;ll need to set up a kubeconfig file for the
+components (like the kubelet and kubectl) that want to talk to the API server.</p>
+
+<p>The kubeconfig file will look something like this:</p>
+
+<pre><code>current-context: my-context
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority: /path/to/my/ca.crt # CERTIFICATE AUTHORITY THAT ISSUED YOUR TLS CERT
+    server: https://horse.org:4443 # this name needs to be on the certificate in --tls-cert-file
+  name: my-cluster
+kind: Config
+users:
+- name: green-user
+  user:
+    client-certificate: path/to/my/client/cert # we'll get to this later
+    client-key: path/to/my/client/key # we'll get to this later
+</code></pre>
+
+<p>One thing I found surprising about this is &ndash; almost everything else in the
+universe that uses TLS will look in /etc/ssl to find a list of certificate
+authorities the computer trusts by default. But Kubernetes doesn&rsquo;t do that,
+instead it mandates &ldquo;no, you have to say exactly which CA issued the API
+server&rsquo;s TLS cert&rdquo;.</p>
+
+<p>You can pass this kubeconfig file into any kubernetes component with <code>--kubeconfig /path/to/kubeconfig.yaml</code></p>
+
+<p>So! We&rsquo;ve met our first certificate authority: the CA that issues the API
+server&rsquo;s TLS cert. This CA doesn&rsquo;t need to be the same as any of the other
+certificate authorities we&rsquo;re going to discuss.</p>
+
+<h3 id="the-api-server-client-certificate-authority-certificates">The API server client certificate authority (+ certificates)</h3>
+
+<pre><code>--client-ca-file string    
+    If set, any request presenting a client certificate signed by one of the
+    authorities in the client-ca-file is authenticated with an identity
+    corresponding to the CommonName of the client certificate.
+</code></pre>
+
+<p>One way for Kubernetes components to authenticate to the API server is with
+<strong>client certificates</strong>.</p>
+
+<p>All of these client certs should be issued by the same CA (which, again,
+doesn&rsquo;t need to be the same as the CA that issued the API server&rsquo;s server TLS
+cert).</p>
+
+<p>When using a kubeconfig file (like we talked about above), you set the client certificates in that file, like this:</p>
+
+<pre><code>kind: Config
+users:
+- name: green-user
+  user:
+    client-certificate: path/to/my/client/cert
+    client-key: path/to/my/client/key
+</code></pre>
+
+<p>Kubernetes makes a lot of assumptions about how you&rsquo;ve set up your client
+certificates. (it sets the user to be the Common Name field and the group to be
+the Organization field). If those assumptions don&rsquo;t match what you want,
+the right thing to do is to <strong>not use</strong> client cert auth and instead use
+an authenticating proxy.</p>
+
+<h3 id="the-request-header-certificate-authority-or-using-an-authenticating-proxy">The request header certificate authority (or: using an authenticating proxy)</h3>
+
+<pre><code># API server arguments
+--requestheader-allowed-names stringSlice                 
+  	    List of client
+        certificate common names to allow to provide usernames in headers specified by
+        --requestheader-username-headers. If empty, any client certificate validated by
+        the authorities in --requestheader-client-ca-file is allowed.
+--requestheader-client-ca-file string                     
+        Root certificate bundle to use to verify client certificates on incoming
+        requests before trusting usernames in headers specified by
+        --requestheader-username-headers
+</code></pre>
+
+<p>Another way to set up Kubernetes auth is with an <strong>authenticating proxy</strong>. If
+you have a lot of opinions about what usernames and groups should be sent to the
+API server, you can set up a proxy which passes usernames &amp; groups to the API server in a HTTP header.</p>
+
+<p>The docs basically explain how this works &ndash; the proxy uses a client cert to
+identify itself, and the <code>--requestheader-client-ca-file</code> tells the API server
+which CA to use to verify that client cert.</p>
+
+<p>I don&rsquo;t have too much to say about this except &ndash; we learned pretty quickly
+that having too many auth methods in your API server (&ldquo;accept client
+certificates OR an authenticating proxy OR a token OR&hellip;&ldquo;) makes things
+confusing. It&rsquo;s probably better to pick a small number (like 1 or
+2?) of authentication methods your API server supports because it makes it
+easier to debug problems and understand your security model.</p>
+
+<h3 id="serviceaccount-private-keys-which-aren-t-signed-by-a-certificate-authority">serviceaccount private keys (which aren&rsquo;t signed by a certificate authority)</h3>
+
+<pre><code># API server argument
+--service-account-key-file stringArray
+    File containing PEM-encoded x509 RSA or ECDSA private or public keys, used to
+    verify ServiceAccount tokens. If unspecified, --tls-private-key-file is used.
+    The specified file can contain multiple keys, and the flag can be specified
+    multiple times with different files.
+# controller manager argument
+--service-account-private-key-file string
+    Filename containing a PEM-encoded private RSA or ECDSA key used to sign service
+    account tokens.
+</code></pre>
+
+<p>The controller manager signs serviceaccount tokens with a private key. Unlike
+every other private key that Kubernetes supports, the serviceaccount key
+doesn&rsquo;t support &ldquo;hey use a CA to check if this is the right key&rdquo;. This means
+you have to give exactly the same private key file to every controller manager.</p>
+
+<p>Anyway this key does not need to have a certificate and does not need to be
+signed by any certificate authority. You can just generate a key with</p>
+
+<pre><code>openssl genrsa -out private.key 4096
+</code></pre>
+
+<p>and distribute it to every controller manager / API server.</p>
+
+<p>Using <code>--tls-private-key-file</code> for this seems generally fine to me though, as
+long as you give every API server the same TLS key (which I think you usually
+would?). (I&rsquo;m assuming here that you have a HA setup where you run more than
+one API server and more than one controller manager)</p>
+
+<p>If you give 2 different controller managers 2 different keys, they&rsquo;ll sign
+serviceaccount tokens with different keys and you&rsquo;ll end up with invalid
+serviceaccount tokens (see <a href="https://github.com/kubernetes/kubernetes/issues/22351">this issue</a>). I think this isn&rsquo;t ideal (Kubernetes should probably
+support these keys being issued from a CA like it does for ~every other private
+key). From reading the source code I think the reason it&rsquo;s set up this way is
+that <a href="https://github.com/dgrijalva/jwt-go">jwt-go</a> doesn&rsquo;t support using a CA
+to check signatures.</p>
+
+<h3 id="kubelet-certificate-authorities">kubelet certificate authorities</h3>
+
+<p>Let&rsquo;s talk about the kubelet! Here are the relevant command line arguments for the API server &amp; kubelet:</p>
+
+<pre><code># API server arguments
+--kubelet-certificate-authority string    Path to a cert file for the certificate authority.
+--kubelet-client-certificate string       Path to a client cert file for TLS.
+--kubelet-client-key string               Path to a client key file for TLS.
+# kubelet arguments
+--client-ca-file string                   If set, any request presenting a client certificate signed by one of the authorities in the client-ca-file is authenticated with an identity corresponding to the CommonName of the client certificate.
+--tls-cert-file string                    File containing x509 Certificate used for serving HTTPS (with intermediate certs, if any, concatenated after server cert). If --tls-cert-file and --tls-private-key-file are not provided, a self-signed certificate and key are generated for the public address and saved to the directory passed to --cert-dir.
+--tls-private-key-file string             File containing x509 private key matching --tls-cert-file.
+</code></pre>
+
+<p>It&rsquo;s useful to authenticate requests to the kubelet because the kubelet can
+execute arbitrary code on your machines :) (in fact that&rsquo;s its job)</p>
+
+<p>There are actually 2 CAs here. I won&rsquo;t go into too much detail because this is
+the same as the setup for the APi server &ndash; the kubelet has a TLS cert (that it
+uses to serve TLS requests) and also supports client cert authentication.</p>
+
+<p>You tell the API server what certificate authority to use to check the
+kubelet&rsquo;s TLS cert, and what client certificate to use when talking to the
+kubelet.</p>
+
+<p>Again these 2 CAs could be totally different from each other.</p>
+
+<h3 id="so-many-possible-cas">so many possible CAs</h3>
+
+<p>So far we have found 5 different certificate authorities you can specify as
+part of setting up a Kubernetes cluster! They&rsquo;re all handled independently and
+in theory they could all be totally different.</p>
+
+<p>I didn&rsquo;t discuss every single CA setting that Kubernetes supports (there are
+still more!) but hopefully this gives you some of the tools you need to read
+the docs about the rest.</p>
+
+<p>Again &ndash; it almost certainly doesn&rsquo;t makes sense to make them <strong>all</strong> different
+from each other but I think it&rsquo;s useful to understand how all this is set up if
+you have your own requirements around how you want to handle your
+certificate authorities for Kubernetes and don&rsquo;t want to do exactly what the
+docs suggest.</p>
+
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2017/08/05/how-kubernetes-certificates-work/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2017/08/05/how-kubernetes-certificates-work/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2017/08/06/contributing-to-open-source/" title="Previous Post: Figuring out how to contribute to open source">Figuring out how to contribute to open source</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2017/07/30/a-couple-useful-ideas-from-google/" title="Next Post: Cherry picking commits &amp; shell scripting in golang">Cherry picking commits &amp; shell scripting in golang</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

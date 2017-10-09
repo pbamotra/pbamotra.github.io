@@ -1,0 +1,321 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>How does gdb work? - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="How does gdb work?">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2016/08/10/how-does-gdb-work/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">How does gdb work?</h1>
+
+<div class="post-tags">
+  
+</div>
+<p class="meta">
+<time datetime="2016-08-10T00:02:06" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     
+
+<p>Hello! Today I was working a bit on my <a href="http://jvns.ca/blog/2016/06/12/a-weird-system-call-process-vm-readv/">ruby stacktrace project</a> and I realized that now I know a couple of things about how gdb works internally.</p>
+
+<p>Lately I&rsquo;ve been using gdb to look at Ruby programs, so we&rsquo;re going to be running gdb on a Ruby program. This really means the Ruby interpreter. First, we&rsquo;re going to print out the address of a global variable: <code>ruby_current_thread</code>:</p>
+
+<h3 id="getting-a-global-variable">getting a global variable</h3>
+
+<p>Here&rsquo;s how to get the address of the global <code>ruby_current_thread</code>:</p>
+
+<pre><code>$ sudo gdb -p 2983
+(gdb) p &amp; ruby_current_thread
+$2 = (rb_thread_t **) 0x5598a9a8f7f0 &lt;ruby_current_thread&gt;
+</code></pre>
+
+<p>There are a few places a variable can live: on the heap, the stack, or in your program&rsquo;s text. Global variables are part of your program! You can think of them as being allocated at compile time, kind of. It turns out we can figure out the address of a global variable pretty easily! Let&rsquo;s see how <code>gdb</code> came up with <code>0x5598a9a8f7f0</code>.</p>
+
+<p>We can find the approximate region this variable lives in by looking at a cool file in <code>/proc</code> called <code>/proc/$pid/maps</code>.</p>
+
+<pre><code>$ sudo cat /proc/2983/maps | grep bin/ruby
+5598a9605000-5598a9886000 r-xp 00000000 00:32 323508                     /home/bork/.rbenv/versions/2.1.6/bin/ruby
+5598a9a86000-5598a9a8b000 r--p 00281000 00:32 323508                     /home/bork/.rbenv/versions/2.1.6/bin/ruby
+5598a9a8b000-5598a9a8d000 rw-p 00286000 00:32 323508                     /home/bork/.rbenv/versions/2.1.6/bin/ruby
+</code></pre>
+
+<p>So! There&rsquo;s this starting address <code>5598a9605000</code> That&rsquo;s <em>like</em> <code>0x5598a9a8f7f0</code>, but different. How different? Well, here&rsquo;s what I get when I subtract them:</p>
+
+<pre><code>(gdb) p/x 0x5598a9a8f7f0 - 0x5598a9605000
+$4 = 0x48a7f0
+</code></pre>
+
+<p>&ldquo;What&rsquo;s that number?&rdquo;, you might ask? WELL. Let&rsquo;s look at the <strong>symbol table</strong> for our program with <code>nm</code>.</p>
+
+<pre><code>sudo nm /proc/2983/exe | grep ruby_current_thread
+000000000048a7f0 b ruby_current_thread
+</code></pre>
+
+<p>What&rsquo;s that we see? Could it be <code>0x48a7f0</code>? Yes it is! So!! If we want to find the address of a global variable in our program, all we need to do is look up the name of the variable in the symbol table, and then add that to the start of the range in <code>/proc/whatever/maps</code>, and we&rsquo;re done!</p>
+
+<p>So now we know how gdb does that. But gdb does so much more!! Let&rsquo;s skip ahead to&hellip;</p>
+
+<h3 id="dereferencing-pointers">dereferencing pointers</h3>
+
+<pre><code>(gdb) p ruby_current_thread
+$1 = (rb_thread_t *) 0x5598ab3235b0
+</code></pre>
+
+<p>The next thing we&rsquo;re going to do is <strong>dereference</strong> that <code>ruby_current_thread</code> pointer. We want to see what&rsquo;s in that address! To do that, gdb will run a bunch of system calls like this:</p>
+
+<pre><code>ptrace(PTRACE_PEEKTEXT, 2983, 0x5598a9a8f7f0, [0x5598ab3235b0]) = 0
+</code></pre>
+
+<p>You remember this address <code>0x5598a9a8f7f0</code>? gdb is asking &ldquo;hey, what&rsquo;s in that address exactly&rdquo;? <code>2983</code> is the PID of the process we&rsquo;re running gdb on. It&rsquo;s using the <code>ptrace</code> system call which is how gdb does everything.</p>
+
+<p>Awesome! So we can dereference memory and figure out what bytes are at what memory addresses. Some useful gdb commands to know here are <code>x/40w variable</code> and <code>x/40b variable</code> which will display 40 words / bytes at a given address, respectively.</p>
+
+<h3 id="describing-structs">describing structs</h3>
+
+<p>The memory at an address looks like this. A bunch of bytes!</p>
+
+<pre><code>(gdb) x/40b ruby_current_thread
+0x5598ab3235b0:	16	-90	55	-85	-104	85	0	0
+0x5598ab3235b8:	32	47	50	-85	-104	85	0	0
+0x5598ab3235c0:	16	-64	-55	115	-97	127	0	0
+0x5598ab3235c8:	0	0	2	0	0	0	0	0
+0x5598ab3235d0:	-96	-83	-39	115	-97	127	0	0
+</code></pre>
+
+<p>That&rsquo;s useful, but not that useful! If you are a human like me and want to know what it MEANS, you need more. Like this:</p>
+
+<pre><code>(gdb) p *(ruby_current_thread)
+$8 = {self = 94114195940880, vm = 0x5598ab322f20, stack = 0x7f9f73c9c010,
+	stack_size = 131072, cfp = 0x7f9f73d9ada0, safe_level = 0,    raised_flag = 0,
+	last_status = 8, state = 0, waiting_fd = -1, passed_block = 0x0,
+	passed_bmethod_me = 0x0, passed_ci = 0x0,    top_self = 94114195612680,
+	top_wrapper = 0, base_block = 0x0, root_lep = 0x0, root_svar = 8, thread_id =
+	140322820187904,
+</code></pre>
+
+<p>GOODNESS. That is a lot more useful. How does gdb know that there are all these cool fields like <code>stack_size</code>? Enter DWARF. DWARF is a way to store extra debugging data about your program, so that debuggers like gdb can do their job better! It&rsquo;s generally stored as part of a binary. If I run <code>dwarfdump</code> on my Ruby binary, I get some output like this:</p>
+
+<p>(I&rsquo;ve redacted it heavily to make it easier to understand)</p>
+
+<pre><code>DW_AT_name                  &quot;rb_thread_struct&quot;
+DW_AT_byte_size             0x000003e8
+DW_TAG_member
+  DW_AT_name                  &quot;self&quot;
+  DW_AT_type                  &lt;0x00000579&gt;
+  DW_AT_data_member_location  DW_OP_plus_uconst 0
+DW_TAG_member
+  DW_AT_name                  &quot;vm&quot;
+  DW_AT_type                  &lt;0x0000270c&gt;
+  DW_AT_data_member_location  DW_OP_plus_uconst 8
+DW_TAG_member
+  DW_AT_name                  &quot;stack&quot;
+  DW_AT_type                  &lt;0x000006b3&gt;
+  DW_AT_data_member_location  DW_OP_plus_uconst 16
+DW_TAG_member
+  DW_AT_name                  &quot;stack_size&quot;
+  DW_AT_type                  &lt;0x00000031&gt;
+  DW_AT_data_member_location  DW_OP_plus_uconst 24
+DW_TAG_member
+  DW_AT_name                  &quot;cfp&quot;
+  DW_AT_type                  &lt;0x00002712&gt;
+  DW_AT_data_member_location  DW_OP_plus_uconst 32
+DW_TAG_member
+  DW_AT_name                  &quot;safe_level&quot;
+  DW_AT_type                  &lt;0x00000066&gt;
+</code></pre>
+
+<p>So. The name of the type of <code>ruby_current_thread</code> is <code>rb_thread_struct</code>. It has size <code>0x3e8</code> (or 1000 bytes), and it has a bunch of member items. <code>stack_size</code> is one of them, at an offset of 24, and it has type 31. What&rsquo;s 31? No worries! We can look that up in the DWARF info too!</p>
+
+<pre><code>&lt; 1&gt;&lt;0x00000031&gt;    DW_TAG_typedef
+                      DW_AT_name                  &quot;size_t&quot;
+                      DW_AT_type                  &lt;0x0000003c&gt;
+&lt; 1&gt;&lt;0x0000003c&gt;    DW_TAG_base_type
+                      DW_AT_byte_size             0x00000008
+                      DW_AT_encoding              DW_ATE_unsigned
+                      DW_AT_name                  &quot;long unsigned int&quot;
+
+</code></pre>
+
+<p>So! <code>stack_size</code> has type <code>size_t</code>, which means <code>long unsigned int</code>, and is 8 bytes. That means that we can read the stack size!</p>
+
+<p>How that would break down, once we have the DWARF debugging data, is:</p>
+
+<ol>
+<li>Read the region of memory that <code>ruby_current_thread</code> is pointing to</li>
+<li>Add 24 bytes to get to <code>stack_size</code></li>
+<li>Read 8 bytes (in little-endian format, since we&rsquo;re on x86)</li>
+<li>Get the answer!</li>
+</ol>
+
+<p>Which in this case is 131072 or 128 kb.</p>
+
+<p>To me, this makes it a lot more obvious what debugging info is <strong>for</strong> &ndash; if we didn&rsquo;t have all this extra metadata about what all these variables meant, we would have no idea what the bytes at address <code>0x5598ab3235b0</code> meant.</p>
+
+<p>This is also why you can install debug info for a program separately from your program &ndash; gdb doesn&rsquo;t care where it gets the extra debug info from.</p>
+
+<h3 id="dwarf-is-confusing">DWARF is confusing</h3>
+
+<p>I&rsquo;ve been reading a bunch of DWARF info recently. Right now I&rsquo;m using libdwarf which hasn&rsquo;t been the best experience &ndash; the API is confusing, you initialize everything in a weird way, and it&rsquo;s really slow (it takes 0.3 seconds to read all the debugging data out of my Ruby program which seems ridiculous). I&rsquo;ve been told that libdw from elfutils is better.</p>
+
+<p>Also, I casually remarked that you can look at <code>DW_AT_data_member_location</code> to get the offset of a struct member! But I looked up on Stack Overflow how to actually do that and I got <a href="http://stackoverflow.com/questions/25047329/how-to-get-struct-member-offset-from-dwarf-info">this answer</a>. Basically you start with a check like:</p>
+
+<pre><code>dwarf_whatform(attrs[i], &amp;form, &amp;error);
+    if (form == DW_FORM_data1 || form == DW_FORM_data2
+        form == DW_FORM_data2 || form == DW_FORM_data4
+        form == DW_FORM_data8 || form == DW_FORM_udata) {
+</code></pre>
+
+<p>and then it keeps GOING. Why are there 8 million different <code>DW_FORM_data</code> things I need to check for? What is happening? I have no idea.</p>
+
+<p>Anyway my impression is that DWARF is a large and complicated standard (and possibly the libraries people use to generate DWARF are subtly incompatible?), but it&rsquo;s what we have, so that&rsquo;s what we work with!</p>
+
+<p>I think it&rsquo;s really cool that I can write code that reads DWARF and my code actually mostly works. Except when it crashes. I&rsquo;m working on that.</p>
+
+<h3 id="unwinding-stacktraces">unwinding stacktraces</h3>
+
+<p>In an earlier version of this post, I said that gdb unwinds stacktraces using
+libunwind. It turns out that this isn&rsquo;t true at all!</p>
+
+<p>Someone who&rsquo;s worked on gdb a lot emailed me to say that they actually spent a
+ton of time figuring out how to unwind stacktraces so that they can do a
+better job than libunwind does. This means that if you get stopped in the
+middle of a weird program with less debug info than you might hope for that&rsquo;s
+done something strange with its stack, gdb will try to figure out where you
+are anyway. Thanks &lt;3</p>
+
+<h3 id="other-things-gdb-does">other things gdb does</h3>
+
+<p>The few things I&rsquo;ve described here (reading memory, understanding DWARF to show you structs) aren&rsquo;t everything gdb does &ndash; just looking through Brendan Gregg&rsquo;s <a href="http://www.brendangregg.com/blog/2016-08-09/gdb-example-ncurses.html">gdb example from yesterday</a>, we see that gdb also knows how to</p>
+
+<ul>
+<li>disassemble assembly</li>
+<li>show you the contents of your registers</li>
+</ul>
+
+<p>and in terms of manipulating your program, it can</p>
+
+<ul>
+<li>set breakpoints and step through a program</li>
+<li>modify memory (!! danger !!)</li>
+</ul>
+
+<p>Knowing more about how gdb works makes me feel a lot more confident when using
+it! I used to get really confused because gdb kind of acts like a C REPL
+sometimes &ndash; you type <code>ruby_current_thread-&gt;cfp-&gt;iseq</code>, and it feels like
+writing C code! But you&rsquo;re not really writing C at all, and it was easy for
+me to run into limitations in gdb and not understand why.</p>
+
+<p>Knowing that it&rsquo;s using DWARF to figure out the contents of the structs gives me a better mental model and have more correct expectations! Awesome.</p>
+
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2016/08/10/how-does-gdb-work/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2016/08/10/how-does-gdb-work/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2016/08/16/how-do-you-work-on-something-important/" title="Previous Post: How do you decide what to work on?">How do you decide what to work on?</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2016/07/23/a-few-sketches/" title="Next Post: A few sketches">A few sketches</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

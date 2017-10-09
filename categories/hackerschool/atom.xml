@@ -1,0 +1,2203 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title><![CDATA[Julia Evans]]></title>
+  <link href="http://jvns.ca/atom.xml" rel="self"/>
+  <link href="http://jvns.ca"/>
+  <updated>2014-08-12T08:52:30+00:00</updated>
+  <id>http://jvns.ca</id>
+  <author>
+    <name><![CDATA[Julia Evans]]></name>
+  </author>
+  <generator uri="http://gohugo.io/">Hugo</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[What happens if you write a TCP stack in Python?]]></title>
+    <link href="https://jvns.ca/blog/2014/08/12/what-happens-if-you-write-a-tcp-stack-in-python/"/>
+    <updated>2014-08-12T08:52:30+00:00</updated>
+    <id>https://jvns.ca/blog/2014/08/12/what-happens-if-you-write-a-tcp-stack-in-python/</id>
+    <content type="html"><![CDATA[<p>During Hacker School, I wanted to understand networking better, and I
+decided to write a miniature TCP stack as part of that. I was much
+more comfortable with Python than C and I&rsquo;d recently discovered the
+<a href="http://www.secdev.org/projects/scapy/">scapy</a> networking library
+which made sending packets
+<a href="http://jvns.ca/blog/2013/10/31/day-20-scapy-and-traceroute/">really easy</a>.</p>
+
+<p>So I started writing <a href="https://github.com/jvns/teeceepee">teeceepee</a>!</p>
+
+<p>The basic idea was</p>
+
+<ol>
+<li>open a raw network socket that lets me send TCP packets</li>
+<li>send a HTTP request to <code>GET</code> google.com</li>
+<li>get and parse a response</li>
+<li>celebrate!</li>
+</ol>
+
+<p>I didn&rsquo;t care much about proper error handling or anything; I just
+wanted to get one webpage and declare victory :)</p>
+
+<p></p>
+
+<h2 id="step-1-the-tcp-handshake">Step 1: the TCP handshake</h2>
+
+<p>I started out by doing a TCP handshake with Google! (this won&rsquo;t
+necessarily run correctly, but illustrates the principles). I&rsquo;ve
+commented each line.</p>
+
+<p>The way a TCP handshake works is:</p>
+
+<ul>
+<li>me: SYN</li>
+<li>google: SYNACK!</li>
+<li>me: ACK!!!</li>
+</ul>
+
+<p>Pretty simple, right? Let&rsquo;s put it in code.</p>
+
+<pre><code class="language-python"># My local network IP
+src_ip = &quot;192.168.0.11&quot;
+# Google's IP
+dest_ip = &quot;96.127.250.29&quot;
+# IP header: this is coming from me, and going to Google
+ip_header = IP(dst=dest_ip, src=src_ip)
+# Specify a large random port number for myself (59333),
+# and port 80 for Google The &quot;S&quot; flag means this is
+# a SYN packet
+syn = TCP(dport=80, sport=59333, 
+          ack=0, flags=&quot;S&quot;)
+# Send the SYN packet to Google
+# scapy uses '/' to combine packets with headers
+response = srp(ip_header / syn)
+# Add the sequence number 
+ack = TCP(dport=80, sport=self.src_port, 
+          ack=response.seq, flags=&quot;A&quot;) 
+# Reply with the ACK
+srp(ip_header / ack)
+</code></pre>
+
+<h3 id="wait-sequence-numbers">Wait, sequence numbers?</h3>
+
+<p>What&rsquo;s all this about sequence numbers? The whole point of TCP is to
+make sure you can resend packets if some of them go missing. Sequence
+numbers are a way to check if you&rsquo;ve missed packets. So let&rsquo;s say that
+Google sends me 4 packets, size 110, 120, 200, and 500 bytes. Let&rsquo;s
+pretend the initial sequence number is 0. Then those packets will have
+sequence numbers 0, 110, 230, and 430.</p>
+
+<p>So if I suddenly got a 100-byte packet with a sequence number of 2000,
+that would mean I missed a packet! The next sequence number should be
+930!</p>
+
+<p>How can Google know that I missed the packet? Every time I receive a
+packet from Google, I need to send an ACK (&ldquo;I got the packet with
+sequence number 230, thanks!&ldquo;). If the Google server notices I haven&rsquo;t
+ACKed a packet, then it can resend it!</p>
+
+<p>The TCP protocol is extremely complicated and has all kinds of rate
+limiting logic in it, but we&rsquo;re not going to talk about any of that.
+This is all you&rsquo;ll need to know about TCP for this post!</p>
+
+<p>For a more in-depth explanation, including how SYN
+packets affect sequence numbers, I found
+<a href="http://packetlife.net/blog/2010/jun/7/understanding-tcp-sequence-acknowledgment-numbers/">Understanding TCP sequence numbers</a>
+very clear.</p>
+
+<h2 id="step-2-oh-no-i-already-have-a-tcp-stack">Step 2: OH NO I already have a TCP stack</h2>
+
+<p>So I ran the code above, and I had a problem. IT DIDN&rsquo;T WORK.</p>
+
+<p>But in a kind of funny way! I just didn&rsquo;t get any responses. I looked
+in Wireshark (a wonderful tool for spying on your packets) and it
+looked like this:</p>
+
+<pre><code>me: SYN
+google: SYNACK
+me: RST
+</code></pre>
+
+<p>Wait, what? I never sent a <code>RST</code> packet?! <code>RST</code> means STOP THE
+CONNECTION IT&rsquo;S OVER. That is not in my code at all!</p>
+
+<p>This is when I remembered that I <em>already</em> have a TCP stack on my
+computer, in my kernel. So what was actually happening was:</p>
+
+<pre><code>my Python program: SYN
+google: SYNACK
+my kernel: lol wtf I never asked for this! RST!
+my Python program: ... :(
+</code></pre>
+
+<p>So how do we bypass the kernel? I talked to the delightful
+<a href="https://github.com/jtakkala">Jari Takkala</a> about this, and he
+suggested using
+<a href="http://jvns.ca/blog/2013/10/29/day-18-in-ur-connection/">ARP spoofing</a>
+to pretend I had a different IP address (like <code>192.168.0.129</code>).</p>
+
+<p>The new exchange was like this:</p>
+
+<pre><code>me: hey router! send packets for 192.168.0.129 to my MAC address
+router: (does it silently)
+my Python program: SYN (from 192.168.0.129)
+google: SYNACK
+kernel: this isn't my IP address! &lt;ignore&gt;
+my Python program: ACK YAY
+</code></pre>
+
+<p>And it worked! Okay, awesome, we can now send packets AND GET
+RESPONSES without my kernel interfering! AWESOME.</p>
+
+<h2 id="step-3-get-a-webpage">Step 3: get a webpage!</h2>
+
+<p>There is an intervening step here where I fix tons of irritating bugs
+preventing Google from sending me the HTML for <a href="http://google.com">http://google.com</a>. I
+eventually fixed all of these, and emerge victorious!</p>
+
+<p>I needed to</p>
+
+<ul>
+<li>put together a packet containing a HTTP GET request</li>
+<li>make sure I can listen for <em>lots</em> of packets in response, not just
+one</li>
+<li>spend a lot of time fixing bugs with sequence numbers</li>
+<li>try to close the connection properly</li>
+</ul>
+
+<h2 id="step-4-realize-python-is-slow">Step 4: realize Python is slow</h2>
+
+<p>Once I had everything working, I used Wireshark again to look at what
+packets were being sent back and forth. It looked something like this:</p>
+
+<pre><code>me/google: &lt;tcp handshake&gt;
+me: GET google.com
+google: 100 packets
+me: 3 ACKs
+google: &lt;starts resending packets&gt;
+me: a few more ACKs
+google: &lt;reset connection&gt;
+</code></pre>
+
+<p>The sequences of packets from Google and ACKs from me looked something
+like: P P P A P P P P P A P P A P P P P A. Google was sending me
+packets <em>way</em> faster than my program could keep up and send ACKs.
+Then, hilariously, Google&rsquo;s server would assume that there were
+network problems causing me to not ACK its packets.</p>
+
+<p>And it would eventually reset the connection because it would decide
+there were connection problems.</p>
+
+<p>But the connection was fine! My program was totally responding! It was
+just that my Python program was way too slow to respond to packets in
+the millisecond times it expected.</p>
+
+<p>(edit: this diagnosis seems to be incorrect :) you can
+<a href="https://news.ycombinator.com/item?id=8167546">read some discussion</a>
+about what may be actually going on here)</p>
+
+<h2 id="life-lessons">life lessons</h2>
+
+<p>If you&rsquo;re actually writing a production TCP stack, don&rsquo;t use Python.
+(surprise!) Also, the TCP spec is really complicated, but you can get
+servers to reply to you even if your implementation is extremely sketchy.</p>
+
+<p>I was really happy that it actually worked, though! The ARP spoofing
+was extremely finicky, but I wrote a version of <code>curl</code> using it which
+worked about 25% of the time. You can see all the absurd code at
+<a href="https://github.com/jvns/teeceepee/">https://github.com/jvns/teeceepee/</a>.</p>
+
+<p>I think this was actually way more fun and instructive than trying to
+write a TCP stack in an appropriate language like C :)</p>]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[How I did Hacker School: ignoring things I understand and doing the impossible]]></title>
+    <link href="https://jvns.ca/blog/2014/06/29/how-i-did-hacker-school/"/>
+    <updated>2014-06-29T09:52:47+00:00</updated>
+    <id>https://jvns.ca/blog/2014/06/29/how-i-did-hacker-school/</id>
+    <content type="html"><![CDATA[<p><a href="https://www.hackerschool.com/">Hacker School</a> is a 12 week workshop
+where you work on becoming a better programmer. But when you have 12
+weeks of uninterrupted time to spend on whatever you want, what do you
+actually do? I
+<a href="http://jvns.ca/blog/categories/hackerschool/">wrote down what I worked on every day of Hacker School</a>,
+but I always have trouble articulating advice about what to work on.
+So this isn&rsquo;t advice, it&rsquo;s what I did.</p>
+
+<p></p>
+
+<p>One huge part of the way I ended up approaching Hacker School was to
+ignore a ton of stuff that goes on there. For example! I find all
+these things kind of interesting:</p>
+
+<ul>
+<li>machine learning</li>
+<li>web development</li>
+<li>hardware projects</li>
+<li>games</li>
+<li>new programming languages</li>
+</ul>
+
+<p>But I&rsquo;d been working as a web developer / in machine learning for a
+couple of years, and I wasn&rsquo;t scared by them. I don&rsquo;t feel right now
+like learning more programming languages is going to make me a better
+programmer.</p>
+
+<p>And there were <em>tons</em> of interesting-sounding workshops where Mary
+would live code a space invaders game in Javascript (!!!), or Zach
+would give an intermediate Clojure workshop, or people would work
+together on a fun hardware project. People were building neural
+networks, which looked fun!</p>
+
+<p>I mostly did not go to these workshops. It turned out that I was
+interested in all those things, but more interested in learning:</p>
+
+<ul>
+<li>systems programming
+(<a href="http://jvns.ca/blog/2013/12/10/day-40-learning-about-linkers/">linkers</a>!
+<a href="http://jvns.ca/blog/2014/04/20/debug-your-programs-like-theyre-closed-source/">strace</a>!)</li>
+<li>networking
+(<a href="http://jvns.ca/blog/2013/10/29/day-18-in-ur-connection/">ARP</a>!,
+<a href="http://jvns.ca/blog/2013/11/27/day-34b-wrapping-up-the-tcp-stack/">writing a TCP stack!</a>)</li>
+<li>how to write an operating system
+(<a href="http://jvns.ca/blog/2013/12/16/day-43-hopefully-the-last-day-spent-fixing-linker-problems/">why is my operating system being erased?!</a>)</li>
+<li>security (what actually is a buffer overflow?
+<a href="http://jvns.ca/blog/2013/10/28/day-17-buffer-overflows/">how do I make one?</a>)</li>
+<li><a href="http://jvns.ca/blog/2013/10/24/day-16-gzip-plus-poetry-equals-awesome/">how gzip works</a></li>
+<li>how to write a
+<a href="http://jvns.ca/blog/2013/10/01/hacker-school-day-2-what-does-a-shell-even-do/">shell</a></li>
+<li>how floating point numbers work! Stefan Karpinski gave an amazing
+talk about this.</li>
+</ul>
+
+<p>I wanted to work on things that seemed impossible to me, and writing an
+operating system seemed impossible. I didn&rsquo;t know <em>anything</em> about
+operating systems. This was amazing.</p>
+
+<p>This meant sometimes saying no to requests to pair on things that
+weren&rsquo;t on my roadmap, even if they seemed super interesting! I also
+learned that if I wanted something to exist, I could <em>just make it</em>.</p>
+
+<p>I ran a kernel development workshop for a while in my first two weeks.
+<a href="https://github.com/jtakkala">Jari</a> and
+<a href="https://github.com/pyb">Pierre</a> and
+<a href="https://github.com/briandignan">Brian</a> came, and they answered &ldquo;what
+is a kernel? what are its responsibilities?&ldquo;. This was hugely helpful
+to me, and I learned a ton of the basics of kernel programming. Nobody
+I talked to had built an operating system from scratch, so I learned
+how! <a href="https://filippo.io/">Filippo</a> answered a lot of my security
+questions and helped when I was confused about assembly.
+<a href="https://twitter.com/lifeissweetgood">Daphne</a> was working on a shell
+and I paired with her and learned a ton.</p>
+
+<p>People at Hacker School know an <em>amazing</em> amount of stuff. There is so
+much to learn from them.</p>
+
+<p>So I don&rsquo;t have advice, but for me one some the most important things
+to remember about Hacker School were that <em>other people have different
+interests than me, and that&rsquo;s okay</em>, and <em>I can make Hacker School
+what I want it to be</em>.</p>]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Hacker School&#39;s Secret Strategy for Being Super Productive (or: Help.)]]></title>
+    <link href="https://jvns.ca/blog/2014/03/10/help/"/>
+    <updated>2014-03-10T08:08:21+00:00</updated>
+    <id>https://jvns.ca/blog/2014/03/10/help/</id>
+    <content type="html"><![CDATA[<p><small>(this was originally called &ldquo;Help&rdquo;, but instead we&rsquo;re being
+UpWorthy today)</small></p>
+
+<p>At Hacker School, people who are new to programming learn incredibly
+fast. Hacker Schoolers learn Clojure and Scala and Erlang and Python
+and Ruby and Haskell and web programming and sockets. They write
+compilers and BitTorrent clients and generate music and create new
+programming languages and make games. At Hacker School, people get
+dramatically better at programming. It&rsquo;s almost a magical environment,
+and there are many reasons that it&rsquo;s like this.</p>
+
+<p>But I think one of the most important things is this:</p>
+
+<p><strong>You can always get help. Everyone takes responsibility for helping
+everyone else.</strong></p>
+
+<p></p>
+
+<p>So, a few ways to think about help in your community, workplace, or
+project:</p>
+
+<h3 id="helping-saves-everyone-s-time">Helping saves everyone&rsquo;s time.</h3>
+
+<p>If you have a question which will take you 2 hours to answer on your
+own, and 20 minutes for someone to help you with, then that person
+helping you saves 80 minutes of someone being frustrated.</p>
+
+<p>Math!</p>
+
+<h3 id="helping-isn-t-handholding">Helping isn&rsquo;t handholding.</h3>
+
+<p>There&rsquo;s this aphorism &ldquo;Give someone a fish, and they&rsquo;ll eat for a day.
+Teach them to fish and they&rsquo;ll eat for the rest of their life.&rdquo;</p>
+
+<p>Note that this says &ldquo;teach them to fish&rdquo;, not &ldquo;give them a
+disassembled fishing rod and a manual and a map and tell them that
+it&rsquo;s all there&rdquo;. I see the latter pretty often in the world of open
+source, and people defend it by saying that they can&rsquo;t hold everyone&rsquo;s
+hand. There&rsquo;s something in between.</p>
+
+<h3 id="asking-questions-is-efficient-and-responsible">Asking questions is efficient and responsible.</h3>
+
+<p>Asking questions at work can be scary. However! If you ask a question
+that saves 6 hours of your time and takes someone 30 minutes to
+answer, that&rsquo;s an amazing use of time. I think of it as my
+<em>responsibility</em> to ask questions like this.</p>
+
+<h3 id="it-needs-to-be-okay-to-ask-questions">It needs to be okay to ask questions.</h3>
+
+<p>This is so important. If somebody asks you a basic question and you
+make fun of them or act super surprised that they don&rsquo;t already,
+they&rsquo;re <em>going to ask less questions</em>. And then they&rsquo;re going to get
+less stuff done.</p>
+
+<p>If someone asks you &ldquo;hey, who&rsquo;s Nelson Mandela?&rdquo;, an inappropriate
+answer is &ldquo;oh you don&rsquo;t know?!! He&rsquo;s so important!&rdquo;. An appropriate
+answer would be &ldquo;He was a South African anti-apartheid
+revolutionary&hellip;&ldquo;.</p>
+
+<p>At Hacker School there&rsquo;s a huge emphasis on not acting surprised when
+people ask questions that might seem basic, and so people feel safer
+asking questions when they&rsquo;re stuck.</p>
+
+<h3 id="help-turns-self-directed-and-autonomous-people-into-superheroes">Help turns self-directed and autonomous people into superheroes</h3>
+
+<p>There&rsquo;s a notion sometimes that people who can learn on their own
+don&rsquo;t need any help at all &ndash; they&rsquo;ll figure it out!</p>
+
+<p>And they kind of will! But it will be slow and painful and
+inefficient.</p>
+
+<p>What I saw at Hacker School was that the amazing support that was
+available turned self-directed and autonomous people into
+<em>superheroes</em>. I got things done much more quickly, learned much
+faster, and did things I absolutely wouldn&rsquo;t have been able to do
+otherwise.</p>
+
+<p>Having 65 people in a room with you who are all willing to help you
+get unstuck is invaluable.</p>
+
+<h3 id="helping-people-is-doing-work">Helping people is doing work.</h3>
+
+<p>Sometimes I hear people in work environments say &ldquo;I don&rsquo;t have time, I
+have work to do!&rdquo;</p>
+
+<p>It&rsquo;s important to think of supporting people and answering questions
+as a core part of your work, not something tangential. For everyone.
+It saves everyone&rsquo;s time. It makes your team more efficient.</p>
+
+<p>Answering questions is also an amazing way to learn. I often find that
+I don&rsquo;t understand things as well as I think I did.</p>
+
+<h3 id="you-have-time-to-help-people">You have time to help people.</h3>
+
+<p>I&rsquo;d also like to address the &ldquo;I don&rsquo;t have time&rdquo; point with a concrete
+suggestion.</p>
+
+<p>Everyone has things that they do when they&rsquo;re stuck on something or
+need a short break (check Facebook, go read Twitter, whatever). At
+Hacker School when I was stuck, I&rsquo;d often go on our internal chat
+system and answer questions!</p>
+
+<p>As far as I could tell everyone else also did this. The result was
+that you could get answers to your questions super quickly.</p>
+
+<h3 id="a-thought-experiment">A thought experiment</h3>
+
+<p>What if everybody asked questions when they needed help?</p>
+
+<p>What if helping people was everyone&rsquo;s default procrastination method?</p>]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Pair programming]]></title>
+    <link href="https://jvns.ca/blog/2014/03/01/pair-programming/"/>
+    <updated>2014-03-01T21:12:15+00:00</updated>
+    <id>https://jvns.ca/blog/2014/03/01/pair-programming/</id>
+    <content type="html"><![CDATA[<p>So I started at <a href="https://stripe.com/">Stripe</a> this week. I did a lot
+of pair programming at <a href="http://hackerschool.com">Hacker School</a>, and I
+found it super productive. As of right now, there&rsquo;s no culture of pair
+programming at Stripe. However, Stripe is a place full of delightful
+people who are willing to try new things. So this past week I&rsquo;ve found
+myself explaining why I find pairing productive.</p>
+
+<p>I think some people are confused about what pair programming means.
+It&rsquo;s pretty simple! Two humans sit down in front of the same computer,
+with one keyboard, and work on a Thing together. The Thing is often
+programming, but you can also pair on other things, like writing
+documentation!</p>
+
+<p>Here&rsquo;s a way to think about it. When you&rsquo;re programming, you might ask
+someone to come over to your computer and talk about some code with
+you. Or a bug, or a design issue you&rsquo;re trying to work out. Pair
+programming is like that, but for longer (like an hour).</p>
+
+<p></p>
+
+<p>A few things I like about pairing:</p>
+
+<ol>
+<li>You can timebox your pairing sessions, and have a specific goal:
+&ldquo;We&rsquo;re going to work for 1 hour on refactoring this library&rdquo;.</li>
+<li>Explaining your code to someone makes you understand it better.</li>
+<li>Pairing on a boring task makes it way more fun. If you have a
+gnarly bug that you don&rsquo;t want to fix, work on it with someone new
+to the codebase! They&rsquo;ll learn something, and you&rsquo;ll have company.</li>
+<li>Pairing is a good way to share knowledge. I get a lot of incidental
+learning out of pairing with people, seeing things they do that are
+new to me, and asking them questions.</li>
+<li>It keeps you honest. You can&rsquo;t just stop coding and go look at cats
+when you&rsquo;re pairing. (You actually can, but you both have to agree
+to go look at cats together.)</li>
+</ol>
+
+<p>It&rsquo;s definitely possible to have pairing sessions that go badly, of
+course. Hacker School&rsquo;s
+<a href="https://www.hackerschool.com/manual#sec-pairing">excellent advice on pairing</a>
+suggests</p>
+
+<blockquote>
+<p>It&rsquo;s good to make sure you have similar (or at least compatible)
+goals before you start pairing. If one person thinks the goal is to
+learn Python, and the other thinks the goal is to fix a bug as
+quickly as possible, you can run into friction.</p>
+</blockquote>
+
+<p>Basically I think pair programming is a fun time, I usually end up
+writing better code than I would have on my own, and I learn a lot.
+Some people like Pivotal Labs pair like 8 hours a day, but you don&rsquo;t
+have to do that! Pairing a little bit is a super fun thing.</p>]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[&#34;How was Hacker School?&#34;]]></title>
+    <link href="https://jvns.ca/blog/2014/02/15/how-was-hacker-school/"/>
+    <updated>2014-02-15T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2014/02/15/how-was-hacker-school/</id>
+    <content type="html"><![CDATA[<p>I got back from Hacker School 2 months ago, and people have been
+asking me &ldquo;How was Hacker School?&rdquo; pretty frequently.</p>
+
+<p>Firstly, Hacker School was amazing. It was one of the best experiences
+I&rsquo;ve had, and I owe so much to them. I find it a bit hard to
+articulate exactly why it was so great, but I&rsquo;ll try.</p>
+
+<p>Hacker School is <em>welcoming</em>. On the first day of Hacker School, Dave
+talked about how everyone is welcome at Hacker School. He asked us if
+anyone felt like they didn&rsquo;t belong, and a bunch of people raised
+their hands. He talked about how everyone who was there belongs, and
+we talked about things that we were excited and scared about. It was
+an amazing way to start.</p>
+
+<p></p>
+
+<p>Hacker School is <em>positive</em>. When I had a bug that I didn&rsquo;t understand
+and asked one of the facilitators to help me out, they would
+frequently say &ldquo;Oh, <em>interesting</em>!&ldquo;. The attitude was &ldquo;Oh, is
+something not working? How delightful! A learning opportunity!&ldquo;.
+People of course got frustrated by gnarly bugs, but the overall
+atmosphere was relentlessly positive.</p>
+
+<p>At Hacker School, people say <em>&ldquo;yes, and!&rdquo;</em>. If you just learned to
+program and want to write a compiler, people will say &ldquo;Great!
+Awesome!&rdquo; and give you some suggestions of how to start. I don&rsquo;t
+remember anyone ever being told that they couldn&rsquo;t do something
+because they didn&rsquo;t know enough. The answer is always &ldquo;yes! And here
+is what you will need to know to do this thing!&ldquo;.</p>
+
+<p>Hacker School has <em>amazing energy</em>. Before I went, I worried that I
+wouldn&rsquo;t be able to motivate myself to program today or wouldn&rsquo;t have
+enough ideas to work. This was so wrong that it&rsquo;s hilarious. Everyone
+has so many ideas and is working on so many interesting things that
+the difficult thing is saying no. I did more interesting projects in
+the 3 months of Hacker School than I did in the rest of my life
+combined.</p>
+
+<p>At Hacker School, people do a lot of <em>pairing</em>, which is a fantastic
+way to learn, for a couple of reasons. It helps you focus, because it
+means you can&rsquo;t go check Twitter instead of coding. It&rsquo;s also a great
+way to learn things accidentally. I&rsquo;ve learned so much by watching how
+other people code and learning new ways of thinking.</p>
+
+<p>Hacker School&rsquo;s <em>resident program</em> is fantastic. In my batch, I had
+great conversations with</p>
+
+<ul>
+<li><a href="http://composition.al/about/">Lindsey Kuper</a> convinced me to use
+Rust to build an operating system</li>
+<li><a href="https://twitter.com/yminsky">Yaron Minsky</a> learned some of the
+basics of Rust with me</li>
+<li><a href="http://pgbovine.net/">Philip Guo</a> and I talked about tools for
+automatically discovering experts&rsquo; workflows, and I built
+<a href="https://visualize-your-git.herokuapp.com/">this tool</a> afterwards</li>
+<li><a href="http://karpinski.org/">Stefan Karpinski</a> answered tons of my Julia
+questions, and gave a great presentation explaining how floating
+point numbers work</li>
+<li><a href="http://blog.melchua.com/">Mel Chua</a> gave me great advice about
+preparing a workshop and gave a fantastic talk about how to
+structure your learning</li>
+<li><a href="http://web.mit.edu/jesstess/www/">Jessica McKellar</a> helped me debug
+my TCP problems</li>
+</ul>
+
+<p>The residents are all carefully chosen to be really approachable and
+positive and have tons of things to teach. It was amazing to have the
+opportunity to pair with all of them.</p>
+
+<p>The Hacker School <em>facilitators</em> are wonderful at what they do. Alan,
+Allison, Mary, Tom, and Zach are all amazing. I can&rsquo;t do them justice
+here, but I&rsquo;m going to try to explain why.</p>
+
+<ul>
+<li>They&rsquo;re all <em>relentlessly curious</em>. If you have a problem, they
+genuinely want to understand it and how to fix it and will help you
+out</li>
+<li>They have tons of practice at <em>understanding why you don&rsquo;t
+understand</em>. They do tons of teaching, and if you don&rsquo;t understand
+something they&rsquo;re good at guessing why and working with you to help
+you get there.</li>
+<li>They work really hard on being <em>egoless</em> &ndash; they&rsquo;re very quick to
+admit if they&rsquo;re wrong and care about understanding, not about being
+right</li>
+<li>They have a ton of <em>knowledge</em>. If you&rsquo;re having a gnarly Clojure
+problem or want to know about Python internals or want to learn how
+to do async programming in Javascript, they can help you out.</li>
+<li>They&rsquo;re also amazing at helping you with things they don&rsquo;t know
+about! Allison is a Python internals fiend, but she didn&rsquo;t have a
+ton of experience with operating systems or Rust. But if I needed
+help I would ask Allison to sit with me and she&rsquo;d ask me super
+helpful leading questions and we&rsquo;d fix my bugs! They are magicians.</li>
+<li>They&rsquo;ve all thought a lot about how to become a better programmer,
+and they&rsquo;re very good at suggesting directions to go in if you&rsquo;re
+stuck</li>
+</ul>
+
+<p>The facilitators work incredibly hard at helping people become better
+programmers and it really shows.</p>
+
+<p>Hacker School is an <em>experiment</em>. The founders and facilitators are
+constantly trying out new ideas and trying to make it better. Dave&rsquo;s
+blog post on
+<a href="https://www.hackerschool.com/blog/28-treating-people-like-adults">treating people like adults</a>
+talks about one experiment that didn&rsquo;t work out.</p>
+
+<p>The Hacker School <em>admissions</em> process is one of the most important
+things. Hacker School works really hard on only admitting people who
+are curious and friendly and wonderful. The other people in my batch
+were amazing. I learned so much from them and I made some great
+friends.</p>
+
+<p>Hacker School&rsquo;s motto is <em>&ldquo;Never Graduate&rdquo;</em>. Always keep learning,
+keep being curious, keep building. There&rsquo;s no such thing as a perfect
+place so it&rsquo;s not perfect, but they work really hard on always
+improving, and I think they&rsquo;re doing a great job.</p>
+
+<p>If you want to learn more, the
+<a href="https://www.hackerschool.com/manual">manual</a> is great, the
+<a href="https://www.hackerschool.com/blog">blog</a> is great, the
+<a href="https://www.hackerschool.com/faq">FAQ</a> is great, and you can
+<a href="https://www.hackerschool.com/apply">apply here</a>.</p>]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Some things my kernel can&#39;t do]]></title>
+    <link href="https://jvns.ca/blog/2014/01/03/what-my-kernel-doesnt-do/"/>
+    <updated>2014-01-03T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2014/01/03/what-my-kernel-doesnt-do/</id>
+    <content type="html"><![CDATA[<p>I&rsquo;m working on a talk for <a href="http://2014.cusec.net/">CUSEC</a> about how
+kernel programming is something that normal humans can do (albeit with
+some pain and suffering).</p>
+
+<p>Most people will be pretty unfamiliar with what a kernel is or does.
+I&rsquo;m thinking of explaining it in terms of the kernel I wrote at Hacker
+School, and what it can&rsquo;t do.</p>
+
+<p>Kernel programming has become a lot more concrete to me &ndash; I now
+totally feel like I could write a production OS if I were given some
+hardware, 20 years and an army of volunteers.</p>
+
+<p>So here are some pretty &ldquo;basic&rdquo; things that my kernel can&rsquo;t do. I&rsquo;m
+not trying to give an exhaustive list here, but a flavor for what&rsquo;s
+involved.</p>
+
+<p></p>
+
+<p>The idea is that once you know what a kernel does, you can pick a
+Thing and a Kernel, and then dive into it and ask &ldquo;okay, what <em>is</em> the
+Linux kernel&rsquo;s system for tracking processes?&ldquo;. Then you can find this
+page
+<a href="http://www.tldp.org/LDP/lki/lki-2.html">about the process table in Linux 2.4</a>,
+read some of it, and it&rsquo;s probably different in the 3.x kernel, but
+now you know more.</p>
+
+<ul>
+<li>Communicate with the hard drive
+
+<ul>
+<li>Even if it could, it doesn&rsquo;t understand any filesystems</li>
+</ul></li>
+<li>Communicate with the network card to connect to the Internet
+
+<ul>
+<li>Even if it could, it doesn&rsquo;t understand any network protocols like
+TCP/IP</li>
+</ul></li>
+<li>Get out of text-only mode to display graphics</li>
+<li>Run programs securely, so that they can&rsquo;t overwrite each others&rsquo;
+memory</li>
+<li>Run more than one program at a time (&ldquo;scheduling&rdquo;)</li>
+<li>Know what time it is</li>
+<li>Allow a process to sleep for a fixed amount of time</li>
+<li>Put the computer to sleep / turn off the computer</li>
+</ul>
+
+<p>Some higher-level things that depend on those:</p>
+
+<ul>
+<li>Have a system for tracking processes</li>
+<li>Have a way to manage processes (like signals)</li>
+<li>File permissions</li>
+<li>Provide a way for user programs to interact with hardware (like
+<code>/dev/*</code>)</li>
+</ul>
+
+<p>These are all pretty approachable concepts (I think). I think I&rsquo;m not
+going to talk about virtual memory because I don&rsquo;t know if I can
+explain it well.</p>
+
+<p>That&rsquo;s a pretty long list. What <em>can</em> my kernel do?</p>
+
+<ul>
+<li><a href="http://jvns.ca/blog/2013/11/29/writing-an-os-using-rustboot-and-rust-core/">Print to the screen</a></li>
+<li><a href="http://jvns.ca/blog/2013/12/04/day-37-how-a-keyboard-works/">Understand keyboard inputs</a></li>
+<li><a href="http://jvns.ca/blog/2013/12/19/day-45-reading-elf-headers/">Run programs, almost</a>
+(this isn&rsquo;t working yet, but I think I&rsquo;m not too far away)</li>
+</ul>
+
+<p>So not much :)</p>]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 46: Never Graduate]]></title>
+    <link href="https://jvns.ca/blog/2013/12/20/day-46-never-graduate/"/>
+    <updated>2013-12-20T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/12/20/day-46-never-graduate/</id>
+    <content type="html"><![CDATA[<p>Yesterday was the last day of Hacker School. This is a Sad Story.</p>
+
+<p>I have a lot of feelings about this. Sad-to-be-leaving feelings and
+can&rsquo;t-i-just-stay-forever feelings and i-get-to-live-at-home-again
+feelings.</p>
+
+<p>I will miss the people so much! However, I had the following
+conversation with <a href="http://www.harihareswara.net/">Sumana</a> about this.</p>
+
+<ul>
+<li>Julia: You have 4000 blog posts!</li>
+<li>Sumana: Well, they took 13 years to write!</li>
+<li>Julia: YEAH. I WILL WRITE 4000 BLOG POSTS TOO.</li>
+<li>Sumana: YEAH</li>
+<li>Julia: Oh, but what will I write about when Hacker School is over? I
+will have nothing to say!</li>
+<li>Sumana: Never graduate!</li>
+</ul>
+
+<p>So hopefully I&rsquo;ll keep blogging and seeing all the friends I&rsquo;ve made
+here. And coding. And learning.</p>
+
+<p>brb hugging all the people</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 45: I now have Rust code for executing executables!]]></title>
+    <link href="https://jvns.ca/blog/2013/12/19/day-45-reading-elf-headers/"/>
+    <updated>2013-12-19T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/12/19/day-45-reading-elf-headers/</id>
+    <content type="html"><![CDATA[<p>So I&rsquo;m working on writing a kernel in Rust, and I wanted to be able to
+run executables because THAT WOULD BE COOL. Now I have the beginnings
+of this working!</p>
+
+<p>I posted about my confusion about how to run programs
+<a href="http://jvns.ca/blog/2013/12/13/day-42-how-to-run-an-elf-executable-i-dont-know/">a few days ago</a>.
+Then <a href="https://twitter.com/graydon_moz">Graydon Hoare</a> sent me a super
+helpful email answering all my questions, and gave me an example
+minimal program to use (better than &ldquo;Hello world&rdquo;). The best. One of
+my favourite things about this blog is when delightful people comment
+or email and answer my questions</p>
+
+<p>This is really useful because my statically compiled Hello World
+program takes up 800k, which is huge. The example program Graydon sent
+me is 897 bytes compiled, so about 1000 times smaller!</p>
+
+<p>You can compile it like this:</p>
+
+<pre><code>$ cat &gt;static.c
+int _start() {
+  asm(
+      &quot;mov $127,%ebx\n&quot; /* exit code        */
+      &quot;mov $1,%eax\n&quot;   /* syscall #1, exit */
+      &quot;int $0x80\n&quot;     /* invoke syscall   */
+      );
+}
+^D
+
+$ cc -m32 -static -nostdlib static.c
+$ ./a.out
+$ echo $?
+127
+</code></pre>
+
+<p>This is super great, because it means that I can understand the whole
+program and it doesn&rsquo;t have a bunch of glibc/Linux stuff compiled into
+it. The only OS-specific thing here is the <code>int 80</code> interrupt, which
+I&rsquo;ll need to implement. I could also make up my own convention for
+system calls, but that seems unnecessary.</p>
+
+<p>So what I need to do is</p>
+
+<ol>
+<li>Implement the <code>exit()</code> system call</li>
+<li>Read the ELF header</li>
+<li>Read the segment headers</li>
+<li>Find out
+
+<ol>
+<li>what address the program needs to start at</li>
+<li>how many bytes the main section is</li>
+<li>The address of the program&rsquo;s entry point</li>
+</ol></li>
+<li>Copy the segment marked LOAD into memory at the right address</li>
+<li>Jump to the start of the program!</li>
+</ol>
+
+<p>This is what the code I have so far looks like. You can see that it&rsquo;s
+mostly an ELF header definition, and then to read it I just cast the
+pointer to the array I&rsquo;m trying to read.</p>
+
+<p>This is typical of a lot of Rust code I&rsquo;m writing &ndash; I need to write a
+lot of <code>unsafe</code> code.</p>
+
+<pre><code>pub fn read_header&lt;'a&gt;(file: &amp;'a [u8]) -&gt; &amp;'a ELFHeader {
+    unsafe {
+        let x : *ELFHeader = to_ptr(file) as *ELFHeader;
+        return &amp;*x;
+    }
+}
+
+#[packed]
+struct ELFHeader {
+    e_ident: ELFIdent,
+    e_type: u16,
+    e_machine: u16,
+    e_version: u32,
+    e_entry: u32,
+    e_phoff: u32,
+    e_shoff: u32,
+    e_flags: u32,
+    e_ehsize: u16,
+    e_phentsize: u16,
+    e_phnum: u16,
+    e_shentsize: u16,
+    e_shnum: u16,
+    e_shstrndx: u16
+}
+</code></pre>
+
+<p>and the final <code>exec</code> function will look a bit like this:</p>
+
+<pre><code>unsafe fn jmp(addr: u32) {
+    asm!(&quot;jmp *($0)&quot;
+         :
+         : &quot;r&quot; (addr));
+}
+
+// Executes a file starting at `addr`
+pub unsafe fn exec(addr: uint) {
+    let bytes: &amp;[u8] = transmute(Slice {data: (addr as *u8), len: 100});
+    let header = elf::read_header(bytes);
+    assert(header.e_ident.ei_mag.slice(1,4) == &quot;ELF&quot;);
+    // Read the program header and load the program into memory at
+    // the right address
+    jmp(header.e_entry);
+}
+</code></pre>
+
+<p><code>jmp</code> is a great example of an unsafe Rust function &ndash; what could be
+more unsafe than jumping to a possibly arbitrary address in memory?</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 44: qemu &#43; gdb = so great]]></title>
+    <link href="https://jvns.ca/blog/2013/12/17/day-44-gdb-is-great/"/>
+    <updated>2013-12-17T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/12/17/day-44-gdb-is-great/</id>
+    <content type="html"><![CDATA[<p>Today I did some more debugging and cleaning up. Previously I was
+setting up my IDT (interrupt descriptor table) with assembly, but I
+wanted to do it with Rust, because I don&rsquo;t really know assembly and
+the less of it I have in my OS, the less of a liability it is. I&rsquo;d
+tried to do this before, but it wasn&rsquo;t working.</p>
+
+<p>What turned out to be wrong:</p>
+
+<ul>
+<li>I had <code>1 &lt;&lt; 16 - 1</code> instead of <code>(1 &lt;&lt; 16) - 1</code>, so my mask wasn&rsquo;t
+working properly</li>
+<li>I had the wrong function name for the interrupt handler</li>
+<li>That was it!</li>
+</ul>
+
+<p>This actually ended up being really easy to debug! &ldquo;Really easy&rdquo; as in
+&ldquo;it took all day, but I did not feel like hiding under the table at
+any point&rdquo;. I have a symbol table, and <code>idt</code> is in it, so I just
+needed to do iterations on</p>
+
+<pre><code>gdb) x/4x &amp;idt
+</code></pre>
+
+<p>and compare the contents of memory from Working Code with the
+Non-Working Code.</p>
+
+<p><code>x/</code> means &ldquo;examine&rdquo;, and <code>4x</code> means &ldquo;as hex, 4 times`. Here&rsquo;s some
+<a href="https://sourceware.org/gdb/onlinedocs/gdb/Memory.html">documentation for examining memory</a>.</p>
+
+<p>Comparing sections of memory and figuring out why they&rsquo;re wrong is
+tedious, but pretty straightforward &ndash; I had a good handle on what
+all my code was doing. Pretty exciting. Best friends, gdb.</p>
+
+<p><code>gdb</code> isn&rsquo;t totally the best interface &ndash; I can certainly imagine
+having better ones. But it is Very Useful. So far I know how to</p>
+
+<ul>
+<li>Find the address of a symbol in memory</li>
+<li>Look at memory (as ints, as hex, as ASCII)</li>
+<li>Search memory</li>
+<li>Set breakpoints (and look at assembly that I don&rsquo;t understand)</li>
+<li>Make core dumps to look at later</li>
+</ul>
+
+<p>These are pretty awesome superpowers already, and I&rsquo;m sure there are
+tons more.</p>
+
+<p>So now my interrupt handlers are set up in Rust! This will make it
+much easier for me to implement <code>int 80</code>, and therefore move towards
+being able to run programs! Excellent! Onwards!</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 43: SOMETHING IS ERASING MY PROGRAM WHILE IT’S RUNNING (oh wait oops)]]></title>
+    <link href="https://jvns.ca/blog/2013/12/16/day-43-hopefully-the-last-day-spent-fixing-linker-problems/"/>
+    <updated>2013-12-16T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/12/16/day-43-hopefully-the-last-day-spent-fixing-linker-problems/</id>
+    <content type="html"><![CDATA[<p>alternate title: &ldquo;Hopefully the last day I spend all day trying to
+compile my code properly&rdquo;</p>
+
+<p>(context: I&rsquo;m working on writing an OS, and am experiencing a
+mysterious recurring bug. After many days, I have found the reason!)</p>
+
+<p>Today I went through the following:</p>
+
+<ol>
+<li>Decide to try to write some code</li>
+<li>Upgrade Rust, since my version is 8 days old</li>
+<li>Oh no, the new Rust breaks my oldish version of <a href="http://github.com/thestinger/rust-core">rust-core</a></li>
+<li>Upgrade rust-core</li>
+<li>Oh no, the new rust-core requires me to compile in a different way</li>
+<li>Spend a bunch of time messing with <code>clang</code> and friends to get
+everything to compile again</li>
+<li>Everything compiles. Yay!</li>
+<li>Try to run code</li>
+<li>Encounter mystery bug again, where my array mysteriously contains
+0s instead of its actual contents</li>
+<li>Make sad faces</li>
+<li>Go talk to <a href="http://akaptur.github.io">Allison</a>. Allison is the best.</li>
+<li>Allison asks: &ldquo;What linker debugging strategies do you have?&rdquo;
+
+<ol>
+<li>Change the linker script randomly (actual thing that has worked)</li>
+<li>Change variable attributes from &lsquo;private&rsquo; to &lsquo;public&rsquo; at random
+(actual other thing that has worked)</li>
+<li>Look at the linker map or symbol table (not helpful, so far)</li>
+<li>Attach gdb to qemu and inspect the contents of memory (!!!)</li>
+</ol></li>
+</ol>
+
+<p>gdb is great. It let me</p>
+
+<ul>
+<li>search my memory for &ldquo;QWERTY&rdquo; (not there! why not?)</li>
+<li>look at the memory at a given address (lots of zeros! huh!)</li>
+<li>Do a core dump, and compare it to the original file. Lots of zeros!
+Why is half my program gone?</li>
+</ul>
+
+<p>SURPRISE MY CODE IS NOT WORKING BECAUSE SOMETHING IS ERASING IT.</p>
+
+<p>Can we talk about this?</p>
+
+<ol>
+<li>I have code</li>
+<li>I can compile my code</li>
+<li>Half of my binary gets overwritten with 0s at runtime. Why. What
+did I do to deserve this?</li>
+<li>No wonder the order I put the binary in matters.</li>
+</ol>
+
+<p>It is a wonder that this code even runs, man. Man.</p>
+
+<p><strong>Edit</strong>: I found why my binary has lots of 0s in it at runtime. It is
+  because I was only loading 12k of it in <code>loader.asm</code>. Hopefully this
+  will serve as a lesson to someone.</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 42: How to run a simple ELF executable, from scratch (I don&#39;t know)]]></title>
+    <link href="https://jvns.ca/blog/2013/12/13/day-42-how-to-run-an-elf-executable-i-dont-know/"/>
+    <updated>2013-12-13T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/12/13/day-42-how-to-run-an-elf-executable-i-dont-know/</id>
+    <content type="html"><![CDATA[
+
+<p>I want to compile a 32-bit &ldquo;Hello, world!&rdquo; statically-linked ELF
+binary for Linux, and try to run it in my
+<a href="http://github.com/jvns/puddle">operating system</a>. I&rsquo;m trying to
+understand what I&rsquo;ll have to do. The goal is to get everything just
+barely working, so that it will print the string to the screen and not
+crash the whole system.</p>
+
+<p>I asked a question about this a little while ago, and got
+<a href="https://gist.github.com/jvns/7688286/">lots of helpful responses</a>.
+Now I need to make it a bit more concrete, though.</p>
+
+<p>I&rsquo;ve discovered that this &ldquo;set stuff up so that a program can run&rdquo;
+business is called <strong>loading</strong>, and what I&rsquo;m doing is writing a
+<strong>loader</strong>. Sweet.</p>
+
+<p>Right now I&rsquo;m doing this before implementing paging and virtual memory
+and not after, because this seems more fun than virtual memory for
+now. If this is a very bad idea, I would like to know.</p>
+
+<h2 id="things-i-ll-have-to-do">Things I&rsquo;ll have to do</h2>
+
+<ol>
+<li>Compile &ldquo;hello-c&rdquo; for a 32-bit OS, with <code>gcc -m32 -static</code></li>
+<li>Parse the ELF headers (using
+<a href="https://en.wikipedia.org/wiki/Executable_and_Linkable_Format">the wikipedia article</a>,
+and
+<a href="https://code.google.com/p/corkami/wiki/ELF101">this great picture</a>
+as a reference)</li>
+<li>Add an interrupt handler for <code>int 80</code> (or <code>sysenter</code>, we&rsquo;ll see!),
+so that I can handle system calls.</li>
+<li>Write the actual system call implementations, as few as possible.</li>
+<li>Find <code>e_entry</code>, the entry point of the binary.</li>
+<li>Initialize registers? How?</li>
+<li>Change <em>something</em>, so that the memory addresses in the binary
+aren&rsquo;t broken. Maybe? I still don&rsquo;t 100% understand this.</li>
+<li>Finally: Jump to <code>_start</code>, the memory address in <code>e_entry</code>. I want
+to just do <code>jmp address</code> here. Then my program will run?</li>
+</ol>
+
+<h2 id="things-i-won-t-have-to-do-yet">Things I won&rsquo;t have to do (yet)</h2>
+
+<ol>
+<li>Read the file into memory &ndash; I&rsquo;m planning to just keep the file as
+a bunch of bytes in RAM to start, or possibly have a simple RAM
+filesystem later.</li>
+<li>Security, and making sure process can&rsquo;t trample on each others&rsquo;
+address spaces.</li>
+<li>Scheduling.</li>
+<li>Set up a special heap for the process. I&rsquo;m just going to allocate
+everyone&rsquo;s memory in the same part of physical memory for now. And
+never free. Yeah.</li>
+</ol>
+
+<h2 id="questions-i-have">Questions I have</h2>
+
+<ol>
+<li>Do I need to make sure my binary is
+<a href="http://www.airs.com/blog/archives/43">position independent</a>?</li>
+<li>Do I need to implement virtual memory &amp; paging? (I think not)</li>
+<li>Do I need to have a separate &ldquo;user space&rdquo; for the code to run in,
+or will it run in kernel space? (I think it will run in kernel
+space)</li>
+<li>Do I need to change something in the GOT and/or PLT to make the
+addresses work right? (I think yes? maybe?) Is there even a PLT in
+a static executable, or is that just for dynamic linking? Eep. Hmm.</li>
+</ol>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 41: Linkers are upsetting]]></title>
+    <link href="https://jvns.ca/blog/2013/12/12/day-41-linkers-are-still-upsetting/"/>
+    <updated>2013-12-12T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/12/12/day-41-linkers-are-still-upsetting/</id>
+    <content type="html"><![CDATA[<p>Today I spent pretty much the whole day trying to figure out what&rsquo;s
+going on with a
+<a href="http://jvns.ca/blog/2013/12/06/day-38-after-7-days/">linker problem I&rsquo;m having</a>.
+I&rsquo;ve fixed it, but I don&rsquo;t understand <em>why</em> it&rsquo;s fixed, and I am
+having no luck.</p>
+
+<p><a href="http://akaptur.github.io/">Allison</a> and I paired on it for a bit, and
+we discovered that if we order the sections <code>.text .rodata .data
+.bss</code>, then the ELF file works correctly, but if they&rsquo;re in any other
+order it doesn&rsquo;t work.
+<a href="https://gist.github.com/jvns/ec07560a4484edd30d70">There&rsquo;s a gist</a>
+with the offending linker scripts.</p>
+
+<p>I also created
+<a href="http://stackoverflow.com/questions/20526765/linker-scripts-strategies-for-debugging">a StackOverflow question</a>
+but it is not getting any love.</p>
+
+<p>To compensate, I wrote a
+<a href="http://gist.io/7923908">tiny start of a tutorial about binary formats</a>.</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 39: Writing malloc wrong, for fun]]></title>
+    <link href="https://jvns.ca/blog/2013/12/10/day-39-i-wrote-a-malloc/"/>
+    <updated>2013-12-10T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/12/10/day-39-i-wrote-a-malloc/</id>
+    <content type="html"><![CDATA[<p>My major achievement for today is writing the following five lines of
+code:</p>
+
+<pre><code>let a: ~u8 = ~('A' as u8);
+stdio::putc(*a);
+let b: ~u8 = ~('B' as u8);
+stdio::putc(*a);
+stdio::putc(*b);
+</code></pre>
+
+<p>and having them do the wrong thing. One would normally expect this to
+print &ldquo;AAB&rdquo;. But for me, right now, until I stop goofing off, it
+prints &ldquo;ABB&rdquo;. Why is that?</p>
+
+<p>Well, it&rsquo;s because my <code>malloc</code> implementation looks like this:</p>
+
+<pre><code>static mut base: uint = 0x200000;
+pub extern &quot;C&quot; fn malloc(len: uint) -&gt; *mut u8 {
+    unsafe {
+        let ret: uint = base;
+        return base as *mut u8;
+   }
+}
+</code></pre>
+
+<p>This means that every time I allocate memory, I get the same pointer
+back, and so <code>a</code> and <code>b</code> will always be equal no matter what. And for
+that matter any variable I create will always have the same value.
+This is of course a terrible idea in real life, but it is <em>really
+fun</em>.</p>
+
+<p>Here&rsquo;s my real <code>malloc</code> function (that causes the above code to print
+&ldquo;AAB&rdquo;, like it should):</p>
+
+<pre><code>pub extern &quot;C&quot; fn malloc(len: uint) -&gt; *mut u8 {
+    unsafe {
+        let ret: uint = base;
+        base += len + size_of::&lt;uint&gt;();
+
+        // Align next allocation to 4-byte boundary.
+        if(base % 4 != 0) {
+            base += 4 - (base % 4);
+        }
+
+        *(base as *mut uint) = len;
+
+        return (ret + size_of::&lt;uint&gt;()) as *mut u8;
+    }
+}
+
+pub extern &quot;C&quot; fn free(ptr: *mut u8) {
+    // meh.
+}
+</code></pre>
+
+<p>The hardest part about this was not actually writing <code>malloc</code>. Writing
+<code>malloc</code> is easy, as long as you never need to free memory. I also
+just wrote this by copying it from a C implementation. You just need
+to keep a counter and keep incrementing it.</p>
+
+<p>The hard part was getting the type of the function right, because Rust
+:). This is entirely made up for by being able to play silly memory
+games.</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 40: 12 things I learned today about linkers.]]></title>
+    <link href="https://jvns.ca/blog/2013/12/10/day-40-12-things-i-learned-today-about-linkers/"/>
+    <updated>2013-12-10T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/12/10/day-40-12-things-i-learned-today-about-linkers/</id>
+    <content type="html"><![CDATA[<p>I read 11 parts of
+<a href="http://lwn.net/Articles/276782/">this series on linkers</a> today. I
+also wrote an
+<a href="http://jvns.ca/blog/2013/12/10/day-40-learning-about-linkers/">epic blog post</a>,
+but here is the tl;dr version (trying to synthesize&hellip;). This is all
+about ELF. I use &ldquo;ELF file&rdquo; and &ldquo;object file&rdquo; interchangeably.</p>
+
+<p>In no particular order:</p>
+
+<ol>
+<li>To inspect an ELF object file, you can use <code>objdump</code>, <code>readelf</code>
+and/or <code>nm</code>.</li>
+<li>Executable files have <strong>segments</strong> and <strong>sections</strong>. Each segment has
+many sections. The operating system looks at the segments, not the
+sections. Read/Write/Execute permissions are controlled per
+segment, not per section.
+<a href="http://www.airs.com/blog/archives/45">[Part 8]</a></li>
+<li>ELF symbols have types! And different visibility options!
+<a href="http://www.airs.com/blog/archives/42">[Part 5]</a></li>
+<li>The linker knows about threading, and does optimizations to make
+threading easier. <a href="http://www.airs.com/blog/archives/44">[Part 7]</a></li>
+<li>An object file can define two symbols with the same name and
+different symbols, for backwards compatibility.
+<a href="http://www.airs.com/blog/archives/46">[Part 9]</a></li>
+<li>Those <code>.a</code> files? Those are just collections of <code>.o</code> object files,
+and they&rsquo;re called &ldquo;archives&rdquo;!
+<a href="http://www.airs.com/blog/archives/48">[Part 11]</a></li>
+<li>Linkers can work in parallel to some extent.
+<a href="http://www.airs.com/blog/archives/47">[Part 10]</a></li>
+<li>Linkers actually have to do fairly complicated stuff to allow the
+code in a shared library to be shared between different programs
+and save memory. <a href="http://www.airs.com/blog/archives/43">[Part 6]</a>
+for memory savings,
+<a href="http://www.airs.com/blog/archives/41">[Part 4]</a> for the PLT/GOT</li>
+<li>There&rsquo;s more than one way to link a shared library, and the choices
+you make affect how quickly it loads
+<a href="http://www.airs.com/blog/archives/41">[Part 4]</a></li>
+<li>In the Mach-O executable format you can have assembly code for
+<em>differerent architectures</em> in the same executable. Nuts. And
+there&rsquo;s <a href="https://icculus.org/fatelf/">FatELF</a> that extends ELF to
+do the same thing. (edit: and isn&rsquo;t being developed anymore)</li>
+<li>Every <code>.o</code> file has a &ldquo;relocation table&rdquo; listing every single
+reference to a symbol that the linker will need to update, and how
+it will need to update it.
+<a href="http://www.airs.com/blog/archives/39">[Part 2]</a></li>
+<li>If you&rsquo;re making a speed comparison for a linker, you might
+compare it to <code>cat</code>. <a href="http://www.airs.com/blog/archives/38">[Part 1]</a></li>
+</ol>
+
+<p>I&rsquo;m curious about these ELF symbol versions &ndash; they sound kind of like
+polymorphism to me, and I&rsquo;m wondering why people use symbol name
+mangling to implement polymorphism instead of symbol versions.
+Probably very good reasons!</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 40: Linkers are amazing.]]></title>
+    <link href="https://jvns.ca/blog/2013/12/10/day-40-learning-about-linkers/"/>
+    <updated>2013-12-10T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/12/10/day-40-learning-about-linkers/</id>
+    <content type="html"><![CDATA[
+
+<p>I have a linker bug in my kernel which is kind of infuriating me. So
+I&rsquo;ve spent the whole day so far reading the first 11 parts of this
+<a href="http://lwn.net/Articles/276782/">excellent 20-part series about how linkers work</a>
+by Ian Lance Taylor.</p>
+
+<p>Here are some notes on the series. This is gigantic and basically just
+for my own reference, but summarizes what he talks about in the first
+half of the series.</p>
+
+<p>I&rsquo;m not going to describe the basics of what a linker does because I
+know already. I talk a little about linkers in
+<a href="http://jvns.ca/blog/2013/12/01/how-to-call-rust-from-assembly/">How to call Rust from assembly</a>,
+and I found this
+<a href="http://www.lurklurk.org/linkers/linkers.html">Beginner&rsquo;s guide to linkers</a>
+pretty helpful. Parts <a href="http://www.airs.com/blog/archives/38">[1]</a> and
+<a href="http://www.airs.com/blog/archives/39">[2]</a> of the essay also discuss
+&ldquo;what&rsquo;s a linker?&rdquo;.</p>
+
+<p>For context: Right now I have a bug while statically linking a
+single-threaded ELF file. So I will read about dynamic linking and
+threading and things other than ELF, but I will mostly ignore it.</p>
+
+<h1 id="1-basic-linker-data-types-symbols-relocations-and-contents">1. Basic linker data types: symbols, relocations, and contents</h1>
+
+<p>There are <strong>symbols</strong>, <strong>relocations</strong> and <strong>contents</strong> in object
+files. I knew about symbols and contents already, but relocations are
+new to me. The contents are the contents of a variable or function. A
+key insight here is that the linker doesn&rsquo;t actually care too much
+about the contents &ndash; it&rsquo;s just concerned with putting the contents in
+the right place.</p>
+
+<p>Linkers don&rsquo;t care about your functions and variables! They&rsquo;re just
+bytes. :) In the first article he talks about linker speed &ndash; a
+benchmark you could compare a linker to is <code>cat</code>, because it&rsquo;s just
+combining the bytes together, and making some replacements along the
+way.</p>
+
+<p><strong>Relocations</strong> were new to me. The story here is that when you have
+  an object file, the assembly code often refer to a symbol like this:</p>
+
+<pre><code>call awesome_function
+</code></pre>
+
+<p><code>awesome_function</code> might be undefined &ndash; it could be a function
+defined in a library that we&rsquo;re planning to link against later.</p>
+
+<p>So after linking, <code>awesome_function</code> will be somewhere new, and we
+need to put a memory address in <code>call awesome_function</code>! So there&rsquo;s a
+<strong>relocation table</strong> which keeps track of everything that needs to be
+moved.</p>
+
+<p>To make this a bit more concrete, I looked at <code>man objdump</code>. Turns out
+you can look at the relocations in an object file by running <code>objdump
+-r file.o</code>. When you look at the relocations in an ELF file, there are
+a bunch of scary-looking things like <code>R_386_PC32</code> and <code>R_386_GOTPC</code>.
+Here&rsquo;s
+<a href="http://netwinder.osuosl.org/users/p/patb/public_html/elf_relocs.html">a page explaining what those things mean</a>.
+For example, I got this as an output from <code>objdump -r</code></p>
+
+<pre><code>00001a76 R_386_GOTPC       _GLOBAL_OFFSET_TABLE_
+00001a7f R_386_GOTOFF      _ZN3mem4base18he097c5c5c82e35fah4v0.0E
+00001a95 R_386_GOTOFF      _ZN3mem4base18he097c5c5c82e35fah4v0.0E
+00001ac4 R_386_PC32        __morestack
+</code></pre>
+
+<p>I think the last line of that means &ldquo;At <code>00001ac4</code>, there&rsquo;s a
+reference to <code>__morestack</code>. I&rsquo;m going to need you to figure out the
+distance from <code>00001ac4</code> to <code>__morestack</code> and add it to the dword at
+<code>00001ac4</code>.</p>
+
+<p>Basically <code>R_386_PC32</code> and friends are different rules that the linker
+has to follow. Some possible things that relocation rules might do:</p>
+
+<ul>
+<li>Put a relative memory address somewhere</li>
+<li>Put an absolute memory address somewhere</li>
+<li>Add something to the Global Offset Table (GOT)</li>
+<li>Add something to the Procedure Lookup Table (PLT)</li>
+</ul>
+
+<p>I don&rsquo;t know what the GOT/PLT are yet but hopefully as I keep reading
+I&rsquo;ll learn. (I did! See part 4)</p>
+
+<p>From <a href="http://www.airs.com/blog/archives/39">Part 2</a>.</p>
+
+<h1 id="2-object-file-formats">2. Object file formats</h1>
+
+<p>Apparently there are many different kinds of object file formats
+(COFF, ELF, PE, a.out, IEEE-695, Mach-O, etc.). They can be either
+<strong>section-based</strong> or <strong>record-based</strong>. I only care about ELF. ELF is
+section-based. This means that the file is split up into sections.</p>
+
+<p>You can use <code>readelf --sections myfile.o</code> to list the sections in an
+ELF file, and <code>objdump -t</code> to list the symbol table and which section
+each symbol belongs to.</p>
+
+<p>Here are <a href="http://sprunge.us/hEDd">the sections</a> and
+<a href="http://sprunge.us/ZIgG">the symbol table</a> for an OCaml object file I
+found on my machine. You can see that the sections that have
+most of the symbols in them are <code>.data</code>, <code>.text</code>, and <code>.bss</code>. And
+there&rsquo;s a section called <code>.symtab</code>, which I guess is the symbol table!
+Neat.</p>
+
+<p><code>.text</code> is the &ldquo;code&rdquo; of the program, and <code>.data</code>, <code>.bss</code>, and
+<code>.rodata</code> contain different kinds of globals.</p>
+
+<h1 id="3-debugging-symbols">3. Debugging symbols</h1>
+
+<p>It says</p>
+
+<blockquote>
+<p>The ELF object file format stores debugging information in sections
+with special names.</p>
+</blockquote>
+
+<p>It mentions debugging formats like &ldquo;stabs strings&rdquo; and &ldquo;the DWARF
+debugging format&rdquo;, but not going down that rabbit hole right now.</p>
+
+<p>File formats and debugging symbols were in
+<a href="http://www.airs.com/blog/archives/40">Part 3</a>.</p>
+
+<h1 id="4-shared-libraries-and-position-independence">4. Shared libraries and position independence</h1>
+
+<p>A shared library is a <code>.dll</code> on Windows or a <code>.so</code> file on Linux.</p>
+
+<p>The deal with a shared library is when you create the library, you
+don&rsquo;t know what address in memory it&rsquo;s going to be loaded at. (it
+depends on what the dynamic linker decides to do). So some calculation
+(addition!) needs to happen no matter what.</p>
+
+<p>So there are two different strategies to deal with this.</p>
+
+<p><strong>Strategy 1</strong>: Make it <strong>position dependent</strong>. This basically means
+  &ldquo;write a huge relocation table and let the dynamic linker figure out
+  where everything should go&rdquo;. Because there is a huge relocation
+  table, this means the library will take longer to load.</p>
+
+<p><strong>Strategy 2</strong>: Make it <strong>position independent</strong>. This means &ldquo;don&rsquo;t
+  write a relocation table, but every time you call a function or
+  reference a variable, look up where it should be in a table&rdquo;. So the
+  library loads more quickly, but runs more slowly. Tradeoffs!</p>
+
+<p>This brings us back to the &ldquo;Global Offset Table&rdquo; and &ldquo;Procedure Lookup
+Table&rdquo; from before! So in position independent code, the &ldquo;Global
+Offset Table&rdquo; is where look up our global and static variables, and
+the &ldquo;Procedure Lookup Table&rdquo; is where we look up functions.</p>
+
+<p>The other super important thing here (discussed more in
+<a href="http://www.airs.com/blog/archives/43">Part 6</a>) is that in position
+independent code, the assembly instructions always the <em>same</em>, and
+only the PLT and the GOT need be different. This means that if you
+have a huge library two different processes can reference the same
+(read-only) assembly instructions and they only need to have their own
+copy of the PLT and GOT.</p>
+
+<p>This is super neat! In my object file, I have</p>
+
+<pre><code>00001a76 R_386_GOTPC       _GLOBAL_OFFSET_TABLE_
+</code></pre>
+
+<p>I guess that means the object file I am looking at is position
+independent!</p>
+
+<p>Another neat thing about position independent code is that the dynamic
+linker can do lazy loading &ndash; it can wait to put the address of a
+function in the PLT until it is actually loaded. So if you run a
+program that links against all of the math library, but only calls
+<code>sin</code>, it only needs to figure out the address of <code>sin</code>.</p>
+
+<p>All this about shared libraries is in
+<a href="http://www.airs.com/blog/archives/41">Part 4</a>.</p>
+
+<h1 id="5-what-can-go-wrong-with-shared-libraries">5. What can go wrong with shared libraries</h1>
+
+<p>There&rsquo;s a super interesting discussion of a kind of bug you can have
+with shared libraries in
+<a href="http://www.airs.com/blog/archives/42">Part 5</a>.</p>
+
+<p>In C, you can take the address of a function (<code>&amp;f</code>). The natural
+address for <code>f</code> is its entry in the PLT, because that&rsquo;s where you jump
+to when the function is called. But different shared libraries have
+different <code>PLT</code>s, so you might end up with two different addresses for
+the function, and if you compared them you would get different
+answers. Oh no! I did not know that this was even a thing. Cool!</p>
+
+<p>You can go read about the solution in the essay.</p>
+
+<p>All this stuff about dynamic linking is really interesting and
+complicated, but I&rsquo;m actually reading this in an effort to solve a
+static linking problem that I have, so I&rsquo;m not reading it with 100%
+attention.</p>
+
+<h1 id="6-elf-symbol-visibility-and-types">6. ELF symbol visibility and types</h1>
+
+<p>I didn&rsquo;t know that symbols had visibility and types! I thought
+everything was global and pretty much the same type. I don&rsquo;t care too
+much about this right now, though.</p>
+
+<p>Also from <a href="http://www.airs.com/blog/archives/42">Part 5</a>.</p>
+
+<h1 id="7-linkers-are-architecture-dependent">7. Linkers are architecture-dependent</h1>
+
+<p>How a linker deals with relocations depends on the architecture of the
+machine the binaries are for! When you&rsquo;re writing an OS, you need a
+cross-compiler that targets your target architecture. But you also
+need a cross-linker! Here&rsquo;s why.</p>
+
+<p>C code: <code>g = 0</code>.</p>
+
+<p>Corresponding 386 code: <code>movl 0 g</code>.</p>
+
+<p>Corresponding RISC code:</p>
+
+<pre><code>li 1,0 // Set register 1 to 0
+lis 9,g@ha // Load high-adjusted part of g into register 9
+stw 1,g@l(9) // Store register 1 to address in register 9 plus low adjusted part g
+</code></pre>
+
+<p>Here <code>g</code> is referenced twice! So the linker is going to need to know
+about how RISC works and the relocation is going to look different
+than it would on 386.</p>
+
+<p>This was <a href="http://www.airs.com/blog/archives/43">Part 6</a>.</p>
+
+<h1 id="8-thread-local-storage">8. Thread Local Storage</h1>
+
+<p><a href="http://www.airs.com/blog/archives/44">Part 7</a> is an extremely cool
+explanation of how ELF systems have special support for making
+threading more efficient. I had no idea this was a thing the linker
+did. Linkers are crazy.</p>
+
+<p>The idea here is that you can just mark a variable thread-local in C
+like this:</p>
+
+<pre><code>__thread int i;
+</code></pre>
+
+<p>and the compiler and linker will do a bunch of stuff so that every
+thread has its own copy of the variable.</p>
+
+<p>The alternative here (I think) is to use <code>pthread_key_create</code>,
+<code>pthread_get_specific</code> and <code>pthread_set_specific</code>. I&rsquo;ve never used
+pthreads, but this is cool and definitely seems easier. There&rsquo;s a
+discussion of when it is more efficient in the essay. (tl;dr: never
+slower, sometimes faster)</p>
+
+<h1 id="9-elf-segments">9. ELF segments</h1>
+
+<p>More on &ldquo;oh man ELF is complicated!&rdquo;
+<a href="http://www.airs.com/blog/archives/45">Part 8</a> has a description of
+all the section and segment types.</p>
+
+<p>Okay, so what is a <strong>segment</strong>, anyway? We talked about <strong>sections</strong>
+before &ndash; we said that they were <code>.text</code>, <code>.data</code>, <code>.rodata</code>, etc. &ndash;
+to separate out read-only data from read-write data from program code.
+<strong>Segments</strong> are collections of sections.</p>
+
+<p>ELF is an format for object files, and also executables. Apparently
+the operating system doesn&rsquo;t use the sections at all to run programs,
+just the segments.</p>
+
+<p>I&rsquo;m a bit confused here, so let&rsquo;s make this more concrete by looking
+at a simple &ldquo;Hello World&rdquo; C program. I couldn&rsquo;t figure out how to use
+<code>objdump</code> to look at segments, but my awesome friend
+<a href="https://twitter.com/djvasi">Dave</a> suggested using <code>readelf</code> instead.
+That totally works!</p>
+
+<p>Here&rsquo;s the
+<a href="http://sprunge.us/JFZJ">the entire output of <code>readelf --segments a.out</code></a>.
+Here&rsquo;s an excerpt:</p>
+
+<pre><code>  Segment Sections...
+   00     
+   01     .interp 
+   02     .interp .note.ABI-tag .note.gnu.build-id .gnu.hash .dynsym .dynstr .gnu.version .gnu.version_r .rela.dyn .rela.plt .init .plt .text .fini .rodata .eh_frame_hdr .eh_frame 
+   03     .ctors .dtors .jcr .dynamic .got .got.plt .data .bss 
+   04     .dynamic 
+   05     .note.ABI-tag .note.gnu.build-id 
+   06     .eh_frame_hdr 
+   07     
+   08     .ctors .dtors .jcr .dynamic .got 
+</code></pre>
+
+<p>So here it looks like <code>.text</code> is in a segment with a bunch of stuff,
+and <code>.data</code> and <code>.bss</code> are in a segment together. There are a bunch of
+possible segment types. One of the most important ones seems to be
+<code>LOAD</code>. I think that means &ldquo;load into memory&rdquo;. The two segments marked
+<code>LOAD</code> are segment <code>02</code> and <code>03</code>. This makes sense, because those are
+the segments with <code>.text</code> and <code>.data</code> in them!</p>
+
+<p>The other segment types in <a href="http://sprunge.us/JFZJ">the output of readelf</a> are:</p>
+
+<ul>
+<li><code>INTERP</code>: Which dynamic loader to use
+(<code>/lib64/ld-linux-x86-64.so.2</code>). I checked and this is an actual
+file. &lt;3.</li>
+<li><code>NOTE</code>: I guess this is a note.</li>
+<li><code>GNU_EH_FRAME</code>, <code>GNU_STACK</code>, <code>GNU_RELRO</code>: Some GNU extensions. I
+don&rsquo;t really know.</li>
+<li><code>DYNAMIC</code>: Some stuff that the dynamic linker needs.</li>
+<li><code>PHDR</code>: I quote: &ldquo;This indicates the address and size of the segment
+table. This is not too useful in practice as you have to have
+already found the segment table before you can find this segment.&rdquo;
+lulz. What.</li>
+</ul>
+
+<p>The last thing I want to note about this example is that section <code>02</code>
+(the one with <code>.text</code> and <code>.rodata</code> in it) has flags <code>RE</code>, so it can
+be executed. I&rsquo;m wondering if you could trick the program into
+executing something from <code>.rodata</code>, and if that could be bad. Section
+<code>03</code> has flags <code>RW</code>, so it can be written to but not executed.</p>
+
+<p>So the reason that <code>.text</code> and <code>.data</code> aren&rsquo;t in the same section is
+that <code>.text</code> has to be read-only and <code>.data</code> needs to be read-write.</p>
+
+<p>Here&rsquo;s another example of <a href="http://sprunge.us/HIGL">the segments</a> and
+<a href="http://sprunge.us/VAUH">the symbol table</a> in the same program, but
+this time statically linked. There are way less segments (the file is
+less complicated), but the symbol table is much bigger.</p>
+
+<p>Okay I think I&rsquo;m pretty good with segments. This is cool!</p>
+
+<h1 id="9-symbol-versions">9. Symbol versions</h1>
+
+<p>Apparently in an ELF file, you can have two different versions of the
+same symbol, in case the function signature has changed! This is
+crazy. I thought that if you had <code>sin</code>, there was only one <code>sin</code>.</p>
+
+<p>Could you abuse this to have polymorphism in object files without
+doing name mangling? Huh.</p>
+
+<p>The actual use case described for this is providing two versions for
+<code>stat</code>: <code>LIBC_1.0</code> and <code>LIBC_2.0</code> after it changed to support 64-bit
+file offsets (whatever that means).</p>
+
+<p>From <a href="http://www.airs.com/blog/archives/46">Part 9</a>.</p>
+
+<h1 id="10-parallel-linking">10. Parallel linking</h1>
+
+<p>You can do linking in parallel to some extent. Also, once the output
+file is laid out and its size is determined, you can use <code>mmap</code> and do
+the I/O in parallel that way. Yay <code>mmap</code>!</p>
+
+<p>From <a href="http://www.airs.com/blog/archives/47">Part 10</a>.</p>
+
+<h1 id="11-archives">11. Archives</h1>
+
+<p>Apparently you can package a whole bunch of object files together into
+an <strong>archive</strong>. This is what files with the <code>.a</code> extension are. Neat!
+I&rsquo;ve seen those, but didn&rsquo;t know what they were. They&rsquo;re created with
+the <code>ar</code> utility.</p>
+
+<p>I looked for archive files on my computer using <code>locate .a | egrep
+'.a$' | head</code>, and I found one in <code>/etc/alternatives/libblas.a</code>. It
+kind of makes sense that BLAS is made of a whole bunch of object
+files.</p>
+
+<p>I used <code>objdump -t /etc/alternatives/libblas.a</code> to look at is symbol
+table. In <a href="http://sprunge.us/YCgc">the output</a>, it lists the symbol
+table for each object file. Here&rsquo;s
+<a href="http://sprunge.us/XNjd">just the list of object files</a>.
+<code>libblas.a</code> is made up of 313 object files.</p>
+
+<p>From <a href="http://www.airs.com/blog/archives/48">Part 11</a>.</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 38: After 6 days, I have problems that I can&#39;t understand at all]]></title>
+    <link href="https://jvns.ca/blog/2013/12/06/day-38-after-7-days/"/>
+    <updated>2013-12-06T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/12/06/day-38-after-7-days/</id>
+    <content type="html"><![CDATA[<p>tl;dr: I expect <code>NUMS[2]</code> to equal <code>NUMS[keycode]</code> when <code>keycode ==
+2</code>. This doesn&rsquo;t appear to be the case, and I don&rsquo;t understand how
+this is possible.</p>
+
+<p>I&rsquo;m trying to set up keycode handling in my kernel, and I&rsquo;m having a
+strange problem with array indexing that I can&rsquo;t really fathom at all
+(except &ldquo;something is wrong&rdquo;).</p>
+
+<p>When I run this code, and press <code>1</code> several times, it prints <code>|2C |2C |2C |2C |2C |2C |2C |2C |2C</code>.</p>
+
+<p>I am expecting it to print <code>|2C2|2C2|2C2|2C2|2C2|2C2|2C2|2C2|2C2|</code>.</p>
+
+<p>Here is the code:</p>
+
+<pre><code>// some imports removed
+static NUMS: &amp;'static [u8] = bytes!(&quot;01234567890&quot;);
+
+#[no_mangle]
+pub unsafe fn _interrupt_handler_kbd() {
+    let keycode: u8 = inb(0x60);
+    if (keycode == 2 || keycode == 3) {
+        stdio::putc(NUMS[2]); // should be '2'. It is.
+        stdio::putc(65 + keycode); // should be 'C' (keycode = 2), because 'A' is 65 
+        stdio::putc(NUMS[keycode]); // should be '2', BUT IT ISN'T. IT IS SOMETHING ELSE. HOW IS THIS HAPPENING. 
+        stdio::putc(124); /// this is '|', just as a delimiter.
+    }
+    outb(0x20, 0x20); // Tell the interrupt handler that we're done.
+}
+</code></pre>
+
+<p>To summarize:</p>
+
+<ul>
+<li>the <code>2</code> is printed by <code>putc(NUMS[2])</code></li>
+<li>the <code>C</code> is printed by <code>putc(65 + keycode)</code>. This implies that <code>keycode == 2</code>, since 65 is &lsquo;A&rsquo;</li>
+<li>the blank space is printed by <code>putc(NUMS[keycode])</code>. I would expect this to print <code>2</code>. But no.</li>
+</ul>
+
+<p>For bonus points, if I replace <code>if (keycode == 2 || keycode == 3) {</code>
+with <code>if(keycode == 2) {</code>, then it prints
+<code>|2C2|2C2|2C2|2C2|2C2|2C2|2C2|2C2|2C2|</code>, which is right. I think this
+is because of a compiler optimization replacing <code>keycode</code> with <code>2</code>.</p>
+
+<p>If you have <code>qemu</code> and a nightly build of <code>rust</code> installed, you can
+run this code by doing</p>
+
+<pre><code>git clone git@github.com:jvns/rustboot.git
+cd rustboot
+git checkout origin/compiler-nonsense
+git submodule init
+git submodule update
+make run
+</code></pre>
+
+<p>Some hypotheses:</p>
+
+<ul>
+<li>There&rsquo;s something wrong with the Rust compiler</li>
+<li>There&rsquo;s something wrong with the stack and how I&rsquo;m calling
+<code>_interrupt_handler_kbd</code></li>
+<li>?????????</li>
+</ul>
+
+<p>I also can&rsquo;t yet find the address of <code>_interrupt_handler_kbd</code> to look
+at the assembly to debug. It&rsquo;s in the symbol table of the original
+object file (<code>main.o</code>), but after linking it&rsquo;s not in <code>main.bin</code>, so I
+can&rsquo;t set a breakpoint in gdb.</p>
+
+<p>Ack.</p>
+
+<p><strong>Edit:</strong> <a href="http://brian.mastenbrook.net/">Brian Mastenbrook</a> suggested
+to link using ELF and then use objcopy to create a binary, and that
+somehow magically fixed the problem
+(<a href="https://github.com/jvns/rustboot/commit/2dab3a8ca693a1754b498f05472670e15343bb07">this commit</a>).
+If anyone can explain why, I would be Extremely Interested.</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 37: After 5 days, my OS doesn&#39;t crash when I press a key]]></title>
+    <link href="https://jvns.ca/blog/2013/12/04/day-37-how-a-keyboard-works/"/>
+    <updated>2013-12-04T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/12/04/day-37-how-a-keyboard-works/</id>
+    <content type="html"><![CDATA[
+
+<p>Right now I&rsquo;m working towards being able to:</p>
+
+<ol>
+<li>press keys on my keyboard</li>
+<li>having the OS not crash</li>
+<li>and have the key I pressed be echoed back</li>
+</ol>
+
+<p>I just achieved step 2, and this has been kind of a saga, so here&rsquo;s an
+explanation of the blood and tears involved. First up, some resources
+that really helped me out:</p>
+
+<ul>
+<li>The fantastic <a href="http://wiki.osdev.org/Main_Page">OSDev wiki</a>.</li>
+<li>This
+<a href="http://www.osdever.net/bkerndev/Docs/idt.htm">tutorial on how to make a basic x86 kernel</a>,
+especially the IDT page.</li>
+<li>This <a href="https://github.com/pcmattman/rustic/">other Rust kernel</a>,
+mostly for Rust coding style.</li>
+<li>Most of all: the OSDev wiki page
+<a href="http://wiki.osdev.org/I_Cant_Get_Interrupts_Working">&ldquo;I Can&rsquo;t Get Interrupts Working&rdquo;</a>.
+Read this three times every time you have a problem. For real.</li>
+</ul>
+
+<p>So here&rsquo;s how I did it. There were a lot of pitfalls. Notably absent
+are the hours I spent in the Rust IRC channel being confused about
+types.</p>
+
+<h3 id="how-to-get-interrupts-working-julia-s-way">How To Get Interrupts Working, Julia&rsquo;s Way</h3>
+
+<ol>
+<li>Create a Global Descriptor Table (GDT) and load it (<a href="https://github.com/jvns/rustboot/blob/b845c49358e6f789636a0ce763406fa5200403a5/src/loader.asm#L67">source</a>)</li>
+<li><a href="http://wiki.osdev.org/Protected_mode">Switch from Real Mode to Protected Mode</a>.
+This involves turning interrupts off (<code>cli</code>).</li>
+<li>Create a Interrupt Descriptor Table (IDT) and load it.</li>
+<li>Put interrupt handlers into my table.</li>
+<li>Press keys. Nothing happens. Hours pass. Realize interrupts are
+turned off and I need to turn them on.</li>
+<li>Turn interrupts on (<code>sti</code>).</li>
+<li>Press a key. The OS crashes. Continue experimenting in this
+vein for some time. Still crashing.</li>
+<li>Take the advice from <a href="http://wiki.osdev.org/I_Cant_Get_Interrupts_Working">&ldquo;I Can&rsquo;t Get Interrupts Working&rdquo;</a>
+and trigger the interrupts <strong>manually</strong> (with <code>int 1</code>) before
+turning interrupts back on and trying it for real. Get my interrupt
+descriptor table not broken. Sweet.</li>
+<li>Turn interrupts on (<code>sti</code>).</li>
+<li>The OS AGAIN crashes every time i press a key. Read &ldquo;I Can&rsquo;t
+Get Interrupts Working&rdquo; again. This is called &ldquo;I&rsquo;m receiving EXC9
+instead of IRQ1 when striking a key?!&rdquo; Feel on top of this.</li>
+<li><a href="http://wiki.osdev.org/PIC">Remap the PIC</a> so that interrupt <code>i</code>
+gets mapped to <code>i + 32</code>, because of an Intel design bug. This
+<em>basically</em> looks like just typing in a bunch of random numbers,
+but it works.</li>
+<li>THE OS IS STILL CRASHING WHEN I PRESS A KEY. This continues for 2
+days.</li>
+<li>Remember that now that I have remapped interrupt 1 to interrupt 33
+and I need to update my IDT.</li>
+<li>Update my IDT.</li>
+<li>Press a key. My interrupt handler runs. Practically faint with joy.</li>
+<li>But it only runs the first time I press a key, not the second
+time. This is the section &ldquo;I can only receive one IRQ&rdquo;</li>
+</ol>
+
+<p>As far as I can tell this is all totally normal and just how OS
+programming is. Or something. Hopefully by the end of the week I will
+get past &ldquo;I can only receive one IRQ&rdquo; and into &ldquo;My interrupt handler
+is the bomb and I can totally write a keyboard driver now&rdquo;.</p>
+
+<p>Then I&rsquo;m going to write a keyboard driver where in addition to doing
+normal keyboard driver things, it changes the screen colour every time
+I press a key. (<a href="http://kate.io">Kate</a>&rsquo;s idea)</p>
+
+<p>I&rsquo;m seriously amazed that operating systems exist and are available
+for free.</p>
+
+<p><strong>Edit:</strong> Thanks for all the help everyone! I&rsquo;ve solved &ldquo;It only runs
+the first time I press a key&rdquo; now and moved on to new problems :)</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 36: On programming without malloc]]></title>
+    <link href="https://jvns.ca/blog/2013/12/03/day-36-programming-without-malloc/"/>
+    <updated>2013-12-03T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/12/03/day-36-programming-without-malloc/</id>
+    <content type="html"><![CDATA[<p>So right now I&rsquo;m working on writing a kernel in Rust. My current goal
+is to press keys on the keyboard and have them echoed to the screen.
+This is going okay! I anticipate being able to type by the end of the
+week.</p>
+
+<p>One thing that&rsquo;s interesting is that my expectations around what
+programs should be able to do is really different right now. Normally
+I write Python or other high-level languages, so my programs don&rsquo;t run
+too quickly, but have tons of resources available to them (the
+Internet, a standard library, memory allocation, garbage collection,
+&hellip;).</p>
+
+<p>Writing operating systems is totally different. This is kind of
+obvious, but actually doing it is really fascinating. My OS literally
+can&rsquo;t allocate memory, and there&rsquo;s no standard way to print (I have to
+write to the VGA buffer manually). I can still write loops, though, and
+in general writing Rust doesn&rsquo;t feel too unfamiliar. But I expect my
+code to run super fast, because it has no excuse not to :). Right now
+I definitely don&rsquo;t have timers or anything, so I&rsquo;m looping 80,000,000
+times to sleep.</p>
+
+<p>A few things that I can&rsquo;t do that I&rsquo;m used to being able to do:</p>
+
+<ul>
+<li>allocate memory</li>
+<li>print (I can sort of do this)</li>
+<li><code>sleep</code></li>
+<li>run other processes (there are no other programs)</li>
+<li>read from stdin (I don&rsquo;t have a keyboard driver yet. There is no stdin.)</li>
+<li>open files (there are no files)</li>
+<li>list files (there are no files)</li>
+</ul>
+
+<p>(thanks to <a href="http://instamatique.com/lea/">Lea</a> for &ldquo;there are no
+files&rdquo; =D)</p>
+
+<p>The only real problem with not having <code>malloc</code> is that all the memory
+I use has to either be</p>
+
+<ul>
+<li>in the program at compile time, or</li>
+<li>allocated on the stack</li>
+</ul>
+
+<p>This is less difficult than I expected it to be! We&rsquo;ll see how it
+continues. It does mean that I use a lot of global variables, and it&rsquo;s
+given me an appreciation for why there is so much use of global
+variables in the Linux kernel &ndash; if just need 1 struct, it makes so
+much more sense to just have 1 global struct than to keep <code>malloc</code>ing
+and <code>free</code>ing it all the time.</p>
+
+<p>Here&rsquo;s an example of some code I have in the kernel! <code>main()</code> prints
+all the ASCII characters in a loop.</p>
+
+<pre><code>pub unsafe fn putchar(x: u16, y: u16, c: u8) {
+    let idx : uint =  (y * VGA_WIDTH * 2 + x * 2) as uint;
+    // 0xb8000 is the VGA buffer
+    *((0xb8000 + idx) as *mut u16) = make_vgaentry(c, Black, Yellow);
+}
+
+fn make_vgaentry(c: u8, fg: Color, bg: Color) -&gt; u16 {
+    // VGA entries are 2 bytes. The first byte is the character, the
+    second is the colour
+    let color = fg as u16 | (bg as u16 &lt;&lt; 4);
+    return c as u16 | (color &lt;&lt; 8);
+}
+
+pub unsafe fn main() {
+    let mut i: u32 = 0;
+    let mut c: u8 = 65; // 'A'
+    let N: u32 = 80000000; // big enough number so that it goes slowly
+    loop {
+        i += 1;
+        if (i % N == 0) {
+            c += 1;
+            putchar(2, 4, c);
+        }
+    }
+}
+</code></pre>
+
+<p><small>
+Note for pedants: I actually do have a <code>malloc</code> function because my
+Rust standard library needs to link against it, but it&rsquo;s defined like
+this:</p>
+
+<pre><code>malloc:
+    jmp $
+</code></pre>
+
+<p>That&rsquo;s assembly-speak for &ldquo;loop forever&rdquo;. If I get around to
+implementing <code>malloc</code> it will be the Most Exciting Thing
+~~~
+</small></p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Day 35: Types in Rust, for beginners]]></title>
+    <link href="https://jvns.ca/blog/2013/12/02/types-in-rust/"/>
+    <updated>2013-12-02T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/12/02/types-in-rust/</id>
+    <content type="html"><![CDATA[
+
+<p>I found understanding Rust types really confusing, so I wrote up a
+small tutorial for myself in an attempt to understand some of them.
+This is by no means exhaustive. There is a
+<a href="http://static.rust-lang.org/doc/master/rust.html#type-system">types section</a>
+in the manual, but it has nowhere near enough examples.</p>
+
+<p>This assumes that you&rsquo;ve read the sections about
+<a href="http://static.rust-lang.org/doc/master/tutorial.html#ownership">owned</a>
+and
+<a href="http://static.rust-lang.org/doc/master/tutorial.html#borrowed-pointers">borrowed</a>
+pointers in the Rust tutorial, but not much else.</p>
+
+<p>I&rsquo;m not talking about managed pointers (<code>@</code>) at all. A lot of the
+difficulty with Rust types is that the language is constantly
+changing, so this will likely be out of date soon.</p>
+
+<p>First, a few preliminaries: it&rsquo;s easier to play with types if you have
+a REPL and can interactively check the types of objects. This isn&rsquo;t
+really possible in Rust, but there are workarounds.</p>
+
+<h2 id="to-start-out-some-help">To start out: some help</h2>
+
+<h3 id="how-to-get-a-rust-repl">How to get a Rust REPL</h3>
+
+<p>There is no working Rust REPL. However, you can use
+<a href="http://sprunge.us/ahKj">this script</a> to approximate one &ndash; it
+compiles what you put into it and prints the result. You can&rsquo;t use the
+results of what you did previously, though. Save as <code>rustci</code>.</p>
+
+<h3 id="how-to-find-the-type-of-a-variable">How to find the type of a variable</h3>
+
+<p><strong>Edit:</strong> The fantastic <a href="https://github.com/thestinger">Daniel Micay</a>
+showed me this function to find the type of a variable. It&rsquo;s included
+in the <code>rustci</code> script above, so you can just do</p>
+
+<p><code>let x = 2; type_of(&amp;x)</code></p>
+
+<p>to print the type of <code>2</code>. Amazing. Note that you have to call
+<code>type_of</code> with <code>&amp;x</code> and not <code>x</code>.</p>
+
+<p>The function is:</p>
+
+<pre><code>fn type_of&lt;T&gt;(_: &amp;T) -&gt; &amp;'static str {
+    unsafe {
+        (*std::unstable::intrinsics::get_tydesc::&lt;T&gt;()).name
+    }
+}
+</code></pre>
+
+<p><strong>Hackier approach:</strong></p>
+
+<p>You can also generate a compiler error with the type of a variable <code>y</code>
+like this:</p>
+
+<pre><code>fn y() {}
+let x: () = y;
+</code></pre>
+
+<p>It&rsquo;s a hack, but it will give you an error like this:</p>
+
+<pre><code>error: mismatched types: expected `()` but found `fn()` (expected () but found extern fn)
+</code></pre>
+
+<p>which tells us that the type of <code>f</code> is <code>fn()</code>.</p>
+
+<h2 id="the-types">The types!</h2>
+
+<h3 id="primitive-types">Primitive types</h3>
+
+<p>This is an incomplete list.</p>
+
+<p>Integers (signed and unsigned): <code>int</code>, <code>uint</code>, <code>i8</code>, <code>i16</code>, <code>i32</code>, <code>i64</code>, <code>u8</code>, <code>u16</code>, <code>u32</code>, <code>u64</code></p>
+
+<p>Floats: <code>f32</code>, <code>f64</code></p>
+
+<p>Booleans: <code>bool</code></p>
+
+<p><strong>Primitive type examples</strong></p>
+
+<pre><code>let x: uint = 2;
+let y: u8 = 40;
+let z: f32 = abc;
+</code></pre>
+
+<h3 id="vectors">Vectors</h3>
+
+<p>There are 3 possible types for a vector of <code>u8</code>: <code>[u8, ..N]</code>, <code>&amp;[u8]</code>, <code>~[u8]</code></p>
+
+<p><code>[u8]</code> by itself is not a type.</p>
+
+<p><code>[u8, ..5]</code> is a fixed-size vector of <code>u8</code> of length 5.</p>
+
+<p><strong>Vector Examples</strong></p>
+
+<pre><code>// Fixed size vector
+let x : [uint, ..10] = [5, ..10]; // [5,5,5,5,5,5,5,5,5,5]
+
+// Create a variable size owned vector
+let mut numbers1 : ~[uint]= ~[0, 1, 2, 3, 4, 5];
+
+// Create a variable size borrowed vector. This is also called a &quot;vector slice&quot;.
+let mut numbers2 : &amp;[uint]= &amp;[0, 1, 2];
+let mut slice: &amp;[uint] = numbers1.slice(0, 3);
+</code></pre>
+
+<h3 id="strings-and-characters">Strings and characters</h3>
+
+<p>Some string types include: <code>&amp;str</code>, <code>~str</code>, and <code>&amp;'static str</code>.</p>
+
+<p>A string is represented internally as a vector of bytes. However,
+<code>str</code> by itself is <em>not</em> a type, and there are no fixed-size strings.
+You can convert any of the string types to a byte vector <code>&amp;[u8]</code>.</p>
+
+<p><code>char</code> is a 32-bit Unicode character.</p>
+
+<p><strong>String Examples</strong></p>
+
+<pre><code>use std::option::Option;
+// Static string
+let hello: &amp;'static str = &quot;Hello!&quot;;
+let hello2: &amp;str = &quot;Hello!&quot;;
+
+// Owned string
+let owned_hello: ~str = ~&quot;Hello!&quot;;
+
+// Borrowed string
+let borrowed_hello = &amp;owned_hello;
+
+// Character
+let c: char = 'a';
+
+// Indexing into a string gives you a byte, not a character.
+let byte: u8 = owned_hello[1];
+
+// You need to create an iterator to get a character from a string.
+let c: Option&lt;char&gt; = owned_hello.chars().nth(2);
+
+// Switch to the string's representation as bytes
+let bytes: &amp;[u8] = owned_hello.as_bytes();
+</code></pre>
+
+<h3 id="functions">Functions</h3>
+
+<p>For a function <code>fn(a: A) -&gt; B</code></p>
+
+<p><code>fn(A)-&gt;B</code> is a type, So are <code>&amp;(fn(A)-&gt;B)</code>, <code>~(fn(A)-&gt;B)</code>, but you need to add parens right now.</p>
+
+<p>You probably only want to use <code>fn(A)-&gt;B</code>, though.</p>
+
+<p><strong>Function type examples</strong></p>
+
+<pre><code>fn foo(a: int) -&gt; f32 {
+    return 0.0;
+}
+let bar: fn(int) -&gt; f32 = foo; 
+let baz: &amp;(fn(int) -&gt; f32) = &amp;foo;
+</code></pre>
+
+<h3 id="closures">Closures</h3>
+
+<p>The type of a closure mapping something of type <code>A</code> to type <code>B</code> is <code>|A| -&gt; B</code>. A closure with no arguments or return values has type <code>||</code>.</p>
+
+<p><strong>Closure type examples</strong></p>
+
+<pre><code>let captured_var = 10; 
+let closure_no_args = || println!(&quot;captured_var={}&quot;, captured_var); 
+let closure_args = |arg: int| -&gt; int {
+  println!(&quot;captured_var={}, arg={}&quot;, captured_var, arg); 
+  arg
+};
+
+// closure_no_args has type ||
+// closure_args has type |int| -&gt; int
+
+fn call_closure(c1: ||, c2: |int| -&gt; int) {
+  c1();
+  c2(2);
+}
+
+call_closure(closure_no_args, closure_args);
+</code></pre>
+
+<h3 id="raw-pointers">Raw pointers</h3>
+
+<p>For any type <code>T</code>, <code>*T</code> is a type.</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[How to call Rust from assembly, and vice versa]]></title>
+    <link href="https://jvns.ca/blog/2013/12/01/how-to-call-rust-from-assembly/"/>
+    <updated>2013-12-01T00:00:00+00:00</updated>
+    <id>https://jvns.ca/blog/2013/12/01/how-to-call-rust-from-assembly/</id>
+    <content type="html"><![CDATA[
+
+<p>In the last few days I&rsquo;ve been working on a kernel in Rust. This has
+entailed learning about linkers and foreign function interfaces and
+all kinds of things.</p>
+
+<p>To learn this stuff, I read
+<a href="http://www.lurklurk.org/linkers/linkers.html">this guide to linkers</a>, looked
+at the
+<a href="http://static.rust-lang.org/doc/master/tutorial-ffi.html">Rust foreign function interface tutorial</a>,
+and asked a million questions on the Rust IRC channel.</p>
+
+<p>Disclaimer: even more than usual, some of this is probably wrong.</p>
+
+<p>So. Linkers.</p>
+
+<p>I have assembly functions that I need to call from Rust, and Rust
+functions I need to call from assembly. Everything gets compiled to
+assembly eventually, so this is a reasonable thing to do. As far as I
+understand it, a function call is just jumping to an address in memory
+and putting some stuff on the stack and in registers, and the code
+doesn&rsquo;t care at all if that address in memory comes from Rust or C or
+assembly or what.</p>
+
+<p>Some terminology:</p>
+
+<ul>
+<li>A <strong>calling convention</strong> is about how exactly the stuff gets put on
+the stack and in the registers. Rust and C have different calling
+conventions.</li>
+<li>An <strong>object file</strong> is what you get when you compile some source code
+to a library (using <code>gcc</code> or <code>nasm</code> or <code>rustc</code>). It ends in <code>.o</code></li>
+<li>A <strong>symbol</strong> is an identifier in a program, like a variable or
+function name. Object files have a <strong>symbol table</strong> and can refer to
+symbols in other object files.</li>
+<li>A <strong>linker</strong> (like <code>ld</code>) combines several object files into one
+binary, matching up their symbol tables.</li>
+</ul>
+
+<h3 id="calling-rust-from-assembly">Calling Rust from assembly</h3>
+
+<p>So here&rsquo;s an assembly function that calls a Rust function:</p>
+
+<pre><code>global  _interrupt_handler_kbd_wrapper
+extern _interrupt_handler_kbd
+
+_interrupt_handler_kbd_wrapper: 
+    pushad
+    call    _interrupt_handler_kbd
+    popad
+    iret
+</code></pre>
+
+<p><code>extern</code> says that <code>_interrupt_handler_kbd</code> isn&rsquo;t actually defined in
+this file, but that <code>nasm</code> shouldn&rsquo;t worry about it when assembling &ndash;
+it&rsquo;ll be fixed later. This is like a function declaration in C, except
+without the types.</p>
+
+<p>I haven&rsquo;t tested this yet so there&rsquo;s probably something wrong with it.
+But it compiles.</p>
+
+<h3 id="calling-assembly-from-rust">Calling assembly from Rust</h3>
+
+<p>External functions are defined in Rust again using the <code>extern</code>
+keyword (sound familiar? =D).</p>
+
+<p>I need to get the address of the <code>_interrupt_handler_kbd_wrapper</code> and
+<code>idt_load</code> functions in Rust, so I defined them like this:</p>
+
+<pre><code>extern {
+    fn _interrupt_handler_kbd_wrapper ();
+    fn idt_load(x: *IDTPointer);
+}
+</code></pre>
+
+<p>You&rsquo;ll notice that I needed to specify the types of the function&rsquo;s
+arguments. These don&rsquo;t have return values, but if they did I&rsquo;d need to
+write those types too.</p>
+
+<p>The type of <code>_interrupt_handler_kbd_wrapper</code> is <code>extern &quot;C&quot; unsafe
+fn()</code>. That&rsquo;s pretty complicated, but let&rsquo;s break it down:</p>
+
+<ul>
+<li><code>extern</code> means it&rsquo;s defined in another object file.</li>
+<li><code>&quot;C&quot;</code> is the <em>calling convention</em> which we mentioned before.</li>
+<li>We have no idea what the function could be doing, so it&rsquo;s <code>unsafe</code>.</li>
+</ul>
+
+<p>Then I can just call my <code>extern</code> functions like normal Rust functions.</p>
+
+<h3 id="putting-it-together-the-linker">Putting it together: the linker</h3>
+
+<p>I have a file named <code>linker.ld</code> that contains:</p>
+
+<pre><code>ENTRY(start)
+OUTPUT_FORMAT(binary)
+
+SECTIONS {
+    . = 0x7e00;
+
+    .text : {
+        *(.text)
+    }
+}
+</code></pre>
+
+<p>Then I run</p>
+
+<p><code>i386-elf-ld -T linker.ld runtime.o main.o isr_wrapper.o -o main.bin</code></p>
+
+<p>where <code>main.o</code> is my Rust file and <code>isr_wrapper.o</code> is my assembly
+file. You&rsquo;ll notice that now they have a <code>.o</code> extension &ndash; now they&rsquo;re
+&ldquo;object files&rdquo; and they&rsquo;re all assembly code.</p>
+
+<p>This <code>ld</code> command puts <code>main.o</code>, <code>runtime.o</code>, and <code>isr_wrapper.o</code>
+together into one binary. Basically this matches up symbols with the
+same name and makes it work. If an <code>extern</code> function I declare in a
+file doesn&rsquo;t exist, then I&rsquo;ll get a linker error like this:</p>
+
+<pre><code>main.o: In function `main':
+main.rc:(.text+0x1db): undefined reference to `_interrupt_handler_kbd_wrapper'
+</code></pre>
+
+<p>But this kind of linker error isn&rsquo;t scary any more! It just means that
+<code>_interrupt_handler_kbd_wrapper</code> isn&rsquo;t in the symbol table of any of
+the other object files we&rsquo;re linking.</p>
+
+<h3 id="how-to-look-at-an-object-file-s-symbol-table">How to look at an object file&rsquo;s symbol table</h3>
+
+<p>To see the symbols that are defined in <code>isr_wrapper.o</code>, I can use
+<code>objdump</code> like this:</p>
+
+<pre><code>bork@kiwi ~/w/h/rustboot&gt; objdump -t isr_wrapper.o
+
+isr_wrapper.o:     file format elf32-i386
+
+SYMBOL TABLE:
+00000000 l    df *ABS*  00000000 isr_wrapper.asm
+00000000 l    d  .text  00000000 .text
+00000000         *UND*  00000000 _interrupt_handler_kbd
+00000000 g       .text  00000000 _interrupt_handler_kbd_wrapper
+00000008 g       .text  00000000 idt_load
+</code></pre>
+
+<p>You can see here that I&rsquo;ve defined <code>_interrupt_handler_kbd_wrapper</code>
+and <code>idt_load</code>, but that <code>_interrupt_handler_kbd</code> is undefined and
+needs to be defined in another file.</p>
+
+<p>You can also use <code>objdump -T</code> to look at a dynamically linked <code>.so</code>
+file&rsquo;s symbol table. We&rsquo;re not talking about dynamic linking today =).
+For example <code>objdump -T  /usr/lib32/libm.so</code> shows me the math
+library&rsquo;s symbol table. COOL.</p>
+
+<p>That&rsquo;s all!</p>
+
+<p><small>
+You may notice that it doesn&rsquo;t really make sense to call
+<code>_interrupt_handler_kbd_wrapper</code> from Rust. I&rsquo;m not actually calling
+it, I just need to refer to it so I can store its address.
+</small></p>
+]]></content>
+  </entry>
+  
+</feed>

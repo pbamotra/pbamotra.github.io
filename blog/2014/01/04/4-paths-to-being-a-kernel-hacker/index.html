@@ -1,0 +1,298 @@
+
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>4 paths to being a kernel hacker - Julia Evans</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="4 paths to being a kernel hacker">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://jvns.ca/blog/2014/01/04/4-paths-to-being-a-kernel-hacker/">
+<link href="/favicon.ico" rel="icon">
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+ 
+
+</head>
+<body>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<span><li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li></span>
+ 
+<span><li><a href="https://twitter.com/b0rk">Twitter</a></li>
+<li><a href="https://github.com/jvns">Github</a></li></span>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/zines">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">4 paths to being a kernel hacker</h1>
+
+<div class="post-tags">
+  
+  •
+  
+    <a class="post-tag" href="/categories/kernel">kernel</a> 	•
+  
+    <a class="post-tag" href="/categories/favorite">favorite</a> 	•
+  
+  
+</div>
+<p class="meta">
+<time datetime="2014-01-04T00:00:00" pubdate data-updated="true"></time>
+</p>
+</header>
+<div class="entry-content">
+     <p>(this is me continuing work on my <a href="http://2014.cusec.net/">CUSEC</a> talk
+about why the kernel isn&rsquo;t scary)</p>
+
+<p>I once tried asking for advice about how to get started with kernel
+programming, and was basically told:</p>
+
+<ol>
+<li>If you don&rsquo;t <em>need</em> to understand the kernel for your work, why
+would you try?</li>
+<li>You should subscribe to the
+<a href="https://lkml.org/">Linux kernel mailing list</a> and just try really
+hard to understand.</li>
+<li>If you&rsquo;re not writing code that&rsquo;s meant to be in the main Linux
+kernel, you&rsquo;re wasting your time.</li>
+</ol>
+
+<p>This was really, really, really not helpful to me. So here are a few
+possible strategies for learning about how operating systems and the
+Linux kernel work on your own terms, while having fun. I still only
+know a few things, but I know more than I did before :)
+</p>
+
+<p>For most of these paths, you&rsquo;ll need to understand some C, and a bit
+of assembly (at least enough to copy and paste). I&rsquo;d written a few
+small C programs, and took a course in assembly that I&rsquo;d almost
+entirely forgotten.</p>
+
+<h3 id="path-1-write-your-own-os">Path 1: Write your own OS</h3>
+
+<p>This might seem to be a pretty frightening path. But actually it&rsquo;s
+not! I started with
+<a href="https://github.com/charliesome/rustboot">rustboot</a>, which, crucially,
+<em>already worked and did things</em>. Then I could do simple things like
+making the screen <em>blue</em> instead of red, printing characters to the
+screen, and move on to trying to get keyboard interrupts to work.</p>
+
+<p><a href="http://mikeos.berlios.de/write-your-own-os.html">MikeOS</a> also looks
+like another fun thing to start with. Remember that your operating
+system doesn&rsquo;t have to be big and professional &ndash; if you make it turn
+the screen purple instead of red and then maybe make it print it a
+limerick, you&rsquo;ve already won.</p>
+
+<p>You&rsquo;ll definitely want to use an emulator like
+<a href="http://wiki.qemu.org/Main_Page">qemu</a> to run your OS in. The
+<a href="http://wiki.osdev.org/Main_Page">OSDev wiki</a> is also a useful
+place &ndash; they have FAQs for a lot of the problems you&rsquo;ll run into
+along the way.</p>
+
+<h3 id="path-2-write-some-kernel-modules">Path 2: Write some kernel modules!</h3>
+
+<p>If you&rsquo;re already running Linux, writing a kernel module that doesn&rsquo;t
+do anything is pretty easy.</p>
+
+<p>Here&rsquo;s
+<a href="https://github.com/jvns/kernel-module-fun/blob/master/hello.c">the source for a module</a>
+that prints &ldquo;Hello, hacker school!&rdquo; to the kernel log. It&rsquo;s 18 lines
+of code. Basically you just register an init and a cleanup function
+and you&rsquo;re done. I don&rsquo;t really understand what the <code>__init</code> AND
+<code>__exit</code> macros do, but I can use them!</p>
+
+<p>Writing a kernel module that does do something is harder. I did this
+by deciding on a Thing to do (for example, print a message for every
+packet that comes through the kernel), and then read
+some <a href="http://kernelnewbies.org/">Kernel Newbies</a>, googled a lot, and
+copied and pasted a lot of code to figure out how to do it. There are
+a couple of examples of kernel modules I wrote in this
+<a href="https://github.com/jvns/kernel-module-fun">kernel-module-fun</a>
+repository.</p>
+
+<h3 id="path-3-do-a-linux-kernel-internship">Path 3: Do a Linux kernel internship!</h3>
+
+<p>The Linux kernel participates in the
+<a href="https://wiki.gnome.org/OutreachProgramForWomen">GNOME Outreach Program for Women</a>.
+This is amazing and fantastic and delightful. What it means is that if
+you&rsquo;re a woman and want to spend 3 months working on the kernel, you
+can get involved in kernel development without any prior experience,
+and get paid a bit ($5000). Here&rsquo;s
+<a href="http://kernelnewbies.org/OPWIntro">the Kernel Newbies page explaining how it works</a>.</p>
+
+<p>It&rsquo;s worth applying if you&rsquo;re at all interested &ndash; you get to format a
+patch for the kernel and it&rsquo;s fun.
+<a href="http://sarah.thesharps.us/">Sarah Sharp</a>, a Linux kernel developer,
+coordinates this program and she is pretty inspiring. You should read
+her
+<a href="http://sarah.thesharps.us/2013/05/23/%EF%BB%BF%EF%BB%BFopw-update/">blog post about how 137 patches got accepted into the kernel during the first round</a>.
+These patches could be yours! Look at the
+<a href="http://kernelnewbies.org/OPWApply">application instructions</a>!</p>
+
+<p>If you&rsquo;re not a woman, Google Summer of Code is similar.</p>
+
+<h3 id="path-4-read-some-kernel-code">Path 4: Read some kernel code</h3>
+
+<p>This sounds like terrible advice &ndash; &ldquo;Want to understand how the kernel
+works? Read the source, silly!&rdquo;</p>
+
+<p>But it&rsquo;s actually kind of fun! You won&rsquo;t understand everything. I felt
+kind of dumb for not understanding things, but then every single
+person I talked to was like &ldquo;yeah, it&rsquo;s the Linux kernel, of course!&rdquo;.</p>
+
+<p>My friend Dave recently pointed me to <a href="http://lxr.linux.no/">LXR</a>,
+where you can read the kernel source and it provides lots of helpful
+cross-referencing links. For example, if you wanted to understand the
+<code>chmod</code> system call, you can go look at
+<a href="http://lxr.linux.no/linux+v3.12.6/fs/open.c#L464">the chmod_common definition</a>
+in the Linux kernel! <a href="http://livegrep.com/search/linux">livegrep.com</a>
+is also really nice for this.</p>
+
+<p>Here&rsquo;s the source for <code>chmod_common</code>, with some comments from me:</p>
+
+<pre><code>static int chmod_common(struct path *path, umode_t mode)
+{
+    struct inode *inode = path-&gt;dentry-&gt;d_inode;
+    struct iattr newattrs;
+    int error;
+
+    // No idea what this does
+    error = mnt_want_write(path-&gt;mnt);
+    if (error)
+        return error;
+
+    // Mutexes! Prevent race conditions! =D
+    mutex_lock(&amp;inode-&gt;i_mutex);
+
+    // Check for permission to use chmod, I guess.
+    error = security_path_chmod(path, mode);
+    if (error)
+        goto out_unlock;
+    // I guess this changes the mode!
+    newattrs.ia_mode = (mode &amp; S_IALLUGO) | (inode-&gt;i_mode &amp; ~S_IALLUGO);
+    newattrs.ia_valid = ATTR_MODE | ATTR_CTIME;
+    error = notify_change(path-&gt;dentry, &amp;newattrs);
+out_unlock:
+    mutex_unlock(&amp;inode-&gt;i_mutex); // We're done, so the mutex is over!
+    mnt_drop_write(path-&gt;mnt); // ???
+    return error;
+}
+</code></pre>
+
+<p>I find this is a fun time and helps demystify the kernel for me. Most
+of the code I read I find pretty opaque, but some of it (like this
+chmod code) is a little bit understandable.</p>
+
+<p>To summarize a few links:</p>
+
+<ul>
+<li><a href="http://web.mit.edu/jesstess/www/">Jessica McKellar</a>&rsquo;s blog posts on
+the <a href="https://blogs.oracle.com/ksplice/">Ksplice blog</a></li>
+<li><a href="http://lwn.net/Kernel/LDD3/">Linux Device Drivers</a> describes itself
+like this. I&rsquo;ve found it somewhat useful.
+&gt; &ldquo;This book teaches you how to write your own drivers and how to hack around in related parts of the kernel.&rdquo;</li>
+<li>The <a href="http://wiki.osdev.org/Main_Page">OSDev wiki</a> is great if you&rsquo;re
+writing an OS.</li>
+<li><a href="http://kernelnewbies.org/">Kernel Newbies</a> has some resources for
+starting kernel developers. I didn&rsquo;t have good experiences in the
+IRC channel, though.</li>
+<li><a href="http://sarah.thesharps.us/">Sarah Sharp</a> is a kernel developer and
+runs the Linux kernel outreach and is amazing.</li>
+<li><a href="https://encrypted.google.com/#q=site:lwn.net+%22this+article+was+contributed+by+valerie%22">Valerie Aurora&rsquo;s posts on LWN.net</a></li>
+</ul>
+
+<p>I&rsquo;d also love to hear from you. If you&rsquo;d done kernel work, how did you
+get started with kernel hacking? If you haven&rsquo;t, which of these paths
+sounds most approachable to you?</p>
+</div>
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+   
+</style>
+<div class="sharing">
+
+<div id="mc_embed_signup">
+<form action="//jvns.us7.list-manage.com/subscribe/post?u=67757ca4ed0f508d954bcb2af&amp;id=67cdf15008" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+  
+Want a weekly digest of these blog posts? <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+    
+    <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_67757ca4ed0f508d954bcb2af_67cdf15008" tabindex="-1" value=""></div>
+    <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+    </div>
+</form>
+</div>
+
+
+
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="https://jvns.ca/blog/2014/01/04/4-paths-to-being-a-kernel-hacker/" data-via="b0rk" data-counturl="https://jvns.ca/blog/2014/01/04/4-paths-to-being-a-kernel-hacker/">Tweet</a>
+</div>
+<p class="meta">
+   
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2014/01/12/public-speaking/" title="Previous Post: You should give talks. They will be awesome. Here&#39;s why!">You should give talks. They will be awesome. Here&#39;s why!</a>
+  
+   
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2014/01/03/what-my-kernel-doesnt-do/" title="Next Post: Some things my kernel can&#39;t do">Some things my kernel can&#39;t do</a>
+  
+</p>
+</footer>
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; 2017 Julia Evans. </span>
+<span>If you like this, you may like <a href="http://www.uliaea.ca">Ulia Ea</a>. <br>
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+
