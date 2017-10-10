@@ -1,51 +1,152 @@
-# Site Info
-title:              "|| y ||"
-description:        "Machine learning, statistics, and rumblings of Python programming"
-google_verify:      gOgaM4dnfNijpSpdApTBA1oNkmE47-F0GUNZR8lonu4 # Put your Google Verification here
-google_analytics:   UA-49727693-9 # Put your Google Analytics code
 
-# Author Info
-author_name:        "Pankesh Bamotra" # Your name here
-author_email:       pankesh.bamotra@gmail.com # Your email here
-author_gravatar:    2b9be954572fd988e8a68279a27b9718 # Your Gravatar md5 hash here for logo
-twitter_username:   _pbamotra_ # Your Twitter username here
-github_username:    pbamotra # Your GitHub username here
+# The name of your website.
+name: "|| y ||"
+tagline: Simplify
 
-# Site Settings
-baseurl:            "" # Base URL must end WITHOUT a slash, default: ""
-permalink:          /notes/:title # Post permalink
-timezone:           America/Los_Angeles # https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
-mathjax:            true  # enables support for mathjax - set to false to disable
+description:
 
-# Site Build
-highlighter:        rouge
-markdown:           kramdown
+  # Description of your site. This will show up in google.
+  meta: ynorm, YNORM, ||y||, |y| is Pankesh Bamotra's personal blog on machine learning, statistics, and ramblings about Python programming.
+
+  # Description of your site. This will show up on the front page.
+  subtitle: #
+
+author:
+  name: Pankesh Bamotra
+
+  # Necessary for contact page
+  email: pankesh.bamotra@gmail.com 
+
+  # Optional text (html) to display after author name. Leave empty if you don't
+  # want it.
+  info:
+
+url: http://ynorm.com
+baseurl: ""
+
+# language attribute in <html> element.
+lang: en
+
+# FROM THIS POINT ON EVERYTHING IS OPTIONAL
+
+##############
+# APPEREANCE #
+##############
+
+# If you want to show the subtitle anywhere else than the front page, use
+# {% include subtitle.html %} to include it anywhere you want.
+show-subtitle: false
+display-social-icons: true
+# If you want social links to open in a new tab, set this as true
+social-icons-open-newtab: true
+
+footer-text: Pankesh Bamotra (pankesh dot bamotra at gmail dot com)
+
+# Preferably 64px in height. Leave empty = disable.
+logo-image: # /img/logo.png
+
+# Toolbar color for Chrome on Android.
+theme-color-attr: "#00f0ff"
+
+# Color of Microsoft live Tile.
+ms-tile-color: "#00f0ff"
+
+# Color used throughout the theme. Format: R, G, B.
+theme-color: 0, 240, 255 # Original: 0, 240, 255
+
+# Text color used throughout the theme. Format: R, G, B.
+text-color: 0, 0, 0 # Original: 0, 0, 0
+
+# Background color used throughout the theme. Format: R, G, B.
+# Note: if you change the background color AND you use cover images, you should
+#       also change the CSS gradient in "_includes\gradient.css" to match the
+#       background color. Edit and copy it from here:
+#       http://www.colorzilla.com/gradient-editor/#ffffff+0,ffffff+100&0+0,1+100
+background-color: 255, 255, 255 # Original: 255, 255, 255
+
+display-author-post-page: true
+display-author-front-page: true
+
+# http://alanwsmith.com/jekyll-liquid-date-formatting-examples
+date_format: "%b %-d, %Y"
+
+# Minimal screen-width after which the navigation will change position from
+# vertical to horizontal.
+nav-breaking-point: 520px
+
+# Number of posts on each page.
+paginate: 3
+
+# Display links for the previous and next post on post pages.
+display-next-prev-post: false
+
+# Leave empty if you don't want comments on post pages.
+disqus-shortname:
+
+
+################
+# SOCIAL ICONS #
+################
+
+# Use a complete url here, including http:// and such. Requiring just usernames
+# has been considered, but this is way more customizable.
+twitter:
+youtube:
+instagram: https://instagram.com/pbamotra
+tumblr:
+facebook:
+google-plus:
+reddit:
+soundcloud:
+medium:
+linkedin: https://www.linkedin.com/in/pbamotra/
+github: https://github.com/pbamotra
+behance:
+codepen:
+dribbble:
+trello:
+stack-overflow:
+bitcoin:
+paypal:
+
+
+#####################
+# CUSTOMIZABLE TEXT #
+#####################
+
+# Useful for translating into other languages.
+
+var_on_the_web: Find me on
+var_read: Read # Text after each post summary on the homepage.
+var_newer: Newer
+var_older: Older
+var_next_post: Next post
+var_previous_post: Previous post
+var_less_than_a_minute_read: Less than a minute read
+var_min_read: min read # Text after reading time. Example: 5 min read.
+var_post_by: Post by
+var_guest_post_by: Guest post by
+var_your_email: Your email
+var_your_message: Your message
+
+
+##################
+# BUILD SETTINGS #
+##################
+
+# You don't have to change these.
+
+exclude: [vendor]
+highlighter: rouge
 kramdown:
-    input:          GFM
-sass:
-    style:          :compressed
-
-# Other Params
-include:            [ "robots.txt" ]
-exclude:            [ "LICENSE", "README.md", "CNAME", "vendor", "Gemfile" ]
-gems:
-  - jekyll-sitemap
-
-
-
+  input: GFM
+paginate_path: "/page-:num/"
+permalink: pretty
 defaults:
   -
     scope:
-      path:         ""
+      path: ""
+      type: "posts"
     values:
-      layout:       "null"
-  -
-    scope:
-      type:         "pages"
-    values:
-      layout:       "page"
-  -
-    scope:
-      type:         "posts"
-    values:
-      layout:       "post"
+      layout: "post"
+      excerpt_separator: "<!--more-->"
