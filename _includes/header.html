@@ -3,7 +3,7 @@
     {% if site.logo-image %}
       <img alt="{{ site.name }}" src="{{ site.baseurl }}{{ site.logo-image }}">
     {% else %}
-      {% if page.layout == 'page' %}
+      {% if page.layout == 'page' or page.layout == 'post' %}
         &#x2190; Home
       {% else %}
         {{ site.name }} 
