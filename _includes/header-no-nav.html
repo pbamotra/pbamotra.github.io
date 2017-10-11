@@ -3,7 +3,11 @@
     {% if site.logo-image %}
       <img alt="{{ site.name }}" src="{{ site.baseurl }}{{ site.logo-image }}">
     {% else %}
-      {{ site.name }} &#x2190; Home
+      {% if page.layout == 'page' %}
+        &#x2190; Home
+      {% else %}
+        {{ site.name }} 
+      {% endif %}
     {% endif %}
   </a>
 </header>
