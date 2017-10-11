@@ -40,7 +40,7 @@ display-social-icons: false
 # If you want social links to open in a new tab, set this as true
 social-icons-open-newtab: true
 
-footer-text: Pankesh Bamotra (pankesh dot bamotra at gmail dot com)
+footer-text: Pankesh Bamotra • 2017
 
 # Preferably 64px in height. Leave empty = disable.
 logo-image: # /img/logo.png
