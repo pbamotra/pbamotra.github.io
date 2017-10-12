@@ -28,7 +28,7 @@ In computer science theory, entropy is one of the most studied topics. Thanks to
 
 $$H(X) = - \sum_{x}P(x)\hspace{0.2cm}log_{2}\left(\hspace{0.1cm}P(x)\right)$$
 
-Intuitively, entropy gives us the lower bound on the number of bits required to optimally encode each observation of x. However, it must be kept in mind that we don't get to know what the optimal encoding is! The choice of use logarithm base 2 comes from information theory literature leading to entropy's unit as bits.
+Intuitively, entropy gives us the lower bound on the number of bits required to optimally encode each observation of x [^1]. However, it must be kept in mind that we don't get to know what the optimal encoding is! The choice of use logarithm base 2 comes from information theory literature leading to entropy's unit as bits.
 
 ### KL divergence and its relationship with entropy
 
@@ -66,4 +66,5 @@ For a large number of samples drawn from the true distribution we have $$\frac{1
 
 These results have been used in variational inference theory and the most recent examples are Variational Autoencoders. The discussion about VAEs is reserved for another post. But you can read about them in this [Tutorial on Variational Autoencoders](https://arxiv.org/pdf/1606.05908.pdf) by [Carl Doersch](http://www.carldoersch.com/).
 
+[^1]: [CMU 15-359: Elements of Information Theory](http://www.cs.cmu.edu/~venkatg/teaching/ITCS-spr2013/notes/15359-2009-lecture25.pdf){:target="_blank"}
 <sub>Cover credit: <a href="https://www.flickr.com/photos/shonk/7537733822/">shonk</a> via <a href="https://visualhunt.com/re/59119f">Visual Hunt</a> / <a href="http://creativecommons.org/licenses/by-nc-nd/2.0/"> CC BY-NC-ND</a></sub>
